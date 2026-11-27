@@ -170,7 +170,7 @@ pub fn talk_xroar(port: u16, breakpoints: Vec<u16>, asked: &Receiver<Ask>, tell:
             None => asked.recv().unwrap_or(Ask::Finish),
         };
         match ask {
-            Ask::Amiga(_) => {}
+            Ask::Amiga(_) | Ask::Accesses(_) => {}
             Ask::Breakpoints(addresses) => {
                 gdb.set(0, &set, &addresses)?;
                 set = addresses;
@@ -414,7 +414,7 @@ pub fn talk_hatari(mut console: Console, child_id: u32, breakpoints: Vec<u16>, a
             None => asked.recv().unwrap_or(Ask::Finish),
         };
         match ask {
-            Ask::Amiga(_) => {}
+            Ask::Amiga(_) | Ask::Accesses(_) => {}
             Ask::Breakpoints(addresses) => {
                 set = addresses;
                 set_all(&mut console, &set, &watches)?;
@@ -518,7 +518,7 @@ pub fn talk_next(link: Box<dyn Link>, program: NextProgram, breakpoints: Vec<u16
         match ask {
             // Breakpoints go in as it carries on; dezogif can't change them while it runs.
             Ask::Breakpoints(addresses) => set = addresses,
-            Ask::Watches(_) | Ask::Pause | Ask::Amiga(_) => {}
+            Ask::Watches(_) | Ask::Accesses(_) | Ask::Pause | Ask::Amiga(_) => {}
             Ask::CarryOn | Ask::Step | Ask::StepOver => {
                 let (one, two, originals) = if ask == Ask::CarryOn {
                     (None, None, dzrp.set_breakpoints(&set)?)

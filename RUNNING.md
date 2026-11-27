@@ -43,6 +43,28 @@ through its binary monitor) can also:
 - show their screen as text in the machine's own character set;
 - give back the BASIC program in memory as a listing, and take an edited one back without a reset.
 
+### The trainer, and the debug console port
+
+Run on, Trainer… (for the built-in Spectrum, ZX80, ZX81, Jupiter Ace, Atari 2600 and Vectrex, and for a machine in
+a core) finds where a game keeps a number: Start takes a snapshot, then Changed, Not changed, Went up, Went down or
+Equals narrows the addresses by what happened since. An address can be frozen at a value (written back every
+frame, with the box open or not, kept for the program) or, on the built-in machines, have its writes blocked. A
+core's memory is reached through the helper's `read_memory` and `write_memory`, so there a value can only be
+written back each frame.
+
+Each built-in machine has a debug console port, which a real machine ignores writes to: bytes a program writes
+there appear in the Output panel a line at a time (a new line, a carriage return or a 0 ends one), named for
+the machine, as "Spectrum: score 120".
+
+| Machine | Write to | Example |
+| --- | --- | --- |
+| ZX Spectrum, ZX80, ZX81, Jupiter Ace | port $BB | `out ($BB),a` |
+| Atari 2600 | address $2D (no TIA register) | `sta $2D` |
+| Vectrex | address $C000 (nothing on the bus) | `sta $C000` |
+
+How To Code for the Spectrum's startup.asm has a `DEBUG "text"` macro that does this. The teaching machines and
+the machines in cores have no console port.
+
 ## Assembler source
 
 Source for the Z80, 6502, 6809 or 68000 (told from its highlighting language) is assembled when it's run, with

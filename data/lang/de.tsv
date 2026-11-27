@@ -11191,3 +11191,126 @@ yesterday	gestern
 {} (proposed)	{} (vorgeschlagen)
 {} is too large to review here.	{} ist zu groß, um hier durchgesehen zu werden.
 {} isn't a text file, so a change to it can't be reviewed as text.	{} ist keine Textdatei, daher kann eine Änderung daran nicht als Text durchgesehen werden.
+ by the instruction at ${pc:0digits$X}	 durch den Befehl bei ${pc:0digits$X}
+, decrypted	, entschlüsselt
+, stored twice, written once	, doppelt gespeichert, einmal geschrieben
+16-bit now	jetzt 16 Bit
+A Kickstart, the Amiga's built-in software	Ein Kickstart, die eingebaute Software des Amiga
+A core's memory can only have the value written back each frame; its writes can't be stopped	Im Speicher eines Cores kann nur jedes Bild der Wert zurückgeschrieben werden; seine Schreibzugriffe lassen sich nicht anhalten
+AROS (PUAE's A1200 model)	AROS (A1200-Modell von PUAE)
+AROS is a free copy of the Amiga's system, built into PUAE. It runs most programs that keep to the rules, but not every game or demo: those want a real Kickstart.	AROS ist eine freie Nachbildung des Amiga-Systems, in PUAE eingebaut. Es führt die meisten Programme aus, die sich an die Regeln halten, aber nicht jedes Spiel und jede Demo: Diese wollen ein echtes Kickstart.
+Add by hand	Von Hand hinzufügen
+Address	Adresse
+Addresses left: {count}	Verbleibende Adressen: {count}
+Before	Vorher
+Block writes	Schreibzugriffe blockieren
+Breakpoints ({}) and watchpoints ({})	Haltepunkte ({}) und Watchpoints ({})
+Changed	Geändert
+Choose Kickstart files	Kickstart-Dateien auswählen
+Choose Kickstart files…	Kickstart-Dateien auswählen…
+Copying {shown}…	{shown} wird kopiert…
+Does every step that isn't ticked yet	Führt jeden Schritt aus, der noch nicht abgehakt ist
+Downloading what F9 needs…	Was F9 braucht, wird heruntergeladen…
+Equals	Gleich
+F9 can run Amiga programs in Limoniter's window. This checks what that needs and does whatever is still missing, in one go.	F9 kann Amiga-Programme im Fenster von Limoniter ausführen. Dies prüft, was dafür nötig ist, und erledigt alles, was noch fehlt, in einem Rutsch.
+F9 is set, but PUAE still has no Kickstart: choose Kickstart files, or use AROS.	F9 ist eingerichtet, aber PUAE hat noch kein Kickstart: Wählen Sie Kickstart-Dateien aus oder nutzen Sie AROS.
+F9 runs Amiga programs in Limoniter's window	F9 führt Amiga-Programme im Fenster von Limoniter aus
+Frame {frame}; {instructions} instructions since the last stop	Bild {frame}; {instructions} Befehle seit dem letzten Halt
+Freeze	Einfrieren
+Freeze at	Einfrieren bei
+Freezing writes the value back every frame. Block writes stops the machine writing to the address at all.	Einfrieren schreibt den Wert in jedem Bild zurück. Schreibzugriffe blockieren verhindert, dass die Maschine überhaupt an die Adresse schreibt.
+Frozen addresses	Eingefrorene Adressen
+Go to in memory	Im Speicher anzeigen
+Holds this address at the value, written back every frame	Hält diese Adresse auf dem Wert und schreibt ihn in jedem Bild zurück
+Holds this address while it's ticked	Hält diese Adresse, solange das Häkchen gesetzt ist
+Installs the tools, asks for a Kickstart or uses AROS, and sets F9 to run Amiga programs here	Installiert die Werkzeuge, fragt nach einem Kickstart oder nutzt AROS und stellt F9 so ein, dass es hier Amiga-Programme ausführt
+Installs what F9 needs to run Amiga programs in Limoniter's window, Kickstart included, in one go	Installiert alles, was F9 braucht, um Amiga-Programme im Fenster von Limoniter auszuführen, einschließlich Kickstart, in einem Rutsch
+It isn't a Kickstart: it doesn't start the way one does.	Das ist kein Kickstart: Es startet nicht so, wie eines startet.
+It isn't a Kickstart: those are 256 KB or 512 KB, and this is {length} bytes.	Das ist kein Kickstart: Diese sind 256 KB oder 512 KB groß, und dies hat {length} Bytes.
+It isn't a Kickstart: those are 256 KB or 512 KB, and this is {} bytes.	Das ist kein Kickstart: Diese sind 256 KB oder 512 KB groß, und dies hat {} Bytes.
+It's Kickstart {version}.{revision}, but not the size that one is ({} bytes), so it's damaged or not a whole ROM.	Es ist Kickstart {version}.{revision}, hat aber nicht die passende Größe ({} Bytes), ist also beschädigt oder kein vollständiges ROM.
+It's a Kickstart, version {version}.{revision}, but not one PUAE looks for (it takes 1.1 to 3.1 for the A500, A600, A1200 and CD32).	Es ist ein Kickstart, Version {version}.{revision}, aber keines, das PUAE sucht (es nimmt 1.1 bis 3.1 für A500, A600, A1200 und CD32).
+It's an encrypted Amiga Forever ROM, and its rom.key isn't beside it or in Amiga Forever's Shared/rom folder. Copy rom.key next to it and try again.	Es ist ein verschlüsseltes ROM von Amiga Forever, und seine rom.key liegt weder daneben noch im Ordner Shared/rom von Amiga Forever. Kopieren Sie rom.key daneben und versuchen Sie es erneut.
+It's an encrypted Amiga Forever ROM, and the rom.key found for it doesn't open it.	Es ist ein verschlüsseltes ROM von Amiga Forever, und das dafür gefundene rom.key öffnet es nicht.
+It's ready, using Kickstart 1.3 (A500, A1000, A2000) (PUAE's A500 model). Press F9 in an Amiga program to run it here.	Es ist bereit und nutzt Kickstart 1.3 (A500, A1000, A2000) (A500-Modell von PUAE). Drücken Sie F9 in einem Amiga-Programm, um es hier auszuführen.
+It's ready, using {}. Press F9 in an Amiga program to run it here.	Es ist bereit und nutzt {}. Drücken Sie F9 in einem Amiga-Programm, um es hier auszuführen.
+Keeps the addresses that hold this number now (decimal, or hex with $ before it)	Behält die Adressen, die jetzt diese Zahl enthalten (dezimal, oder hexadezimal mit $ davor)
+Keeps the addresses whose value is bigger than in the last snapshot	Behält die Adressen, deren Wert größer ist als im letzten Snapshot
+Keeps the addresses whose value is different from the last snapshot	Behält die Adressen, deren Wert sich vom letzten Snapshot unterscheidet
+Keeps the addresses whose value is smaller than in the last snapshot	Behält die Adressen, deren Wert kleiner ist als im letzten Snapshot
+Keeps the addresses whose value is the same as in the last snapshot	Behält die Adressen, deren Wert gleich ist wie im letzten Snapshot
+Kept for this program, and held whenever it runs, with this box open or not.	Wird für dieses Programm gespeichert und bei jedem Start gehalten, ob dieses Feld offen ist oder nicht.
+Lives	Leben
+Looking for	Gesucht
+Machine memory	Maschinenspeicher
+Not changed	Nicht geändert
+Nothing is frozen.	Nichts ist eingefroren.
+Now	Jetzt
+On or off	Ein oder aus
+One or several at once, such as Amiga Forever's ROMs. Their names don't matter: what's in them is looked at	Eines oder mehrere auf einmal, etwa die ROMs von Amiga Forever. Auf ihre Namen kommt es nicht an: Es wird geprüft, was in ihnen steckt
+Opens the machine's memory, as it is now, at this address	Öffnet den Speicher der Maschine, wie er jetzt ist, an dieser Adresse
+PUAE needs a Kickstart ROM, or AROS, which is free: File, Run on, Set up the Amiga does either.	PUAE braucht ein Kickstart-ROM oder AROS, das frei ist: Datei, Ausführen auf, Amiga einrichten erledigt beides.
+Press Start, do something in the game that changes the number (lose a life), then narrow the addresses down by what happened. Repeat until a few are left, then freeze one.	Drücken Sie Start, tun Sie im Spiel etwas, das die Zahl ändert (ein Leben verlieren), und grenzen Sie die Adressen dann danach ein, was passiert ist. Wiederholen Sie das, bis nur wenige übrig sind, und frieren Sie dann eine ein.
+Read	Lesen
+Read or write	Lesen oder Schreiben
+Run a program on a built-in machine, or in a core (File, Run on), and this finds and holds the numbers it keeps in memory: lives, energy, a score.	Führen Sie ein Programm auf einer eingebauten Maschine oder in einem Core aus (Datei, Ausführen auf), und dies findet und hält die Zahlen, die es im Speicher behält: Leben, Energie, einen Punktestand.
+Set up	Einrichten
+Set up the Amiga	Amiga einrichten
+Set up the Amiga…	Amiga einrichten…
+Stopped by watchpoint {n}: read of ${address:0digits$X} ({bits} bits){at}, reading ${new:0width$X} (it was ${old:0width$X})	Angehalten durch Watchpoint {n}: Lesen von ${address:0digits$X} ({bits} Bit){at}, gelesen wurde ${new:0width$X} (vorher ${old:0width$X})
+Stopped by watchpoint {n}: write to ${address:0digits$X} ({bits} bits){at}, ${old:0width$X} becoming ${new:0width$X}	Angehalten durch Watchpoint {n}: Schreiben nach ${address:0digits$X} ({bits} Bit){at}, aus ${old:0width$X} wird ${new:0width$X}
+Stopped on its hit number {count}	Angehalten bei Treffer Nummer {count}
+Stops the machine's own writes to this address, rather than putting the value back each frame	Hält die eigenen Schreibzugriffe der Maschine auf diese Adresse an, statt den Wert in jedem Bild zurückzuschreiben
+Takes a snapshot of the machine's memory, with every address a candidate	Macht einen Snapshot des Maschinenspeichers, wobei jede Adresse infrage kommt
+The Amiga's debugger can't judge the value	Der Debugger des Amiga kann den Wert nicht beurteilen
+The Amiga's debugger watches writes only	Der Debugger des Amiga überwacht nur Schreibzugriffe
+The PUAE core, which is the Amiga	Der PUAE-Core, also der Amiga
+The first {MOST_LISTED} are listed: narrow them down to see more.	Die ersten {MOST_LISTED} werden aufgelistet: Grenzen Sie ein, um mehr zu sehen.
+The value a frozen address is held at; left empty, it's held at the value it has now	Der Wert, auf dem eine eingefrorene Adresse gehalten wird; bleibt das Feld leer, wird der aktuelle Wert gehalten
+The value it's held at	Der Wert, auf dem sie gehalten wird
+The {processor}'s own reads of instructions and its dummy reads can't be told from reads of data cheaply, so only writes can be watched	Die eigenen Lesezugriffe des {processor} auf Befehle und seine Blindlesezugriffe lassen sich nicht günstig von Datenzugriffen unterscheiden, daher lassen sich nur Schreibzugriffe überwachen
+This emulator's debugger can't judge the value	Der Debugger dieses Emulators kann den Wert nicht beurteilen
+This emulator's debugger can't watch reads	Der Debugger dieses Emulators kann Lesezugriffe nicht überwachen
+This machine runs in a core, which can only have the value written back each frame: its writes can't be blocked.	Diese Maschine läuft in einem Core, in dem der Wert nur in jedem Bild zurückgeschrieben werden kann: Ihre Schreibzugriffe lassen sich nicht blockieren.
+Trainer	Trainer
+Trainer for {machine}	Trainer für {machine}
+Trainer…	Trainer…
+Type a number, such as 3 or $FF.	Geben Sie eine Zahl ein, etwa 3 oder $FF.
+Type an address in hex and a value, such as 5C00 and 3.	Geben Sie eine Adresse in Hex und einen Wert ein, etwa 5C00 und 3.
+Use AROS (free, no Kickstart needed)	AROS verwenden (frei, kein Kickstart nötig)
+Watchpoints: stop when memory is read or written	Watchpoints: anhalten, wenn Speicher gelesen oder geschrieben wird
+Went down	Gesunken
+Went up	Gestiegen
+Which bits of the value count, e.g. $0F; empty for all of them	Welche Bits des Werts zählen, z. B. $0F; leer für alle
+a 16-bit number (big-endian)	eine 16-Bit-Zahl (Big-Endian)
+a 16-bit number (little-endian)	eine 16-Bit-Zahl (Little-Endian)
+a name, such as Lives	ein Name, etwa Leben
+a number	eine Zahl
+a value	ein Wert
+address, label or a..b	Adresse, Label oder a..b
+an 8-bit number	eine 8-Bit-Zahl
+an address, in hex	eine Adresse in Hex
+any value	beliebiger Wert
+as an {model}	als {model}
+changed	geändert
+differs from	unterscheidet sich von
+each time	jedes Mal
+equals	gleich
+every Nth time	jedes N-te Mal
+falls	fällt
+its value now	sein Wert jetzt
+limoniter-retro, the helper that runs it	limoniter-retro, der Helfer, der es ausführt
+mask	Maske
+never: only count	nie: nur zählen
+on the Nth time	beim N-ten Mal
+reached {count} times	{count} Mal erreicht
+rises	steigt
+stop	anhalten
+value	Wert
+will be downloaded	wird heruntergeladen
+{b} bits	{b} Bit
+{name} memory	Speicher: {name}
+{} (PUAE's {} model)	{} (PUAE-Modell {})
+{} (from {})	{} (aus {})
+{}. Copied as {}: the original isn't moved or changed.	{}. Kopiert als {}: Das Original wird nicht verschoben oder verändert.
+✔ AROS (free, built in)	✔ AROS (frei, eingebaut)

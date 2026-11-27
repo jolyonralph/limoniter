@@ -1,8 +1,9 @@
 //! Running programs on an emulated Amiga (FS-UAE, WinUAE or Copperline): the model, the Kickstart ROM it starts
 //! with, and the folder that's its hard drive. For FS-UAE and WinUAE the program goes in the folder with an
 //! S/Startup-Sequence that runs it, and the emulator is started from a configuration file made for the run, so the
-//! Amiga boots straight into it. Copperline boots straight into a program itself (its --run), so it's only given
-//! the machine, in a configuration of its own beside the program.
+//! Amiga boots straight into it. PUAE, in Limoniter's window, is given the same folder (see `retro::write_game`).
+//! Copperline boots straight into a program itself (its --run), so it's only given the machine, in a configuration
+//! of its own beside the program. Kickstarts are told by what's in them here, for all of them, Set up the Amiga too.
 //!
 //! Kickstart is Commodore's (now Cloanto's and Hyperion's), so Limoniter never includes or copies one: the person
 //! points at their own (Amiga Forever's, or FS-UAE's or WinUAE's ROM folder), or the emulator's own AROS, a free
@@ -181,8 +182,15 @@ const KNOWN: &[(u32, &str, &[Model], usize)] = &[
     (0x1E62_D4A5, "Kickstart 3.1 (40.60), CD32", &[], 9),
 ];
 
-/// Cloanto's ROMs (Amiga Forever's) start with this, and the rest is mixed with the bytes of rom.key beside them.
-const CLOANTO: &[u8] = b"AMIROMTYPE1";
+// Telling Kickstarts by what's in them, for every emulator: WinUAE, FS-UAE and Copperline are pointed at the file
+// (`identify_file`, `find_kickstarts_in`, `best_for`), and Set up the Amiga copies them into PUAE's system folder
+// under its own names (amiga_setup.rs, which builds on `open_rom` and `rom_files_in`).
+
+/// What an encrypted ROM from Amiga Forever (Cloanto's) starts with. The rest is the ROM mixed with the bytes of
+/// the rom.key kept with it: the plain XOR UAE's rommgr.c undoes.
+pub const ENCRYPTED_MARK: &[u8; 11] = b"AMIROMTYPE1";
+pub const SIZE_256: usize = 256 * 1024;
+pub const SIZE_512: usize = 512 * 1024;
 
 fn crc32(bytes: &[u8]) -> u32 {
     let mut crc = 0xFFFF_FFFFu32;
@@ -195,31 +203,105 @@ fn crc32(bytes: &[u8]) -> u32 {
     !crc
 }
 
-/// What a file is, if it's a Kickstart: a known one by its CRC, or any other by its header (where it starts, and
-/// its version). An encrypted one of Amiga Forever's is read with the key given.
-pub fn identify(bytes: &[u8], key: Option<&[u8]>) -> Option<Kickstart> {
-    let plain;
-    let bytes = match bytes.strip_prefix(CLOANTO) {
-        Some(mixed) => {
-            let key = key.filter(|k| !k.is_empty())?;
-            plain = mixed.iter().enumerate().map(|(i, b)| b ^ key[i % key.len()]).collect::<Vec<u8>>();
-            &plain[..]
+/// Whether bytes start like a Kickstart: 0x1111 or 0x1114, then the 68000's JMP (4EF9) into the ROM.
+pub fn has_header(bytes: &[u8]) -> bool {
+    bytes.len() >= 4 && bytes[0] == 0x11 && (bytes[1] == 0x11 || bytes[1] == 0x14) && bytes[2] == 0x4E && bytes[3] == 0xF9
+}
+
+fn xor_with(body: &[u8], key: &[u8]) -> Vec<u8> {
+    body.iter().zip(key.iter().cycle()).map(|(b, k)| b ^ k).collect()
+}
+
+/// A Kickstart's bytes, opened: decrypted, a doubled 256 KB image cut back to one copy, and the version and
+/// revision exec has in it at offset 12.
+#[derive(Debug)]
+pub struct OpenedRom {
+    pub bytes: Vec<u8>,
+    pub version: u16,
+    pub revision: u16,
+    pub decrypted: bool,
+    pub doubled: bool,
+}
+
+/// Opens what may be a Kickstart, or says plainly why it isn't one. `keys` are the contents of any rom.key files
+/// found for it, tried in turn if it's encrypted: the one that gives a Kickstart's header is the right one.
+pub fn open_rom(bytes: &[u8], keys: &[Vec<u8>]) -> Result<OpenedRom, String> {
+    let (mut plain, decrypted) = if let Some(body) = bytes.strip_prefix(ENCRYPTED_MARK.as_slice()) {
+        if keys.iter().all(|k| k.is_empty()) {
+            return Err(crate::i18n::tr("It's an encrypted Amiga Forever ROM, and its rom.key isn't beside it or in Amiga Forever's Shared/rom folder. Copy rom.key next to it and try again.").into());
         }
-        None => bytes,
+        match keys.iter().filter(|k| !k.is_empty()).map(|k| xor_with(body, k)).find(|candidate| has_header(candidate)) {
+            Some(opened) => (opened, true),
+            None => return Err(crate::i18n::tr("It's an encrypted Amiga Forever ROM, and the rom.key found for it doesn't open it.").into()),
+        }
+    } else {
+        (bytes.to_vec(), false)
     };
-    if !matches!(bytes.len(), 0x40000 | 0x80000) {
-        return None;
+    if plain.len() != SIZE_256 && plain.len() != SIZE_512 {
+        return Err(crate::i18n::tf!("It isn't a Kickstart: those are 256 KB or 512 KB, and this is {} bytes.", plain.len()));
     }
-    let crc = crc32(bytes);
+    if !has_header(&plain) {
+        return Err(crate::i18n::tr("It isn't a Kickstart: it doesn't start the way one does.").into());
+    }
+    // A 256 KB ROM that's been stored twice to fill 512 KB is taken once.
+    let doubled = plain.len() == SIZE_512 && plain[..SIZE_256] == plain[SIZE_256..];
+    if doubled {
+        plain.truncate(SIZE_256);
+    }
+    let version = u16::from_be_bytes([plain[12], plain[13]]);
+    let revision = u16::from_be_bytes([plain[14], plain[15]]);
+    Ok(OpenedRom { bytes: plain, version, revision, decrypted, doubled })
+}
+
+/// Where a rom.key might be for a file: beside it, and in a Shared/rom folder next to or above it (Amiga Forever's),
+/// then in any of the folders in `more`.
+pub fn key_files_for(file: &Path, more: &[PathBuf]) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    let mut add = |folder: &Path| {
+        let key = folder.join("rom.key");
+        if key.is_file() && !found.contains(&key) {
+            found.push(key);
+        }
+    };
+    if let Some(folder) = file.parent() {
+        add(folder);
+        add(&folder.join("Shared").join("rom"));
+        if let Some(above) = folder.parent() {
+            add(above);
+            add(&above.join("Shared").join("rom"));
+        }
+    }
+    for folder in more {
+        add(folder);
+    }
+    found
+}
+
+/// Reads a file and opens it, if it's a Kickstart. A file that isn't one of a Kickstart's sizes (plain or
+/// encrypted) is refused without reading it.
+pub fn open_rom_file(file: &Path, more_keys: &[PathBuf]) -> Result<OpenedRom, String> {
+    let length = std::fs::metadata(file).map_err(|e| crate::i18n::tf!("It couldn't be read: {e}"))?.len();
+    if !rom_sized(length) {
+        return Err(crate::i18n::tf!("It isn't a Kickstart: those are 256 KB or 512 KB, and this is {length} bytes."));
+    }
+    let bytes = std::fs::read(file).map_err(|e| crate::i18n::tf!("It couldn't be read: {e}"))?;
+    let keys: Vec<Vec<u8>> = if bytes.starts_with(ENCRYPTED_MARK) { key_files_for(file, more_keys).iter().filter_map(|f| std::fs::read(f).ok()).collect() } else { Vec::new() };
+    open_rom(&bytes, &keys)
+}
+
+/// Whether a file of this many bytes could be a Kickstart, plain or encrypted.
+fn rom_sized(length: u64) -> bool {
+    let mark = ENCRYPTED_MARK.len();
+    [SIZE_256, SIZE_512, SIZE_256 + mark, SIZE_512 + mark].iter().any(|size| *size as u64 == length)
+}
+
+/// What an opened Kickstart is: a known one by its CRC, or any other by its version.
+fn describe(rom: &OpenedRom) -> Kickstart {
+    let crc = crc32(&rom.bytes);
     if let Some((_, name, suits, rank)) = KNOWN.iter().find(|(c, ..)| *c == crc) {
-        return Some(Kickstart { name: name.to_string(), suits: suits.to_vec(), rank: *rank });
+        return Kickstart { name: name.to_string(), suits: suits.to_vec(), rank: *rank };
     }
-    // 11 11 (or 11 14) 4E F9 and a jump into the ROM: a Kickstart, with its version and revision at 12.
-    if !(bytes.starts_with(&[0x11, 0x11, 0x4E, 0xF9]) || bytes.starts_with(&[0x11, 0x14, 0x4E, 0xF9])) {
-        return None;
-    }
-    let version = u16::from_be_bytes([bytes[12], bytes[13]]);
-    let revision = u16::from_be_bytes([bytes[14], bytes[15]]);
+    let (version, revision) = (rom.version, rom.revision);
     let (release, suits): (&str, &[Model]) = match version {
         33 => ("1.2", &[Model::A500]),
         34 => ("1.3", &[Model::A500]),
@@ -229,85 +311,134 @@ pub fn identify(bytes: &[u8], key: Option<&[u8]>) -> Option<Kickstart> {
         45..=47 => ("3.1.4 or later", &[]),
         _ => ("of a version not known here", &[]),
     };
-    Some(Kickstart { name: format!("Kickstart {release} ({version}.{revision})"), suits: suits.to_vec(), rank: 5 })
+    Kickstart { name: format!("Kickstart {release} ({version}.{revision})"), suits: suits.to_vec(), rank: 5 }
 }
 
-/// Reads a file, if it's a Kickstart: Amiga Forever's rom.key, beside it, unlocks one of its own.
+/// What some bytes are, if they're a Kickstart. An encrypted one of Amiga Forever's is read with the keys given.
+#[cfg(test)]
+fn identify(bytes: &[u8], keys: &[Vec<u8>]) -> Option<Kickstart> {
+    open_rom(bytes, keys).ok().map(|rom| describe(&rom))
+}
+
+/// Reads a file, if it's a Kickstart: Amiga Forever's rom.key, beside it or in a Shared/rom near it, unlocks one of
+/// its own.
 pub fn identify_file(path: &Path) -> Option<Kickstart> {
-    let size = std::fs::metadata(path).ok()?.len();
-    let cloanto = CLOANTO.len() as u64;
-    if !matches!(size, 0x40000 | 0x80000) && !matches!(size.checked_sub(cloanto), Some(0x40000 | 0x80000)) {
-        return None;
-    }
-    let bytes = std::fs::read(path).ok()?;
-    let key = if bytes.starts_with(CLOANTO) { path.parent().and_then(|p| std::fs::read(p.join("rom.key")).ok()) } else { None };
-    identify(&bytes, key.as_deref())
+    open_rom_file(path, &[]).ok().map(|rom| describe(&rom))
 }
 
-/// Where Kickstarts are usually kept: Amiga Forever's shared ROM folder, FS-UAE's and WinUAE's, and folders of
-/// Amiga things among where emulators are put.
-pub fn kickstart_folders() -> Vec<PathBuf> {
+/// The usual places for Kickstarts on this computer, each with how deep to look in it.
+pub fn usual_places() -> Vec<(PathBuf, usize)> {
     let env = |name: &str| std::env::var_os(name).map(PathBuf::from);
-    let mut folders = Vec::new();
-    let mut documents = Vec::new();
-    if let Some(public) = env("PUBLIC") {
-        documents.push(public.join("Documents"));
-    }
-    if let Some(home) = env("USERPROFILE").or_else(|| env("HOME")) {
-        documents.push(home.join("Documents"));
-        folders.push(home.join("FS-UAE").join("Kickstarts"));
-        folders.push(home.join("Downloads"));
-        folders.push(home.join(".local/share/fs-uae/Kickstarts"));
-    }
-    for docs in documents {
-        folders.push(docs.join("Amiga Files").join("Shared").join("rom"));
-        folders.push(docs.join("FS-UAE").join("Kickstarts"));
-    }
-    let mut roots: Vec<PathBuf> = Vec::new();
-    for variable in ["ProgramFiles", "ProgramFiles(x86)"] {
-        if let Some(root) = env(variable) {
-            folders.push(root.join("WinUAE").join("Roms"));
-            folders.push(root.join("Cloanto").join("Amiga Forever").join("Shared").join("rom"));
+    places(env("USERPROFILE").or_else(|| env("HOME")).as_deref(), env("PUBLIC").as_deref())
+}
+
+/// The usual places for Kickstarts, given the home folder and Windows' Public one, each with how deep to look in
+/// it: Amiga Forever's shared ROM folder, FS-UAE's and WinUAE's, folders of Amiga things among where emulators are
+/// put, and Downloads, Documents and the Desktop. Those last are looked at shallowly since they hold much else.
+/// Only folders that are there are given, each once.
+pub fn places(home: Option<&Path>, public: Option<&Path>) -> Vec<(PathBuf, usize)> {
+    let mut out: Vec<(PathBuf, usize)> = Vec::new();
+    for base in [home, public].into_iter().flatten() {
+        for shallow in ["Downloads", "Documents", "Desktop", "Public/Documents"] {
+            out.push((base.join(shallow), 1));
+        }
+        for deep in [
+            "Documents/FS-UAE/Kickstarts",
+            "FS-UAE/Kickstarts",
+            ".local/share/fs-uae/Kickstarts",
+            "Documents/WinUAE/Roms",
+            "Documents/WinUAE/ROMs",
+            "WinUAE/Roms",
+            "Documents/Amiga Files/Shared/rom",
+            "Documents/Amiga Files/WinUAE/Roms",
+            "Amiga Files/Shared/rom",
+            "Amiga Forever/Shared/rom",
+            "Documents/Amiga Forever/Shared/rom",
+        ] {
+            out.push((base.join(deep), 2));
         }
     }
+    // Amiga Forever's own, for every user of this computer, and WinUAE's beside its program.
+    for fixed in [
+        "C:/Users/Public/Documents/Amiga Files/Shared/rom",
+        "C:/Users/Public/Documents/Amiga Files/WinUAE/Roms",
+        "C:/Program Files/Cloanto/Amiga Forever/Shared/rom",
+        "C:/Program Files (x86)/Cloanto/Amiga Forever/Shared/rom",
+        "C:/Program Files/WinUAE/Roms",
+        "C:/Program Files (x86)/WinUAE/Roms",
+    ] {
+        out.push((PathBuf::from(fixed), 2));
+    }
+    // A folder of emulators often has one for the Amiga, with its ROMs in it or in a folder of their own.
+    let mut roots: Vec<PathBuf> = Vec::new();
     if cfg!(windows) {
         roots.extend(["C:\\Emulators", "D:\\Emulators", "E:\\Emulators", "C:\\Games"].map(PathBuf::from));
     }
-    if let Some(home) = env("USERPROFILE").or_else(|| env("HOME")) {
+    if let Some(home) = home {
         roots.push(home.join("Emulators"));
         roots.push(home.join("emulators"));
     }
     for root in roots {
         let Ok(entries) = std::fs::read_dir(&root) else { continue };
-        for folder in entries.flatten().map(|e| e.path()).filter(|p| p.is_dir()) {
+        let mut folders: Vec<PathBuf> = entries.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+        folders.sort();
+        for folder in folders {
             let name = folder.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
             if ["amiga", "uae", "kick"].iter().any(|hint| name.contains(hint)) {
-                for inside in ["", "rom", "roms", "Roms", "kickstart", "kickstarts", "Kickstarts"] {
-                    folders.push(if inside.is_empty() { folder.clone() } else { folder.join(inside) });
-                }
+                out.push((folder, 2));
             }
         }
     }
-    folders.dedup();
-    folders
+    // Each once, even where the same folder is reached by two names (Emulators and emulators, where case is ignored).
+    let mut seen: Vec<PathBuf> = Vec::new();
+    out.retain(|(p, _)| {
+        let Ok(real) = std::fs::canonicalize(p) else { return false };
+        let new = real.is_dir() && !seen.contains(&real);
+        seen.push(real);
+        new
+    });
+    out
 }
 
-/// The Kickstarts in some folders (not inside their folders), with what each is.
-pub fn find_kickstarts_in(folders: &[PathBuf]) -> Vec<(PathBuf, Kickstart)> {
-    let mut found = Vec::new();
-    for folder in folders {
-        let Ok(entries) = std::fs::read_dir(folder) else { continue };
-        let mut files: Vec<PathBuf> = entries.flatten().map(|e| e.path()).filter(|p| p.is_file()).collect();
-        files.sort();
-        for file in files {
-            if let Some(kickstart) = identify_file(&file)
-                && !found.iter().any(|(p, _)| *p == file)
-            {
-                found.push((file, kickstart));
+/// The folders to look for a rom.key in, for ROMs found in some places: the places, and a Shared/rom in each.
+pub fn key_folders(places: &[(PathBuf, usize)]) -> Vec<PathBuf> {
+    places.iter().map(|(p, _)| p.clone()).chain(places.iter().map(|(p, _)| p.join("Shared").join("rom"))).collect()
+}
+
+fn files_in(folder: &Path, depth: usize, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(folder) else { return };
+    let mut entries: Vec<std::fs::DirEntry> = entries.flatten().collect();
+    entries.sort_by_key(|e| e.file_name());
+    for entry in entries {
+        let path = entry.path();
+        let Ok(kind) = entry.file_type() else { continue };
+        if kind.is_dir() {
+            if depth > 1 {
+                files_in(&path, depth - 1, out);
             }
+        } else if kind.is_file()
+            && entry.metadata().is_ok_and(|meta| rom_sized(meta.len()))
+            && !out.contains(&path)
+        {
+            out.push(path);
         }
     }
-    found
+}
+
+/// The files in some places that are a Kickstart's size, plain or encrypted, each once. Depth 1 is the files in a
+/// place; 2 those in its folders too.
+pub fn rom_files_in(places: &[(PathBuf, usize)]) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for (folder, depth) in places {
+        files_in(folder, *depth, &mut files);
+    }
+    files
+}
+
+/// The Kickstarts in some places, with what each is.
+pub fn find_kickstarts_in(places: &[(PathBuf, usize)]) -> Vec<(PathBuf, Kickstart)> {
+    let keys = key_folders(places);
+    rom_files_in(places).into_iter().filter_map(|file| open_rom_file(&file, &keys).ok().map(|rom| (file, describe(&rom)))).collect()
 }
 
 /// The best Kickstart found for a model.
@@ -322,6 +453,18 @@ fn amiga_name(name: &str) -> String {
     if safe.is_empty() { "program".to_string() } else { safe }
 }
 
+/// Makes the Amiga's hard drive for a program in `folder`: a folder of its own, `dh0`, holding the program under a
+/// name AmigaDOS takes and an S/Startup-Sequence that runs it, so the Amiga boots straight into it. WinUAE and
+/// FS-UAE are given it as DH0:, and so is PUAE, in Limoniter's window, which takes a folder as a hard drive.
+pub fn hard_drive(folder: &Path, run: &Runnable) -> std::io::Result<PathBuf> {
+    let drive = folder.join("dh0");
+    std::fs::create_dir_all(drive.join("s"))?;
+    let name = amiga_name(&run.name);
+    std::fs::write(drive.join(&name), run.bytes.as_slice())?;
+    std::fs::write(drive.join("s").join("startup-sequence"), format!("{name}\n"))?;
+    Ok(drive)
+}
+
 /// The name of the configuration Copperline is given for a run, beside the program or disk.
 pub const COPPERLINE_CONFIG: &str = "copperline.toml";
 
@@ -332,7 +475,7 @@ pub const COPPERLINE_CONFIG: &str = "copperline.toml";
 pub fn prepare(emulator: &str, folder: &Path, run: &Runnable, settings: &Settings) -> Result<PathBuf, String> {
     let failed = |e: std::io::Error| crate::i18n::tf!("The Amiga's drive couldn't be made.\n\n{e}");
     let model = settings.model;
-    let kickstart = settings.kickstart(model).map(Path::to_path_buf).or_else(|| best_for(model, &find_kickstarts_in(&kickstart_folders())).map(|(p, _)| p));
+    let kickstart = settings.kickstart(model).map(Path::to_path_buf).or_else(|| best_for(model, &find_kickstarts_in(&usual_places())).map(|(p, _)| p));
     if let Some(rom) = &kickstart
         && !rom.is_file()
     {
@@ -347,14 +490,7 @@ pub fn prepare(emulator: &str, folder: &Path, run: &Runnable, settings: &Setting
             std::fs::write(&disk, run.bytes.as_slice()).map_err(failed)?;
             (None, Some(disk))
         }
-        _ => {
-            let drive = folder.join("dh0");
-            std::fs::create_dir_all(drive.join("s")).map_err(failed)?;
-            let name = amiga_name(&run.name);
-            std::fs::write(drive.join(&name), run.bytes.as_slice()).map_err(failed)?;
-            std::fs::write(drive.join("s").join("startup-sequence"), format!("{name}\n")).map_err(failed)?;
-            (Some(drive), None)
-        }
+        _ => (Some(hard_drive(folder, run).map_err(failed)?), None),
     };
     let (file, text) = match emulator {
         "winuae" => {
@@ -464,7 +600,7 @@ pub fn settings_rows(ui: &mut Ui, hint: &dyn Fn(&str) -> RichText, emulator: &st
             settings.set_kickstart(model, Some(chosen));
         }
         if ui.button(crate::i18n::tr("Find")).on_hover_text(crate::i18n::tr("Looks for Kickstarts where Amiga Forever, FS-UAE and WinUAE keep them, and chooses the best for each model")).clicked() {
-            let found = find_kickstarts_in(&kickstart_folders());
+            let found = find_kickstarts_in(&usual_places());
             let mut chosen = 0;
             for each in Model::ALL {
                 if let Some((path, _)) = best_for(each, &found) {
@@ -525,22 +661,71 @@ mod tests {
         bytes
     }
 
-    #[test]
-    fn kickstarts_are_told_by_their_headers_and_amiga_forevers_are_unlocked() {
-        let k13 = identify(&rom(34, 5, 0x40000), None).unwrap();
-        assert_eq!((k13.name.as_str(), k13.suits.as_slice()), ("Kickstart 1.3 (34.5)", &[Model::A500][..]));
-        assert_eq!(identify(&rom(37, 175, 0x80000), None).unwrap().suits, [Model::A500Plus, Model::A500]);
-        assert!(identify(&rom(40, 68, 0x80000), None).unwrap().suits.is_empty(), "a 3.1 not known by its CRC isn't taken for an A1200's");
-        assert_eq!(identify(&vec![0; 0x40000], None), None, "not a ROM");
-        assert_eq!(identify(&rom(34, 5, 1000), None), None, "not a ROM's size");
-        // Amiga Forever's: its mark, then the ROM mixed with rom.key.
-        let key = b"not really the key".to_vec();
-        let plain = rom(34, 5, 0x40000);
-        let mut locked = CLOANTO.to_vec();
+    fn encrypt(plain: &[u8], key: &[u8]) -> Vec<u8> {
+        let mut locked = ENCRYPTED_MARK.to_vec();
         locked.extend(plain.iter().enumerate().map(|(i, b)| b ^ key[i % key.len()]));
-        assert_eq!(identify(&locked, Some(&key)), Some(k13));
-        assert_eq!(identify(&locked, None), None, "without its key it can't be read");
+        locked
+    }
+
+    #[test]
+    fn kickstarts_are_told_by_their_headers() {
+        let k13 = identify(&rom(34, 5, 0x40000), &[]).unwrap();
+        assert_eq!((k13.name.as_str(), k13.suits.as_slice()), ("Kickstart 1.3 (34.5)", &[Model::A500][..]));
+        assert_eq!(identify(&rom(37, 175, 0x80000), &[]).unwrap().suits, [Model::A500Plus, Model::A500]);
+        assert!(identify(&rom(40, 68, 0x80000), &[]).unwrap().suits.is_empty(), "a 3.1 not known by its CRC isn't taken for an A1200's");
+        assert_eq!(identify(&vec![0; 0x40000], &[]), None, "not a ROM");
+        assert_eq!(identify(&rom(34, 5, 1000), &[]), None, "not a ROM's size");
+        // A 256 KB ROM stored twice is opened as one, and told the same.
+        let doubled = open_rom(&rom(34, 5, 0x40000).repeat(2), &[]).unwrap();
+        assert!(doubled.doubled && doubled.bytes.len() == SIZE_256 && (doubled.version, doubled.revision) == (34, 5));
+        assert_eq!(identify(&rom(34, 5, 0x40000).repeat(2), &[]), Some(k13));
+        // Why something isn't one is said.
+        assert!(open_rom(&[0u8; 1000], &[]).unwrap_err().contains("1000 bytes"));
+        assert!(open_rom(&vec![0u8; SIZE_256], &[]).unwrap_err().contains("doesn't start"));
         assert_eq!(crc32(b"123456789"), 0xCBF4_3926);
+    }
+
+    #[test]
+    fn an_encrypted_rom_is_opened_with_its_key() {
+        let plain = rom(34, 5, 0x40000);
+        let key = b"not really the key".to_vec();
+        let locked = encrypt(&plain, &key);
+        // The right key among others opens it; it's then told as the plain one is.
+        let opened = open_rom(&locked, &[vec![9, 9, 9], key.clone()]).unwrap();
+        assert!(opened.decrypted && opened.bytes == plain);
+        assert_eq!(identify(&locked, std::slice::from_ref(&key)), identify(&plain, &[]));
+        // No key, or a wrong one, is said plainly.
+        assert!(open_rom(&locked, &[]).unwrap_err().contains("rom.key isn't beside"));
+        assert!(open_rom(&locked, &[vec![1, 2, 3]]).unwrap_err().contains("doesn't open it"));
+        assert_eq!(identify(&locked, &[]), None, "without its key it can't be read");
+    }
+
+    #[test]
+    fn the_key_is_found_beside_the_rom_or_in_shared_rom() {
+        let folder = std::env::temp_dir().join(format!("limoniter-kickstart-keys-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        let rom = rom(34, 5, SIZE_256);
+        let key = vec![0x55, 0xAA, 0x0F];
+        std::fs::create_dir_all(folder.join("Shared").join("rom")).unwrap();
+        std::fs::create_dir_all(folder.join("Next")).unwrap();
+        std::fs::create_dir_all(folder.join("far").join("away").join("Elsewhere")).unwrap();
+        std::fs::write(folder.join("Shared").join("rom").join("rom.key"), &key).unwrap();
+        std::fs::write(folder.join("Shared").join("rom").join("amiga-os-130.rom"), encrypt(&rom, &key)).unwrap();
+        std::fs::write(folder.join("Next").join("kick.rom"), encrypt(&rom, &key)).unwrap();
+        let far = folder.join("far").join("away").join("Elsewhere").join("kick.rom");
+        std::fs::write(&far, encrypt(&rom, &key)).unwrap();
+        // Beside it.
+        assert!(open_rom_file(&folder.join("Shared").join("rom").join("amiga-os-130.rom"), &[]).unwrap().decrypted);
+        assert_eq!(identify_file(&folder.join("Shared").join("rom").join("amiga-os-130.rom")).unwrap().name, "Kickstart 1.3 (34.5)");
+        // In a Shared/rom next to its folder's parent.
+        assert!(open_rom_file(&folder.join("Next").join("kick.rom"), &[]).unwrap().decrypted);
+        // Nowhere near one, until it's told where to look.
+        assert!(open_rom_file(&far, &[]).is_err());
+        assert!(open_rom_file(&far, &[folder.join("Shared").join("rom")]).unwrap().decrypted);
+        // A file that isn't a Kickstart's size isn't read, and says so.
+        std::fs::write(folder.join("small.rom"), [0u8; 1000]).unwrap();
+        assert!(open_rom_file(&folder.join("small.rom"), &[]).unwrap_err().contains("1000 bytes"));
+        let _ = std::fs::remove_dir_all(&folder);
     }
 
     #[test]
@@ -628,16 +813,41 @@ mod tests {
     }
 
     #[test]
-    fn kickstarts_are_found_in_a_folder() {
-        let folder = std::env::temp_dir().join(format!("limoniter-kickstarts-{}", std::process::id()));
+    fn kickstarts_are_found_in_the_usual_places() {
+        let home = std::env::temp_dir().join(format!("limoniter-kickstarts-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        let roms = home.join("Documents/FS-UAE/Kickstarts");
+        std::fs::create_dir_all(roms.join("old")).unwrap();
+        std::fs::create_dir_all(home.join("Downloads/deeper")).unwrap();
+        std::fs::create_dir_all(home.join("Emulators/WinUAE 5/Roms")).unwrap();
+        std::fs::write(roms.join("amiga-os-130.rom"), rom(34, 5, 0x40000)).unwrap();
+        std::fs::write(roms.join("notes.txt"), "not a ROM").unwrap();
+        std::fs::write(roms.join("blank.rom"), vec![0u8; 0x40000]).unwrap();
+        // A folder of ROMs is looked in a folder deep; Downloads only at the top, since it holds much else.
+        std::fs::write(roms.join("old/kick204.rom"), rom(37, 175, 0x80000)).unwrap();
+        std::fs::write(home.join("Downloads/deeper/kick31.rom"), rom(40, 68, 0x80000)).unwrap();
+        // An Amiga emulator's folder among the emulators.
+        std::fs::write(home.join("Emulators/WinUAE 5/Roms/kick12.rom"), rom(33, 180, 0x40000)).unwrap();
+        let places = places(Some(&home), None);
+        assert!(places.contains(&(home.join("Downloads"), 1)) && places.contains(&(roms.clone(), 2)) && places.contains(&(home.join("Emulators/WinUAE 5"), 2)), "{places:?}");
+        assert!(!places.iter().any(|(p, _)| p.ends_with("Desktop")), "only folders that are there");
+        let found = find_kickstarts_in(&places);
+        let files: Vec<&Path> = found.iter().map(|(p, _)| p.as_path()).collect();
+        assert_eq!(files, [roms.join("amiga-os-130.rom").as_path(), roms.join("old/kick204.rom").as_path(), home.join("Emulators/WinUAE 5/Roms/kick12.rom").as_path()]);
+        assert_eq!(best_for(Model::A500, &found).map(|(p, _)| p), Some(roms.join("amiga-os-130.rom")));
+        assert_eq!(best_for(Model::A500Plus, &found).map(|(p, _)| p), Some(roms.join("old/kick204.rom")));
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn a_programs_hard_drive_starts_it() {
+        let folder = std::env::temp_dir().join(format!("limoniter-amiga-drive-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&folder);
-        std::fs::create_dir_all(&folder).unwrap();
-        std::fs::write(folder.join("amiga-os-130.rom"), rom(34, 5, 0x40000)).unwrap();
-        std::fs::write(folder.join("notes.txt"), "not a ROM").unwrap();
-        std::fs::write(folder.join("blank.rom"), vec![0u8; 0x40000]).unwrap();
-        let found = find_kickstarts_in(std::slice::from_ref(&folder));
-        assert_eq!(found.len(), 1);
-        assert_eq!(best_for(Model::A500, &found).map(|(p, _)| p), Some(folder.join("amiga-os-130.rom")));
+        let program = Runnable { machine: crate::running::Machine::Amiga, format: Format::Hunk, name: "Copper bars (v2).exe".into(), bytes: Arc::new(vec![0, 0, 3, 0xF3]) };
+        let drive = hard_drive(&folder, &program).unwrap();
+        assert_eq!(drive, folder.join("dh0"));
+        assert_eq!(std::fs::read_to_string(drive.join("s/startup-sequence")).unwrap(), "Copperbarsv2\n");
+        assert_eq!(std::fs::read(drive.join("Copperbarsv2")).unwrap(), [0, 0, 3, 0xF3]);
         let _ = std::fs::remove_dir_all(&folder);
     }
 }

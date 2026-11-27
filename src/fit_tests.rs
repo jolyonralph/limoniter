@@ -32,6 +32,7 @@ const BOXES: &[(&str, Command)] = &[
     ("Compilers", Command::Compilers),
     ("Assemblers", Command::ChooseAssembler),
     ("Amiga crunchers and music", Command::AmigaTools),
+    ("Set up the Amiga", Command::AmigaSetup),
     ("New Amiga C project", Command::AmigaNewProject),
     ("Amiga NDK", Command::AmigaNdk),
     ("ST music and packers", Command::StTools),

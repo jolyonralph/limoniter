@@ -62,6 +62,17 @@ pub(super) enum SessionKind {
     Retro { machine: Box<super::retro_host::RetroRun>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle> },
 }
 
+/// Watchpoints in an emulator that reports only where it stopped: what was last sent, the watchpoints it was made
+/// from (for judging the stop), and whether the last thing asked was to carry on (rather than a step or a pause,
+/// whose stops aren't watchpoints').
+#[derive(Default)]
+pub(super) struct Watching {
+    pub rich: bool,
+    pub sent: Vec<(u16, u16, u8)>,
+    pub list: Vec<crate::watchpoints::Resolved>,
+    pub carried_on: bool,
+}
+
 /// A program from assembler source being debugged in an emulator: the document, the debugger, and the
 /// breakpoints it was last given.
 pub(super) struct Debugging {
@@ -70,6 +81,8 @@ pub(super) struct Debugging {
     pub breakpoints: Vec<u16>,
     /// The addresses whose writing stops it, as last sent.
     pub watches: Vec<u16>,
+    /// How watchpoints are kept where the emulator can read and write-watch them (ZEsarUX, VICE).
+    pub watching: Watching,
     /// Memory as it was at the stop before this one, and at this one.
     pub memory_before: Option<std::sync::Arc<Vec<u8>>>,
     pub memory_now: Option<std::sync::Arc<Vec<u8>>>,
@@ -98,6 +111,8 @@ pub(super) struct Running {
     pub st: super::st_host::StRuns,
     /// The helper and core being installed from the Where box, and what's said about it.
     pub install: super::retro_host::Install,
+    /// The Set up the Amiga box, when it's open (see `amiga_setup_host`).
+    pub amiga_setup: Option<Box<super::amiga_setup_host::SetupBox>>,
 }
 
 impl Running {
@@ -684,7 +699,7 @@ impl Limoniter {
                     ctx.request_repaint();
                 }
             });
-            let debug = Some(Box::new(Debugging { doc_id, remote, breakpoints, watches: Vec::new(), memory_before: None, memory_now: None, z80: false }));
+            let debug = Some(Box::new(Debugging { doc_id, remote, breakpoints, watches: Vec::new(), watching: Watching::default(), memory_before: None, memory_now: None, z80: false }));
             self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child: Some(child), emulator, port, log, debug }, started: Instant::now() });
             return Ok(());
         }
@@ -698,7 +713,7 @@ impl Limoniter {
                     }
                 });
                 let z80 = kind == crate::remote_debug::Emulator::Zesarux;
-                Some(Box::new(Debugging { doc_id, remote, breakpoints, watches: Vec::new(), memory_before: None, memory_now: None, z80 }))
+                Some(Box::new(Debugging { doc_id, remote, breakpoints, watches: Vec::new(), watching: Watching { rich: matches!(kind, crate::remote_debug::Emulator::Zesarux | crate::remote_debug::Emulator::Vice), ..Watching::default() }, memory_before: None, memory_now: None, z80 }))
             }
             _ => None,
         };
@@ -742,7 +757,7 @@ impl Limoniter {
                 ctx.request_repaint();
             }
         });
-        let debug = Some(Box::new(Debugging { doc_id, remote, breakpoints, watches: Vec::new(), memory_before: None, memory_now: None, z80: true }));
+        let debug = Some(Box::new(Debugging { doc_id, remote, breakpoints, watches: Vec::new(), watching: Watching::default(), memory_before: None, memory_now: None, z80: true }));
         let log = std::env::temp_dir().join("limoniter-next-cable.log");
         self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child: None, emulator: &emulators::NEXT_CABLE, port: None, log, debug }, started: Instant::now() });
         Ok(())
@@ -862,9 +877,12 @@ impl Limoniter {
             let lines = code.as_ref().map(|code| listing_lines.iter().filter(|(_, l)| code.breakpoints.contains(l)).map(|(n, _)| *n).collect()).unwrap_or_default();
             machine.set_basic_breakpoints(Some(lines));
         }
-        if let (Some(assembly), Some(code)) = (&assembly, &code) {
+        if let (Some(assembly), Some(code)) = (&assembly, &mut code) {
             machine.set_conditions(crate::debug_panel::conditions_by_address(code, assembly), Some(std::sync::Arc::new(assembly.symbols.clone())));
-            machine.set_write_watches(crate::debug_panel::write_addresses(code, Some(&assembly.symbols)));
+            machine.set_watchpoints(crate::debug_panel::watchpoints_for(code, Some(&assembly.symbols)));
+            machine.set_hit_rules(crate::debug_panel::hit_rules_by_address(code, assembly));
+            let counts = machine.hit_counts().clone();
+            crate::debug_panel::show_hit_counts(code, assembly, &|a| counts.get(&a).copied());
         }
         if error.is_none()
             && let Err(problem) = machine.catch_up()
@@ -962,6 +980,7 @@ impl Limoniter {
             if machine.paused && error.is_none() && machine.basic_stopped.is_none() {
                 let mut stop = crate::remote_debug::Stop::z80(machine.registers());
                 stop.reason = machine.stop_reason.clone();
+                stop.counts = Some(machine.debug_counts());
                 let memory = machine.memory();
                 match code.as_mut() {
                     Some(code) => {
@@ -974,7 +993,7 @@ impl Limoniter {
                 }
             }
             if let (Some(code), true) = (code.as_mut(), assembly.is_some()) {
-                crate::debug_panel::breakpoints(ui, code, &|line| line_texts.get(&line).cloned().unwrap_or_default(), true, true);
+                crate::debug_panel::breakpoints(ui, code, &|line| line_texts.get(&line).cloned().unwrap_or_default(), &crate::debug_panel::Support::all());
             }
             if let Some((t_states, runs)) = machine.profile() {
                 let (routines, lines, total) = crate::profiler::summarise(&t_states, &runs, assembly.as_deref());
@@ -1208,15 +1227,40 @@ impl Limoniter {
             debugging.remote.ask(crate::remote_debug::Ask::Breakpoints(breakpoints));
         }
         let labels = assembly.as_ref().map(|a| &a.symbols);
-        let watches = code.as_ref().map(|c| crate::debug_panel::write_addresses(c, labels)).unwrap_or_default();
-        if debugging.watches != watches {
-            debugging.watches = watches.clone();
-            debugging.remote.ask(crate::remote_debug::Ask::Watches(watches));
+        let list = code.as_ref().map(|c| crate::debug_panel::watchpoints_for(c, labels)).unwrap_or_default();
+        if debugging.watching.rich {
+            // ZEsarUX and VICE stop at the places; the rules are judged here, from the memory at each stop.
+            let places: Vec<(u16, u16, u8)> = list.iter().map(|w| (w.start as u16, w.end.min(0xFFFF) as u16, match w.access { crate::watchpoints::Access::Read => 1, crate::watchpoints::Access::Write => 2, crate::watchpoints::Access::Either => 3 })).collect();
+            if debugging.watching.sent != places {
+                debugging.watching.sent = places.clone();
+                debugging.remote.ask(crate::remote_debug::Ask::Accesses(places));
+            }
+            debugging.watching.list = list;
+        } else {
+            let watches: Vec<u16> = list.iter().filter(|w| w.access == crate::watchpoints::Access::Write).flat_map(|w| (w.start..=w.end.min(w.start + 0x4000)).map(|a| a as u16)).collect();
+            if debugging.watches != watches {
+                debugging.watches = watches.clone();
+                debugging.remote.ask(crate::remote_debug::Ask::Watches(watches));
+            }
         }
         // A stop at a breakpoint whose condition isn't true carries straight on.
         if newly_stopped && let Some(stop) = debugging.remote.stopped.clone() {
             debugging.memory_before = debugging.memory_now.take();
             debugging.memory_now = stop.memory.clone();
+            // A stop at a watched place that its rule doesn't want carries straight on; one it does says which.
+            let at_breakpoint = debugging.breakpoints.contains(&stop.pc);
+            if debugging.watching.rich
+                && debugging.watching.carried_on
+                && !at_breakpoint
+                && !debugging.watching.list.is_empty()
+                && let (Some(now), Some(before)) = (stop.memory.clone(), debugging.memory_before.clone())
+            {
+                let (b, n) = (|a: u32| before.get(a as usize).copied(), |a: u32| now.get(a as usize).copied());
+                match crate::watchpoints::judge_between(&debugging.watching.list, &b, &n, false) {
+                    Some(hit) => debugging.remote.stopped.as_mut().into_iter().for_each(|s| s.reason = Some(hit.reason(None, 4))),
+                    None => debugging.remote.ask(crate::remote_debug::Ask::CarryOn),
+                }
+            }
             let condition = match (&code, &assembly) {
                 (Some(code), Some(assembly)) => crate::debug_panel::conditions_by_address(code, assembly).get(&stop.pc).cloned(),
                 _ => None,
@@ -1235,6 +1279,13 @@ impl Limoniter {
         let problem = debugging.remote.problem.clone();
         let before = debugging.memory_before.clone();
         let z80 = debugging.z80;
+        // ZEsarUX and VICE can watch reads and writes, and the rest is judged here at each stop; their breakpoints
+        // keep no hit counts or conditions beyond what is judged here.
+        let remote_support = if debugging.watching.rich {
+            crate::debug_panel::Support { conditions: z80, hit_rules: false, rules: Ok(()), reads: Ok(()), watchpoints: true }
+        } else {
+            crate::debug_panel::Support { conditions: z80, hit_rules: false, watchpoints: true, reads: Err(crate::i18n::tr("This emulator's debugger can't watch reads").into()), rules: Err(crate::i18n::tr("This emulator's debugger can't judge the value").into()) }
+        };
         let mut action = None;
         let mut pause = false;
         Panel::right("remote-debug").default_size(380.0).resizable(true).frame(egui::Frame::new().fill(theme::field()).inner_margin(egui::Margin::symmetric(8, 6))).show(ui, |ui| {
@@ -1259,14 +1310,16 @@ impl Limoniter {
                     }
                 }
                 if let (Some(code), true) = (code.as_mut(), assembly.is_some()) {
-                    crate::debug_panel::breakpoints(ui, code, &|line| line_texts.get(&line).cloned().unwrap_or_default(), z80, true);
+                    crate::debug_panel::breakpoints(ui, code, &|line| line_texts.get(&line).cloned().unwrap_or_default(), &remote_support);
                 }
             });
         });
         if pause {
+            debugging.watching.carried_on = false;
             debugging.remote.ask(crate::remote_debug::Ask::Pause);
         }
         if let Some(action) = action {
+            debugging.watching.carried_on = action == Debug::CarryOn;
             debugging.remote.ask(match action {
                 Debug::CarryOn => crate::remote_debug::Ask::CarryOn,
                 Debug::Step => crate::remote_debug::Ask::Step,
@@ -1323,6 +1376,7 @@ impl Limoniter {
         let installing = self.running.install.busy();
         let install_note = self.running.install.note.clone();
         let mut install: Option<crate::retro::Missing> = None;
+        let mut set_up_amiga = false;
         crate::fit::Dialog::new(crate::i18n::tr("Run on machine")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| match &shown {
             Some((file, machine, targets, _, missing)) => {
                 ui.label(crate::i18n::tf!("Where should {file} run? It's a {} program.", machine.name()));
@@ -1348,6 +1402,9 @@ impl Limoniter {
                                     && ui.add_enabled(!installing, egui::Button::new(words)).on_hover_text(crate::i18n::tr("Downloads it, as Get an emulator does, under Devices and emulators")).clicked()
                                 {
                                     install = Some(missing);
+                                }
+                                if matches!(target, Target::Retro(m) if *m == Machine::Amiga) && ui.button(crate::i18n::tr("Set up the Amiga\u{2026}")).on_hover_text(crate::i18n::tr("Installs the tools, asks for a Kickstart or uses AROS, and sets F9 to run Amiga programs here")).clicked() {
+                                    set_up_amiga = true;
                                 }
                             });
                         }
@@ -1423,6 +1480,9 @@ impl Limoniter {
         };
         if let Some(missing) = install {
             self.running.install.start(missing);
+        }
+        if set_up_amiga {
+            self.open_amiga_setup();
         }
         match *state {
             _ if manage => self.open_devices_box(),

@@ -132,6 +132,28 @@ IntHandler:
         ei
         reti
 
+; DEBUG "text": prints a line of text in Limoniter's Output panel, named for the machine ("Spectrum: score 120"), while
+; the program runs in Limoniter's own Spectrum. It writes the text to port $BB, which Limoniter's Spectrum
+; listens to and a real Spectrum (48K, 128K, +2 or +3) ignores, so it does nothing there, and no harm. All
+; registers are kept. The text follows the CALL, as data, so it costs the length of the text and five bytes:
+; take the DEBUG lines out of a release.
+        macro   DEBUG text
+        call    DebugPrint
+        db      text, 10, 0
+        endm
+
+DebugPrint:
+        ex      (sp),hl                 ; HL is the text, which follows the CALL; the stack keeps the old HL
+        push    af
+.next:  ld      a,(hl)
+        inc     hl
+        out     ($BB),a                 ; the debug console port, ending with the 0 after the new line
+        or      a
+        jr      nz,.next
+        pop     af
+        ex      (sp),hl                 ; the old HL back, and the return address is the end of the text
+        ret
+
 ; Is128 and LineTime. A 128K is one whose RAM at $C000 changes when another bank is paged in: a mark written
 ; there, a different bank paged, a second mark written, and the first bank paged back. On a 48K both marks go
 ; to the same byte (nothing answers port $7FFD).

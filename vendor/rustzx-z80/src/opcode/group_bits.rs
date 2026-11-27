@@ -25,7 +25,7 @@ pub fn execute_bits(cpu: &mut Z80, bus: &mut impl Z80Bus, prefix: Prefix) {
         let addr = cpu
             .regs
             .build_addr_with_offset(RegName16::HL.with_prefix(prefix), displacement);
-        let opcode = Opcode::from_byte(bus.read(cpu.regs.get_pc(), 3));
+        let opcode = Opcode::from_byte(bus.fetch(cpu.regs.get_pc(), 3));
         bus.wait_loop(cpu.regs.get_pc(), 2);
         cpu.regs.inc_pc();
         (opcode, BitOperand8::Indirect(addr))

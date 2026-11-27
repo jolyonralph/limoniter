@@ -81,7 +81,7 @@ pub fn execute_normal(cpu: &mut Z80, bus: &mut impl Z80Bus, opcode: Opcode, pref
                 U3::N2 => {
                     bus.wait_no_mreq(cpu.regs.get_ir(), 1);
                     // emulate read byte without pc shift
-                    let offset = bus.read(cpu.regs.get_pc(), 3) as i8;
+                    let offset = bus.fetch(cpu.regs.get_pc(), 3) as i8;
                     // preform jump if needed
                     if cpu.regs.dec_reg_8(RegName8::B) != 0 {
                         bus.wait_loop(cpu.regs.get_pc(), 5);
@@ -95,7 +95,7 @@ pub fn execute_normal(cpu: &mut Z80, bus: &mut impl Z80Bus, opcode: Opcode, pref
                 // [0b00011000] = 0x18
                 U3::N3 => {
                     // same rules as DJNZ
-                    let offset = bus.read(cpu.regs.get_pc(), 3) as i8;
+                    let offset = bus.fetch(cpu.regs.get_pc(), 3) as i8;
                     bus.wait_loop(cpu.regs.get_pc(), 5);
                     cpu.regs.shift_pc(offset);
                     cpu.regs.inc_pc();
@@ -105,7 +105,7 @@ pub fn execute_normal(cpu: &mut Z80, bus: &mut impl Z80Bus, opcode: Opcode, pref
                 // NZ [0b00100000], Z [0b00101000] NC [0b00110000] C [0b00111000]
                 U3::N4 | U3::N5 | U3::N6 | U3::N7 => {
                     // 0x20, 0x28, 0x30, 0x38
-                    let offset = bus.read(cpu.regs.get_pc(), 3) as i8;
+                    let offset = bus.fetch(cpu.regs.get_pc(), 3) as i8;
                     // y in range 4..7
                     let cnd = FlagsCondition::from_u3(U3::from_byte(opcode.y.as_byte() - 4, 0));
                     if cnd.eval(&cpu.regs) {
@@ -259,7 +259,7 @@ pub fn execute_normal(cpu: &mut Z80, bus: &mut impl Z80Bus, opcode: Opcode, pref
                     cpu.regs.get_hl()
                 } else {
                     // we have INC/DEC (IX/IY + d)
-                    let d = bus.read(cpu.regs.get_pc(), 3) as i8;
+                    let d = bus.fetch(cpu.regs.get_pc(), 3) as i8;
                     bus.wait_loop(cpu.regs.get_pc(), 5);
                     cpu.regs.inc_pc();
                     cpu.regs
@@ -327,7 +327,7 @@ pub fn execute_normal(cpu: &mut Z80, bus: &mut impl Z80Bus, opcode: Opcode, pref
                 LoadOperand8::Indirect(addr)
             };
             // Read const operand
-            let data = bus.read(cpu.regs.get_pc(), 3);
+            let data = bus.fetch(cpu.regs.get_pc(), 3);
             // if non-prefixed and there is no indirection
             if prefix != Prefix::None {
                 if let LoadOperand8::Indirect(_) = operand {
@@ -497,7 +497,7 @@ pub fn execute_normal(cpu: &mut Z80, bus: &mut impl Z80Bus, opcode: Opcode, pref
             let src_addr = if prefix == Prefix::None {
                 cpu.regs.get_hl()
             } else {
-                let d = bus.read(cpu.regs.get_pc(), 3) as i8;
+                let d = bus.fetch(cpu.regs.get_pc(), 3) as i8;
                 bus.wait_loop(cpu.regs.get_pc(), 5);
                 cpu.regs.inc_pc();
 
@@ -515,7 +515,7 @@ pub fn execute_normal(cpu: &mut Z80, bus: &mut impl Z80Bus, opcode: Opcode, pref
             let dst_addr = if prefix == Prefix::None {
                 cpu.regs.get_hl()
             } else {
-                let d = bus.read(cpu.regs.get_pc(), 3) as i8;
+                let d = bus.fetch(cpu.regs.get_pc(), 3) as i8;
                 bus.wait_loop(cpu.regs.get_pc(), 5);
                 cpu.regs.inc_pc();
                 cpu.regs
@@ -550,7 +550,7 @@ pub fn execute_normal(cpu: &mut Z80, bus: &mut impl Z80Bus, opcode: Opcode, pref
                 if prefix == Prefix::None {
                     bus.read(cpu.regs.get_hl(), 3)
                 } else {
-                    let d = bus.read(cpu.regs.get_pc(), 3) as i8;
+                    let d = bus.fetch(cpu.regs.get_pc(), 3) as i8;
                     bus.wait_loop(cpu.regs.get_pc(), 5);
                     cpu.regs.inc_pc();
                     let addr = cpu
@@ -720,7 +720,7 @@ pub fn execute_normal(cpu: &mut Z80, bus: &mut impl Z80Bus, opcode: Opcode, pref
         // [0b11ccc100] : C4; CC; D4; DC; E4; EC; F4; FC
         U2::N3 if opcode.z == U3::N4 => {
             let addr_l = cpu.fetch_byte(bus, 3);
-            let addr_h = bus.read(cpu.regs.get_pc(), 3);
+            let addr_h = bus.fetch(cpu.regs.get_pc(), 3);
             let addr = u16::from_le_bytes([addr_l, addr_h]);
             cpu.regs.set_mem_ptr(addr);
             if FlagsCondition::from_u3(opcode.y).eval(&cpu.regs) {
@@ -752,7 +752,7 @@ pub fn execute_normal(cpu: &mut Z80, bus: &mut impl Z80Bus, opcode: Opcode, pref
                         // [0b11001101] : CD
                         U2::N0 => {
                             let addr_l = cpu.fetch_byte(bus, 3);
-                            let addr_h = bus.read(cpu.regs.get_pc(), 3);
+                            let addr_h = bus.fetch(cpu.regs.get_pc(), 3);
                             let addr = u16::from_le_bytes([addr_l, addr_h]);
                             bus.wait_no_mreq(cpu.regs.get_pc(), 1);
                             cpu.regs.inc_pc();

@@ -601,6 +601,7 @@ impl Limoniter {
         let mut forget = None;
         let mut get_wanted: Option<(&'static crate::emulators::Emulator, crate::emulator_get::Way)> = None;
         let mut choose_helper = false;
+        let mut set_up_amiga = false;
         // A download that's finished: the emulator goes in the list, as Find emulators would add it.
         if let Some((emulator, result)) = state.download.as_ref().and_then(|(e, r)| r.try_recv().ok().map(|result| (*e, result))) {
             state.download = None;
@@ -764,8 +765,10 @@ impl Limoniter {
                     if !state.get_note.is_empty() {
                         ui.label(RichText::new(&state.get_note).color(theme::text_dim()));
                     }
-                    if let Some(super::retro_host::GetAsk::ChooseHelper) = super::retro_host::getting_section(ui, &mut state.retro) {
-                        choose_helper = true;
+                    match super::retro_host::getting_section(ui, &mut state.retro) {
+                        Some(super::retro_host::GetAsk::ChooseHelper) => choose_helper = true,
+                        Some(super::retro_host::GetAsk::SetUpAmiga) => set_up_amiga = true,
+                        None => {}
                     }
                 }
             }
@@ -791,6 +794,9 @@ impl Limoniter {
         }
         if let Some(machine) = f9_forget {
             self.forget_default(&machine);
+        }
+        if set_up_amiga {
+            self.open_amiga_setup();
         }
         if choose_helper
             && let Some(said) = self.choose_retro_helper()

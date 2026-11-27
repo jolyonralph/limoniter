@@ -709,6 +709,7 @@ pub(super) const RUN_ON: &[Entry] = &[
             Entry::Live("Machines", Live::Machines),
             Line,
             Item("Its memory", Command::MachineMemory),
+            Item("Trainer\u{2026}", Command::Trainer),
             Item("Its screen as text", Command::MachineScreen),
             Item("Take its BASIC program", Command::MachineBasicOut),
             Item("Put this listing into it", Command::MachineBasicIn),
@@ -724,6 +725,7 @@ pub(super) const RUN_ON: &[Entry] = &[
             Item("Profile in Hatari", Command::HatariProfile),
             Item("Make a bootable ST floppy\u{2026}", Command::StFloppy),
             Item("Devices and emulators\u{2026}", Command::ManageDevices),
+            Item("Set up the Amiga\u{2026}", Command::AmigaSetup),
         ];
 
 pub(super) const SEND_TO: &[Entry] = &[Entry::Live("Devices", Live::Devices), Line, Keyed("Send again", Command::SendAgain, "Ctrl+Alt+S"), Item("Manage devices\u{2026}", Command::ManageDevices)];
@@ -1481,6 +1483,7 @@ impl Limoniter {
             | Command::OpenZipProject
             | Command::OpenWebProject
             | Command::ManageDevices
+            | Command::AmigaSetup
             | Command::Themes
             | Command::Website
             | Command::AddOn(_)
@@ -1508,6 +1511,7 @@ impl Limoniter {
             | Command::RomPatches
             | Command::Entropy
             | Command::RegexTester
+            | Command::Trainer
             | Command::SchemaCheck
             | Command::FlashSettings
             | Command::SerialTerminal

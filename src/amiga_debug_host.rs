@@ -78,7 +78,7 @@ impl Limoniter {
                 ctx.request_repaint();
             }
         });
-        let debug = Some(Box::new(Debugging { doc_id, remote, breakpoints: Vec::new(), watches: Vec::new(), memory_before: None, memory_now: None, z80: false }));
+        let debug = Some(Box::new(Debugging { doc_id, remote, breakpoints: Vec::new(), watches: Vec::new(), watching: Default::default(), memory_before: None, memory_now: None, z80: false }));
         self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child: Some(child), emulator, port: Some(port), log, debug }, started: Instant::now() });
         Ok(())
     }
@@ -185,7 +185,7 @@ impl Limoniter {
                     }
                 }
                 if let (Some(code), true) = (code.as_mut(), assembly.is_some()) {
-                    crate::debug_panel::breakpoints(ui, code, &|line| line_texts.get(&line).cloned().unwrap_or_default(), true, true);
+                    crate::debug_panel::breakpoints(ui, code, &|line| line_texts.get(&line).cloned().unwrap_or_default(), &crate::debug_panel::Support { reads: Err(crate::i18n::tr("The Amiga's debugger watches writes only").into()), rules: Err(crate::i18n::tr("The Amiga's debugger can't judge the value").into()), ..crate::debug_panel::Support::all() });
                 }
             });
         });
@@ -272,7 +272,7 @@ mod tests {
         let assembly = app.running.assembled.as_ref().unwrap().assembly.clone();
         let (port, heard) = fake::fake_server(&assembly);
         let remote = RemoteDebug::start_amiga(port, Program::of(&assembly), app.amiga_breakpoints(doc_id), || {});
-        let debug = Some(Box::new(Debugging { doc_id, remote, breakpoints: Vec::new(), watches: Vec::new(), memory_before: None, memory_now: None, z80: false }));
+        let debug = Some(Box::new(Debugging { doc_id, remote, breakpoints: Vec::new(), watches: Vec::new(), watching: Default::default(), memory_before: None, memory_now: None, z80: false }));
         let emulator = emulators::by_id("fs-uae").unwrap();
         app.running.sessions.push(Session { target: "FS-UAE".into(), machine: Machine::Amiga, file: "t.exe".into(), kind: SessionKind::App { child: None, emulator, port: Some(port), log: PathBuf::new(), debug }, started: Instant::now() });
         let until = |app: &mut Limoniter, line: usize| {

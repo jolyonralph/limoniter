@@ -31,6 +31,11 @@ pub trait Z80Bus {
         self.wait_mreq(addr, clk);
         self.read_internal(addr)
     }
+    /// Reads a byte of an instruction (an opcode or what follows it) rather than data: as `read`, but a debugger
+    /// that watches data reads doesn't see it. (Added for Limoniter: read watchpoints.)
+    fn fetch(&mut self, addr: u16, clk: usize) -> u8 {
+        self.read(addr, clk)
+    }
     // Normal write to memory, contention may be applied
     fn write(&mut self, addr: u16, value: u8, clk: usize) {
         self.wait_mreq(addr, clk);

@@ -49,8 +49,19 @@ pub fn eval_wide(text: &str, wide: &Wide, labels: Option<&BTreeMap<String, i64>>
     parse(text, &seen, Some(wide))
 }
 
+/// As `eval_wide`, for a processor that keeps a word's low byte first, as the 6502 does.
+pub fn eval_wide_little(text: &str, wide: &Wide, labels: Option<&BTreeMap<String, i64>>) -> Result<i64, String> {
+    let none = |_: u16| 0;
+    let seen = Seen { registers: None, peek: &none, labels };
+    parse_in_order(text, &seen, Some(wide), true)
+}
+
 fn parse(text: &str, seen: &Seen, wide: Option<&Wide>) -> Result<i64, String> {
-    let mut parser = Parser { chars: text.chars().collect(), at: 0, seen, wide };
+    parse_in_order(text, seen, wide, false)
+}
+
+fn parse_in_order(text: &str, seen: &Seen, wide: Option<&Wide>, little: bool) -> Result<i64, String> {
+    let mut parser = Parser { chars: text.chars().collect(), at: 0, seen, wide, little };
     let value = parser.or()?;
     parser.space();
     if parser.at < parser.chars.len() {
@@ -64,6 +75,8 @@ struct Parser<'a, 'b> {
     at: usize,
     seen: &'a Seen<'b>,
     wide: Option<&'a Wide<'a>>,
+    /// Whether a word in a `Wide` memory has its low byte first.
+    little: bool,
 }
 
 impl Parser<'_, '_> {
@@ -214,8 +227,12 @@ impl Parser<'_, '_> {
             }
             if let Some(wide) = self.wide {
                 let byte = |i: u32| i64::from((wide.peek)((address as u32).wrapping_add(i)));
-                return Ok(if long {
+                return Ok(if long && self.little {
+                    byte(3) << 24 | byte(2) << 16 | byte(1) << 8 | byte(0)
+                } else if long {
                     byte(0) << 24 | byte(1) << 16 | byte(2) << 8 | byte(3)
+                } else if word && self.little {
+                    byte(1) << 8 | byte(0)
                 } else if word {
                     byte(0) << 8 | byte(1)
                 } else {
@@ -420,6 +437,9 @@ pub fn stopped(ui: &mut Ui, stop: &Stop, memory: Option<&[u8]>, before: Option<&
         if let Some(reason) = &stop.reason {
             ui.label(RichText::new(reason).color(theme::accent()).size(12.0));
         }
+        if let Some((frame, instructions)) = stop.counts {
+            ui.label(RichText::new(crate::i18n::tf!("Frame {frame}; {instructions} instructions since the last stop")).color(theme::text_faint()).size(11.5));
+        }
         let Some(r) = stop.z80 else {
             // Another processor's registers, as its emulator gives them.
             ui.label(mono(stop.words.join("   ")));
@@ -546,10 +566,88 @@ pub fn memory_section(ui: &mut Ui, typed: &mut String, hint: &str, start: &dyn F
     shown_at
 }
 
-/// The breakpoints, each with the condition it stops on, and the addresses whose writing stops it: shown whether
+/// What a debugger can do with breakpoints and watchpoints, so the panel offers what works and says why the rest
+/// doesn't.
+#[derive(Clone, Debug)]
+pub struct Support {
+    /// Conditions on breakpoints, and hit rules (the Nth time, every Nth, count only).
+    pub conditions: bool,
+    pub hit_rules: bool,
+    /// Whether watchpoints can be set at all.
+    pub watchpoints: bool,
+    /// Whether reads can be watched; if not, why.
+    pub reads: Result<(), String>,
+    /// Whether the value can be judged (a mask, equals, differs, changed, rises, falls); if not, why.
+    pub rules: Result<(), String>,
+}
+
+impl Support {
+    /// Everything: breakpoints with conditions and hit rules, and watchpoints on reads and writes with rules.
+    pub fn all() -> Support {
+        Support { conditions: true, hit_rules: true, watchpoints: true, reads: Ok(()), rules: Ok(()) }
+    }
+
+    /// As `all`, but reads can't be watched, for the stated reason.
+    pub fn writes_only(why: String) -> Support {
+        Support { reads: Err(why), ..Support::all() }
+    }
+}
+
+/// Why a 6502 or 6809 core's reads can't be watched: its instruction fetches and dummy reads look the same.
+pub fn reads_unseen(processor: &str) -> String {
+    crate::i18n::tf!("The {processor}'s own reads of instructions and its dummy reads can't be told from reads of data cheaply, so only writes can be watched")
+}
+
+/// A drop-down of choices, some of which may be greyed with a reason.
+fn choose<T: Copy + PartialEq>(ui: &mut Ui, id: impl egui::AsIdSalt, current: &mut T, choices: &[(T, String, Result<(), String>)]) {
+    let shown = choices.iter().find(|(c, _, _)| c == current).map(|(_, name, _)| name.clone()).unwrap_or_default();
+    egui::ComboBox::from_id_salt(id).selected_text(shown).width(80.0).show_ui(ui, |ui| {
+        for (choice, name, allowed) in choices {
+            match allowed {
+                Ok(()) => {
+                    ui.selectable_value(current, *choice, name);
+                }
+                Err(why) => {
+                    ui.add_enabled(false, egui::Button::selectable(false, name)).on_disabled_hover_text(why);
+                }
+            }
+        }
+    });
+}
+
+/// One watchpoint's fields, to edit: its address, whether it reads or writes, how wide, its mask, and the rule for
+/// the value.
+fn watchpoint_fields(ui: &mut Ui, salt: impl egui::AsIdSalt + Copy, w: &mut crate::watchpoints::Watchpoint, support: &Support) {
+    use crate::watchpoints::{Access, RuleKind};
+    ui.add(egui::TextEdit::singleline(&mut w.address).hint_text(crate::i18n::tr("address, label or a..b")).desired_width(110.0));
+    let access: Vec<_> = Access::ALL.iter().map(|a| (*a, a.label(), if *a == Access::Write { Ok(()) } else { support.reads.clone() })).collect();
+    choose(ui, (salt, "access"), &mut w.access, &access);
+    let bits: Vec<_> = [8u8, 16, 32].iter().map(|b| (*b, crate::i18n::tf!("{b} bits"), Ok(()))).collect();
+    choose(ui, (salt, "bits"), &mut w.bits, &bits);
+    let rules: Vec<_> = RuleKind::ALL.iter().map(|r| (*r, r.label(), if *r == RuleKind::Any { Ok(()) } else { support.rules.clone() })).collect();
+    choose(ui, (salt, "rule"), &mut w.rule, &rules);
+    if w.rule.takes_value() {
+        ui.add(egui::TextEdit::singleline(&mut w.value).hint_text(crate::i18n::tr("value")).desired_width(60.0));
+    }
+    ui.add_enabled(support.rules.is_ok(), egui::TextEdit::singleline(&mut w.mask).hint_text(crate::i18n::tr("mask")).desired_width(60.0)).on_hover_text(crate::i18n::tr("Which bits of the value count, e.g. $0F; empty for all of them"));
+}
+
+/// Marks kept by older versions listed addresses whose writing stops the program; they become watchpoints on writes.
+pub fn adopt_old_write_watches(code: &mut CodeMarks) {
+    for old in std::mem::take(&mut code.write_watches) {
+        code.watchpoints.push(crate::watchpoints::Watchpoint::from_old(&old));
+    }
+}
+
+/// The breakpoints, each with the condition it stops on and how often (the Nth time, every Nth, or only counting,
+/// with the count beside it), and the watchpoints: reads and writes of addresses, each on or off. Shown whether
 /// it's running or stopped, so they can be set up first. `lines` gives a line's text.
-pub fn breakpoints(ui: &mut Ui, code: &mut CodeMarks, lines: &dyn Fn(usize) -> String, conditions: bool, writes_supported: bool) {
-    egui::CollapsingHeader::new(format!("Breakpoints ({})", code.breakpoints.len())).id_salt("debug-breakpoints").default_open(false).show(ui, |ui| {
+pub fn breakpoints(ui: &mut Ui, code: &mut CodeMarks, lines: &dyn Fn(usize) -> String, support: &Support) {
+    use crate::watchpoints::HitRule;
+    adopt_old_write_watches(code);
+    let open = !code.watchpoints.is_empty() || !code.hit_rules.is_empty();
+    let title = crate::i18n::tf!("Breakpoints ({}) and watchpoints ({})", code.breakpoints.len(), code.watchpoints.len());
+    egui::CollapsingHeader::new(title).id_salt("debug-breakpoints").default_open(open).show(ui, |ui| {
         if code.breakpoints.is_empty() {
             ui.label(RichText::new(crate::i18n::tr("Click beside a line's number for a breakpoint.")).color(theme::text_faint()).size(11.5));
         }
@@ -558,63 +656,106 @@ pub fn breakpoints(ui: &mut Ui, code: &mut CodeMarks, lines: &dyn Fn(usize) -> S
             ui.horizontal(|ui| {
                 ui.label(RichText::new(crate::i18n::tf!("{:>4}: {}", line + 1, lines(line).trim())).monospace().size(11.5));
             });
-            if !conditions {
-                continue;
+            if support.conditions {
+                let condition = code.conditions.entry(line).or_default();
+                ui.horizontal(|ui| {
+                    ui.add_space(24.0);
+                    ui.label(RichText::new(crate::i18n::tr("only when")).size(11.5).color(theme::text_dim()));
+                    ui.add(egui::TextEdit::singleline(condition).hint_text(crate::i18n::tr("always, or e.g. A=0 && [count]>3")).desired_width(220.0));
+                });
             }
-            let condition = code.conditions.entry(line).or_default();
-            ui.horizontal(|ui| {
-                ui.add_space(24.0);
-                ui.label(RichText::new(crate::i18n::tr("only when")).size(11.5).color(theme::text_dim()));
-                ui.add(egui::TextEdit::singleline(condition).hint_text(crate::i18n::tr("always, or e.g. A=0 && [count]>3")).desired_width(220.0));
-            });
+            if support.hit_rules {
+                let rule = code.hit_rules.get(&line).copied().unwrap_or_default();
+                let (mut kind, mut n) = match rule {
+                    HitRule::Always => (0u8, 2),
+                    HitRule::Nth(n) => (1, n),
+                    HitRule::Every(n) => (2, n),
+                    HitRule::Counter => (3, 2),
+                };
+                ui.horizontal(|ui| {
+                    ui.add_space(24.0);
+                    ui.label(RichText::new(crate::i18n::tr("stop")).size(11.5).color(theme::text_dim()));
+                    let kinds = [(0u8, crate::i18n::tr("each time").to_string(), Ok(())), (1, crate::i18n::tr("on the Nth time").to_string(), Ok(())), (2, crate::i18n::tr("every Nth time").to_string(), Ok(())), (3, crate::i18n::tr("never: only count").to_string(), Ok(()))];
+                    choose(ui, ("hit", line), &mut kind, &kinds);
+                    if matches!(kind, 1 | 2) {
+                        ui.add(egui::DragValue::new(&mut n).range(1..=1_000_000));
+                    }
+                    if let Some(count) = code.hit_counts.get(&line).filter(|_| kind != 0) {
+                        ui.label(RichText::new(crate::i18n::tf!("reached {count} times")).size(11.5).color(theme::accent()));
+                    }
+                });
+                let now = match kind {
+                    1 => HitRule::Nth(n),
+                    2 => HitRule::Every(n),
+                    3 => HitRule::Counter,
+                    _ => HitRule::Always,
+                };
+                if now != rule {
+                    code.hit_counts.remove(&line);
+                    if now == HitRule::Always {
+                        code.hit_rules.remove(&line);
+                    } else {
+                        code.hit_rules.insert(line, now);
+                    }
+                }
+            }
         }
         code.conditions.retain(|line, text| code.breakpoints.contains(line) && !text.trim().is_empty());
+        code.hit_rules.retain(|line, _| code.breakpoints.contains(line));
+        code.hit_counts.retain(|line, _| code.hit_rules.contains_key(line));
         ui.add_space(4.0);
-        if !writes_supported {
+        if !support.watchpoints {
             return;
         }
-        ui.label(RichText::new(crate::i18n::tr("Stop when written to")).size(12.0));
+        ui.label(RichText::new(crate::i18n::tr("Watchpoints: stop when memory is read or written")).size(12.0));
+        if let Err(why) = &support.reads {
+            ui.label(RichText::new(why).color(theme::text_faint()).size(11.0));
+        }
         let mut gone = None;
-        for (index, watch) in code.write_watches.iter().enumerate() {
-            ui.horizontal(|ui| {
+        for (index, w) in code.watchpoints.iter_mut().enumerate() {
+            ui.horizontal_wrapped(|ui| {
+                ui.checkbox(&mut w.enabled, "").on_hover_text(crate::i18n::tr("On or off"));
+                watchpoint_fields(ui, ("watchpoint", index), w, support);
                 if crate::access::called(ui.small_button(crate::i18n::tr("\u{D7}")), "Stop watching this").clicked() {
                     gone = Some(index);
                 }
-                ui.label(RichText::new(watch).monospace().size(11.5));
             });
         }
         if let Some(index) = gone {
-            code.write_watches.remove(index);
+            code.watchpoints.remove(index);
         }
-        ui.horizontal(|ui| {
-            let field = ui.add(egui::TextEdit::singleline(&mut code.new_write_watch).hint_text(crate::i18n::tr("An address or a label")).desired_width(160.0));
-            if (field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) || ui.small_button(crate::i18n::tr("Add")).clicked() {
-                let watch = code.new_write_watch.trim().to_string();
-                if !watch.is_empty() {
-                    code.write_watches.push(watch);
-                    code.new_write_watch.clear();
-                }
+        ui.horizontal_wrapped(|ui| {
+            let draft = &mut code.new_watchpoint;
+            watchpoint_fields(ui, "new-watchpoint", draft, support);
+            if ui.small_button(crate::i18n::tr("Add")).clicked() && !draft.address.trim().is_empty() {
+                let made = std::mem::take(draft);
+                *draft = crate::watchpoints::Watchpoint { access: made.access, bits: made.bits, ..Default::default() };
+                code.watchpoints.push(made);
             }
         });
     });
 }
 
-/// The addresses whose writing stops it, from what's written in the list: a label, or a range as label..label+n.
-pub fn write_addresses(code: &CodeMarks, labels: Option<&BTreeMap<String, i64>>) -> Vec<u16> {
-    let none = |_: u16| 0;
-    let seen = Seen { registers: None, peek: &none, labels };
-    let mut found = Vec::new();
-    for watch in &code.write_watches {
-        match watch.split_once("..") {
-            Some((from, to)) => {
-                if let (Ok(from), Ok(to)) = (eval(from, &seen), eval(to, &seen)) {
-                    found.extend((from..=to.min(from + 0x4000)).map(|a| a as u16));
-                }
-            }
-            None => found.extend(eval(watch, &seen).ok().map(|a| a as u16)),
+/// Fills in how often each breakpoint with a hit rule has been reached, from a machine's counts by address.
+pub fn show_hit_counts(code: &mut CodeMarks, assembly: &Assembly, count: &dyn Fn(u16) -> Option<u64>) {
+    for line in code.hit_rules.keys() {
+        if let Some(n) = assembly.address_of(0, *line).and_then(|a| count(a as u16)) {
+            code.hit_counts.insert(*line, n);
         }
     }
-    found
+}
+
+/// The hit rules by address, for a machine.
+pub fn hit_rules_by_address(code: &CodeMarks, assembly: &Assembly) -> BTreeMap<u16, crate::watchpoints::HitRule> {
+    crate::watchpoints::hit_rules_by_address(&code.hit_rules, &|line| assembly.address_of(0, line).map(|a| a as u16))
+}
+
+/// The watchpoints (and older write watches) worked out for a machine with 16-bit addresses: labels are read,
+/// numbers as the assembler writes them.
+pub fn watchpoints_for(code: &CodeMarks, labels: Option<&BTreeMap<String, i64>>) -> Vec<crate::watchpoints::Resolved> {
+    let none = |_: u16| 0;
+    let seen = Seen { registers: None, peek: &none, labels };
+    crate::watchpoints::resolve(&code.watchpoints, &code.write_watches, &|text| eval(text, &seen).ok())
 }
 
 /// Where a 68000 program is, as words: the address, and its label and line if it's in the program. `source` is the
@@ -879,5 +1020,44 @@ mod tests {
         assert_eq!(label_of(0x8002, &assembly).as_deref(), Some("main+2"), "local labels aren't used for this");
         assert_eq!(label_of(0x8003, &assembly).as_deref(), Some("next"));
         assert_eq!(label_of(0x7000, &assembly), None);
+    }
+
+    #[test]
+    fn conditions_join_comparisons_with_and_or_not_and_read_words_either_way_round() {
+        let r = Registers { af: 0x0300, hl: 0x8000, ..Registers::default() };
+        let mut memory = vec![0u8; 65536];
+        memory[0x8000] = 0x50;
+        memory[0x8001] = 0x01;
+        let peek = |a: u16| memory[a as usize];
+        let seen = Seen { registers: Some(&r), peek: &peek, labels: None };
+        let v = |t: &str| eval(t, &seen);
+        assert_eq!(v("A=3 && [HL]>$40"), Ok(1));
+        assert_eq!(v("A=3 && [HL]>$60"), Ok(0));
+        assert_eq!(v("A=4 || [HL]==$50"), Ok(1));
+        assert_eq!(v("!(A=3) || [HL] != $50"), Ok(0));
+        assert_eq!(v("not A = 3 or word[HL] >= $150"), Ok(1), "word reads the Z80's way: low byte first");
+        assert_eq!(v("A<>3 && [HL]>$40 || 1"), Ok(1), "&& binds tighter than ||");
+        assert_eq!(v("[HL] & $F0 == $50"), Ok(1), "bit operations bind tighter than comparisons");
+        // A 68000-style memory is big-endian; a 6502's, through eval_wide_little, isn't.
+        let bytes = [0x12u8, 0x34, 0x56, 0x78];
+        let peek32 = |a: u32| bytes.get(a as usize).copied().unwrap_or(0);
+        let names = |_: &str| None;
+        let wide = Wide { names: &names, peek: &peek32 };
+        assert_eq!(eval_wide("word[0]", &wide, None), Ok(0x1234));
+        assert_eq!(eval_wide("long[0]", &wide, None), Ok(0x1234_5678));
+        assert_eq!(eval_wide_little("word[0]", &wide, None), Ok(0x3412));
+        assert_eq!(eval_wide_little("long[0]", &wide, None), Ok(0x7856_3412));
+        assert_eq!(eval_wide_little("[1] == $34 && !0", &wide, None), Ok(1));
+    }
+
+    #[test]
+    fn marks_from_before_watchpoints_become_watchpoints_on_writes() {
+        let mut code = CodeMarks { write_watches: vec!["count".into(), "$8000..$8003".into()], ..CodeMarks::default() };
+        code.watchpoints.push(crate::watchpoints::Watchpoint { address: "word".into(), access: crate::watchpoints::Access::Read, bits: 16, ..Default::default() });
+        adopt_old_write_watches(&mut code);
+        assert!(code.write_watches.is_empty());
+        let labels: BTreeMap<String, i64> = [("count".to_string(), 0x9000), ("word".to_string(), 0x9002)].into();
+        let found = watchpoints_for(&code, Some(&labels));
+        assert_eq!(found.iter().map(|w| (w.start, w.end, w.access, w.bytes)).collect::<Vec<_>>(), [(0x9002, 0x9003, crate::watchpoints::Access::Read, 2), (0x9000, 0x9000, crate::watchpoints::Access::Write, 1), (0x8000, 0x8003, crate::watchpoints::Access::Write, 1)]);
     }
 }

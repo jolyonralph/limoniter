@@ -13,6 +13,8 @@ use std::time::Instant;
 const MEMORY_EVERY: Duration = Duration::from_millis(150);
 /// The memory view's window on memory, as `debug_panel::memory_section` shows it.
 const MEMORY_WINDOW: usize = 128;
+/// The most of a core's memory the trainer reads at once (the helper's own limit is the same).
+const TRAINER_MOST: usize = 1 << 20;
 
 /// A machine running in a core, and what the panel keeps about it.
 pub(super) struct RetroRun {
@@ -45,6 +47,17 @@ pub(super) struct RetroRun {
     folder: PathBuf,
     /// Where Save state keeps this program's state.
     state_file: PathBuf,
+    /// The trainer's reads and writes of the machine's memory, which go through the helper like the memory view's.
+    trainer: Trainer,
+}
+
+/// What the trainer has of a core's memory: the last whole read, the read waiting for its reply, and the writes
+/// whose replies are still to be thrown away.
+#[derive(Default)]
+struct Trainer {
+    ram: Option<Vec<u8>>,
+    reading: Option<u64>,
+    writes: Vec<u64>,
 }
 
 impl Drop for RetroRun {
@@ -66,9 +79,9 @@ impl RetroRun {
         static RUNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let folder = saves.join(format!("run-{}-{}", std::process::id(), RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
         let _ = std::fs::create_dir_all(&system);
-        let program = retro::write_program(&retro::prepared(run), &folder)?;
+        let (program, run_options) = retro::write_game(run, &folder)?;
         let frames = folder.join("frames");
-        let options = retro::Prefs::load().options_for(core.core);
+        let options = retro::with_options(retro::Prefs::load().options_for(core.core), run_options);
         let start = retro::Start { helper: &helper, core: &core_file, frames: &frames, system: &system, saves: &saves, game: Some(&program), options: &options, silent: false };
         let helper = Helper::start(&start)?;
         let stem = Path::new(&run.name).file_stem().map_or_else(|| run.name.clone(), |s| s.to_string_lossy().into_owned());
@@ -96,6 +109,7 @@ impl RetroRun {
             note: None,
             folder,
             state_file,
+            trainer: Trainer::default(),
         })
     }
 
@@ -222,6 +236,41 @@ impl RetroRun {
         if stale || due {
             self.read_at = Some(Instant::now());
             self.reading = self.send(serde_json::json!({"cmd": "read_memory", "region": region, "offset": start.min(size), "length": MEMORY_WINDOW}));
+        }
+    }
+
+    /// The core's memory as the trainer last read it, asking for it again when none is on its way (so it's a
+    /// moment old, as the memory view's is). Nothing if the core shows no memory.
+    pub(super) fn trainer_ram(&mut self) -> Option<&[u8]> {
+        let (region, size) = self.helper.as_ref().and_then(|h| h.ready.as_ref()).and_then(retro::Ready::memory)?;
+        let helper = self.helper.as_mut()?;
+        if let Some(id) = self.trainer.reading
+            && let Some(reply) = helper.take_reply(id)
+        {
+            self.trainer.reading = None;
+            if let Ok(value) = reply
+                && let Some(bytes) = value["data"].as_str().and_then(retro::unhex)
+            {
+                self.trainer.ram = Some(bytes);
+            }
+        }
+        if self.trainer.reading.is_none() {
+            let length = size.min(TRAINER_MOST);
+            self.trainer.reading = Some(helper.send(serde_json::json!({"cmd": "read_memory", "region": region, "offset": 0, "length": length})));
+        }
+        self.trainer.ram.as_deref()
+    }
+
+    /// Writes bytes into the core's memory (the helper's write_memory), whose reply is let go of when it comes.
+    pub(super) fn trainer_poke(&mut self, address: u32, bytes: &[u8]) {
+        let Some((region, _)) = self.helper.as_ref().and_then(|h| h.ready.as_ref()).and_then(retro::Ready::memory) else { return };
+        let Some(helper) = self.helper.as_mut() else { return };
+        let writes = std::mem::take(&mut self.trainer.writes);
+        self.trainer.writes = writes.into_iter().filter(|id| helper.take_reply(*id).is_none()).collect();
+        // A few thousand frames' writes unanswered means the helper isn't answering: don't pile them up.
+        if self.trainer.writes.len() < 64 {
+            let id = helper.send(serde_json::json!({"cmd": "write_memory", "region": region, "offset": address, "data": retro::hex(bytes)}));
+            self.trainer.writes.push(id);
         }
     }
 
@@ -527,7 +576,7 @@ pub(super) struct Install {
 
 /// Downloads the helper if it's missing, then the core if that is, stopping at the first thing that goes wrong.
 /// The two downloads are given in, so that a test can stand in for them.
-fn install_job(missing: retro::Missing, helper: impl FnOnce() -> Result<PathBuf, String>, core: impl FnOnce(&str) -> Result<PathBuf, String>) -> Result<(), String> {
+pub(super) fn install_job(missing: retro::Missing, helper: impl FnOnce() -> Result<PathBuf, String>, core: impl FnOnce(&str) -> Result<PathBuf, String>) -> Result<(), String> {
     if missing.helper {
         helper()?;
     }
@@ -585,6 +634,7 @@ impl Install {
 /// What the person asked for in Get an emulator's cores.
 pub(super) enum GetAsk {
     ChooseHelper,
+    SetUpAmiga,
 }
 
 /// The helper and the cores, in Get an emulator: each with whether it's here, and a button to download it.
@@ -653,6 +703,9 @@ pub(super) fn getting_section(ui: &mut Ui, state: &mut Getting) -> Option<GetAsk
             ui.end_row();
         }
     });
+    if ui.button(crate::i18n::tr("Set up the Amiga\u{2026}")).on_hover_text(crate::i18n::tr("Installs what F9 needs to run Amiga programs in Limoniter's window, Kickstart included, in one go")).clicked() {
+        ask = Some(GetAsk::SetUpAmiga);
+    }
     if let Some((what, download)) = wanted {
         let (send, receive) = std::sync::mpsc::channel();
         std::thread::spawn(move || {

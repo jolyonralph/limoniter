@@ -826,7 +826,7 @@ pub fn talk(port: u16, program: Program, breakpoints: Vec<i64>, asked: &Receiver
                 }
             }
             // The Z80's breakpoints and watches, and a pause while it's stopped, mean nothing here.
-            Ask::Breakpoints(_) | Ask::Watches(_) | Ask::Pause => {}
+            Ask::Breakpoints(_) | Ask::Watches(_) | Ask::Accesses(_) | Ask::Pause => {}
             Ask::Finish => {
                 session.wanted.clear();
                 session.temporary.clear();

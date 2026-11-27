@@ -57,7 +57,7 @@ impl Z80 {
     pub(crate) fn fetch_byte(&mut self, bus: &mut impl Z80Bus, clk: usize) -> u8 {
         let addr = self.regs.get_pc();
         self.regs.inc_pc();
-        bus.read(addr, clk)
+        bus.fetch(addr, clk)
     }
 
     /// Reads word from memory and increments PC twice
@@ -65,9 +65,9 @@ impl Z80 {
     pub(crate) fn fetch_word(&mut self, bus: &mut impl Z80Bus, clk: usize) -> u16 {
         let (hi_addr, lo_addr);
         lo_addr = self.regs.get_pc();
-        let lo = bus.read(lo_addr, clk);
+        let lo = bus.fetch(lo_addr, clk);
         hi_addr = self.regs.inc_pc();
-        let hi = bus.read(hi_addr, clk);
+        let hi = bus.fetch(hi_addr, clk);
         self.regs.inc_pc();
         u16::from_le_bytes([lo, hi])
     }

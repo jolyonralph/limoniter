@@ -36,9 +36,19 @@ pub struct Breaks {
     at: std::collections::HashSet<u16>,
     step: bool,
     once: Option<u16>,
-    /// Addresses whose writing stops it, and the write that last did.
-    writes: std::collections::HashSet<u16>,
-    wrote: Option<(u16, u8)>,
+    /// The places watched, and the accesses to them since it last looked, each with the byte read or written. The
+    /// program stops once the instruction doing it is over, and the machine judges them (see `watchpoints`).
+    watched: Vec<(u16, u16, crate::watchpoints::Access)>,
+    touched: Vec<(crate::watchpoints::Access, u16, u8)>,
+    /// Where the instruction now running began, where the one that touched a watched place began, and how many
+    /// have run since the last stop.
+    began: u16,
+    touched_by: u16,
+    instructions: u64,
+    /// Addresses whose writes are stopped (the trainer's Block writes), and what the program wrote to the debug
+    /// console port.
+    blocked: std::collections::HashSet<u16>,
+    console: crate::debug_console::Console,
     /// Whether the last stop was at a breakpoint, rather than a step's end.
     at_breakpoint: bool,
     /// While profiling: T-states and times run at each address, and the instruction running and when it began.
@@ -54,6 +64,8 @@ pub struct Breaks {
 
 impl rustzx_core::host::DebugInterface for Breaks {
     fn check_pc_breakpoint(&mut self, address: u16) -> bool {
+        self.began = address;
+        self.instructions += 1;
         self.at_breakpoint = false;
         self.at_basic = self.basic_at.contains(&address);
         if self.at_basic {
@@ -90,13 +102,48 @@ impl rustzx_core::host::DebugInterface for Breaks {
         profile.running = Some((next, clock));
     }
 
+    fn blocks_memory_write(&mut self, address: u16) -> bool {
+        !self.blocked.is_empty() && self.blocked.contains(&address)
+    }
+
+    fn port_write(&mut self, port: u16, value: u8) {
+        if port & 0xFF == u16::from(crate::debug_console::Z80_PORT) {
+            self.console.put(value);
+        }
+    }
+
     fn check_memory_write(&mut self, address: u16, value: u8) -> bool {
-        if self.writes.contains(&address) {
-            self.wrote = Some((address, value));
+        self.touch(crate::watchpoints::Access::Write, address, value)
+    }
+
+    fn check_memory_read(&mut self, address: u16, value: u8) -> bool {
+        self.touch(crate::watchpoints::Access::Read, address, value)
+    }
+}
+
+impl Breaks {
+    /// Notes an access to a watched place, so the instruction can be stopped after.
+    fn touch(&mut self, what: crate::watchpoints::Access, address: u16, value: u8) -> bool {
+        if self.watched.iter().any(|(from, to, access)| access.covers(what) && (*from..=*to).contains(&address)) {
+            if self.touched.is_empty() {
+                self.touched_by = self.began;
+            }
+            if self.touched.len() < 64 {
+                self.touched.push((what, address, value));
+            }
             return true;
         }
         false
     }
+}
+
+/// What the debugger keeps beside the emulator: the watchpoints' judge, the breakpoints' hit rules, and counts.
+#[derive(Default)]
+struct DebugState {
+    watcher: crate::watchpoints::Watcher,
+    hit_rules: std::collections::BTreeMap<u16, crate::watchpoints::HitRule>,
+    hit_counts: std::collections::BTreeMap<u16, u64>,
+    frames: u64,
 }
 
 /// What the profiler has counted: T-states spent at each address and how many times each ran.
@@ -225,6 +272,8 @@ pub struct BuiltIn {
     pub stop_reason: Option<String>,
     /// What each conditional breakpoint must be true to stop, with the labels they may name.
     conditions: std::collections::BTreeMap<u16, String>,
+    /// Watchpoints, hit counts and the counts shown while debugging.
+    debug: DebugState,
     labels: Option<std::sync::Arc<std::collections::BTreeMap<String, i64>>>,
     /// Memory as it was at the last stop, for what's changed since to stand out.
     pub memory_before: Option<std::sync::Arc<Vec<u8>>>,
@@ -369,7 +418,7 @@ impl BuiltIn {
                 let basic_first = tap.get(2..4) == Some(&[0, 0][..]);
                 emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| crate::i18n::tf!("The tape couldn't be loaded: {e:?}"))?;
                 emulator.play_tape();
-                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, opticos: false, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
+                let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, opticos: false, conditions: Default::default(), debug: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
                 // A tape that starts with a BASIC program loads that much at once, rather than at the tape's speed:
                 // it's loaded when the program starts running, and PPC, the line being run, is a line at last.
                 if basic_first {
@@ -393,7 +442,7 @@ impl BuiltIn {
                 return Ok(built);
             }
         }
-        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, opticos: false, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
+        Ok(BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: machine == Machine::Spectrum128, opticos: false, conditions: Default::default(), debug: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker, muted: false, #[cfg(test)] loudest: 0.0 })
     }
 
     /// OpticOS started, with the program's tape in: it boots (playing its chime), and LOAD "" is typed for it, then
@@ -409,7 +458,7 @@ impl BuiltIn {
         // The tape is left stopped: OpticOS keeps the tape routines where emulators catch them, so its LOAD is
         // given each block at once.
         emulator.load_tape(Tape::Tap(BufferCursor::new(tap))).map_err(|e| crate::i18n::tf!("The tape couldn't be loaded: {e:?}"))?;
-        let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: false, opticos: true, conditions: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
+        let mut built = BuiltIn { emulator, last: Instant::now(), owed: 0.0, paused: false, taps: Default::default(), held: Vec::new(), stopped: None, stop_reason: None, machine_128: false, opticos: true, conditions: Default::default(), debug: Default::default(), labels: None, memory_before: None, basic_lines: None, basic_step: false, basic_stopped: None, basic_last: None, first_statement: None, board: None, caps_latched: false, symbol_latched: false, picture: vec![0; WIDTH * HEIGHT * 4], speaker: None, muted: false, #[cfg(test)] loudest: 0.0 };
         // Past the boot chime to the prompt, at once.
         for _ in 0..OPTICOS_BOOT_FRAMES {
             built.frame()?;
@@ -448,6 +497,7 @@ impl BuiltIn {
 
     /// Runs one frame.
     pub fn frame(&mut self) -> Result<(), String> {
+        self.debug.frames += 1;
         self.first_statement = None;
         self.press_taps();
         self.board_tick();
@@ -458,9 +508,9 @@ impl BuiltIn {
             if !matches!(info.stop_reason, rustzx_core::EmulationStopReason::Breakpoint) {
                 break;
             }
-            let (wrote, at_breakpoint, at_basic) = self.emulator.debug_interface().map_or((None, false, false), |b| (b.wrote.take(), b.at_breakpoint, b.at_basic));
+            let (touched, at_breakpoint, at_basic, began) = self.emulator.debug_interface().map_or((Vec::new(), false, false, 0), |b| (std::mem::take(&mut b.touched), b.at_breakpoint, b.at_basic, b.touched_by));
             let registers = self.quick_registers();
-            if at_basic && wrote.is_none() {
+            if at_basic && touched.is_empty() {
                 // A BASIC statement is about to run: stop if stepping, or at the start of a line with a breakpoint.
                 let paged_right = match registers.pc {
                     crate::zx_basic_debug::STATEMENT_48 => !self.is_128() || self.peek(23388) & 0x10 != 0,
@@ -483,16 +533,35 @@ impl BuiltIn {
                 self.stopped = Some(registers.pc);
                 break;
             }
-            if let Some((address, value)) = wrote {
-                self.stop_reason = Some(crate::i18n::tf!("Stopped after writing {value} (${value:02X}) to ${address:04X}"));
-            } else if let Some(condition) = self.conditions.get(&registers.pc).filter(|_| at_breakpoint) {
+            if !touched.is_empty() {
+                // Something watched was read or written: the rules decide whether it stops.
                 let emulator = &self.emulator;
-                let peek = |a: u16| emulator.peek(a);
-                let seen = crate::debug_panel::Seen { registers: Some(&registers), peek: &peek, labels: self.labels.as_deref() };
-                match crate::debug_panel::eval(condition, &seen) {
-                    Ok(0) => continue,
-                    Ok(_) => self.stop_reason = Some(crate::i18n::tf!("Stopped because {condition}")),
-                    Err(problem) => self.stop_reason = Some(crate::i18n::tf!("The condition {condition} couldn't be worked out: {problem}")),
+                let peek = |a: u32| emulator.peek(a as u16);
+                let hit = touched.iter().find_map(|(access, address, value)| self.debug.watcher.judge(*access, u32::from(*address), *value, &peek));
+                match hit {
+                    Some(hit) => self.stop_reason = Some(hit.reason(Some(u32::from(began)), 4)),
+                    None => continue,
+                }
+            } else if at_breakpoint {
+                self.stop_reason = None;
+                if let Some(condition) = self.conditions.get(&registers.pc) {
+                    let emulator = &self.emulator;
+                    let peek = |a: u16| emulator.peek(a);
+                    let seen = crate::debug_panel::Seen { registers: Some(&registers), peek: &peek, labels: self.labels.as_deref() };
+                    match crate::debug_panel::eval(condition, &seen) {
+                        Ok(0) => continue,
+                        Ok(_) => self.stop_reason = Some(crate::i18n::tf!("Stopped because {condition}")),
+                        Err(problem) => self.stop_reason = Some(crate::i18n::tf!("The condition {condition} couldn't be worked out: {problem}")),
+                    }
+                }
+                // Reached with its condition true: counted, and the hit rule says whether to stop.
+                if let Some(rule) = self.debug.hit_rules.get(&registers.pc).copied() {
+                    let count = self.debug.hit_counts.entry(registers.pc).or_default();
+                    if !rule.reached(count) {
+                        continue;
+                    }
+                    let count = *count;
+                    self.stop_reason = Some(crate::i18n::tf!("Stopped on its hit number {count}"));
                 }
             } else {
                 self.stop_reason = None;
@@ -636,10 +705,47 @@ impl BuiltIn {
     }
 
     /// The addresses whose writing stops it.
+    #[cfg(test)]
     pub fn set_write_watches(&mut self, addresses: impl IntoIterator<Item = u16>) {
+        self.set_watchpoints(addresses.into_iter().enumerate().map(|(id, a)| crate::watchpoints::Resolved::write_to(id, u32::from(a))).collect());
+    }
+
+    /// The watchpoints: reads and writes of places in memory, each with a rule for the value.
+    pub fn set_watchpoints(&mut self, list: Vec<crate::watchpoints::Resolved>) {
+        let watched = list.iter().map(|w| (w.start.min(0xFFFF) as u16, w.end.min(0xFFFF) as u16, w.access)).collect();
+        let emulator = &self.emulator;
+        self.debug.watcher.set(list, &|a| emulator.peek(a as u16));
         if let Some(breaks) = self.emulator.debug_interface() {
-            breaks.writes = addresses.into_iter().collect();
+            breaks.watched = watched;
         }
+    }
+
+    /// The addresses whose writes are stopped, for the trainer.
+    pub fn set_blocked(&mut self, addresses: impl IntoIterator<Item = u16>) {
+        if let Some(breaks) = self.emulator.debug_interface() {
+            breaks.blocked = addresses.into_iter().collect();
+        }
+    }
+
+    /// The lines the program has written to the debug console port since last asked.
+    pub fn take_console(&mut self) -> Vec<String> {
+        self.emulator.debug_interface().map_or_else(Vec::new, |breaks| breaks.console.take())
+    }
+
+    /// What each breakpoint does beyond its condition: stop on the Nth time, every Nth, or only count.
+    pub fn set_hit_rules(&mut self, rules: std::collections::BTreeMap<u16, crate::watchpoints::HitRule>) {
+        self.debug.hit_rules = rules;
+    }
+
+    /// How often each breakpoint with a hit rule has been reached, by address.
+    pub fn hit_counts(&self) -> &std::collections::BTreeMap<u16, u64> {
+        &self.debug.hit_counts
+    }
+
+    /// The frame it is on, and how many instructions have run since it last stopped.
+    pub fn debug_counts(&mut self) -> (u64, u64) {
+        let instructions = self.emulator.debug_interface().map_or(0, |b| b.instructions);
+        (self.debug.frames, instructions)
     }
 
     /// All 64K, as they are now.
@@ -655,6 +761,7 @@ impl BuiltIn {
 
     /// Carries on from where it stopped.
     pub fn carry_on(&mut self) {
+        self.reset_instructions();
         self.stopped = None;
         self.stop_reason = None;
         self.basic_stopped = None;
@@ -663,6 +770,7 @@ impl BuiltIn {
 
     /// Runs one instruction, and stops again.
     pub fn step(&mut self) -> Result<(), String> {
+        self.reset_instructions();
         if let Some(breaks) = self.emulator.debug_interface() {
             breaks.step = true;
         }
@@ -685,6 +793,12 @@ impl BuiltIn {
             breaks.once = Some(pc.wrapping_add(length));
         }
         self.run_until_stopped()
+    }
+
+    fn reset_instructions(&mut self) {
+        if let Some(breaks) = self.emulator.debug_interface() {
+            breaks.instructions = 0;
+        }
     }
 
     /// Runs until it stops, a second's worth at most; if it doesn't stop by then, it's left running.
@@ -1378,8 +1492,122 @@ mod tests {
         assert!(run_until(&mut machine, 50, |m| m.stopped.is_some()));
         assert_eq!(machine.stopped, Some(at("done")));
         assert_eq!(machine.peek(at("count")), 1);
-        assert_eq!(machine.stop_reason.as_deref(), Some(&*format!("Stopped after writing 1 ($01) to ${:04X}", at("count"))));
+        assert_eq!(machine.stop_reason.as_deref(), Some(&*format!("Stopped by watchpoint 1: write to ${:04X} (8 bits) by the instruction at ${:04X}, $00 becoming $01", at("count"), at("done") - 3)));
         assert_eq!(machine.peek(at("total")), 1, "total was written too, but isn't watched");
+    }
+
+    /// A built-in Spectrum running a small program, with the labels it was assembled with.
+    fn spectrum_running(source: &str) -> (BuiltIn, std::collections::BTreeMap<String, i64>) {
+        let assembly = crate::asm::assemble(&crate::asm::z80::Z80, std::path::Path::new("t.asm"), source, &|_| Err(crate::i18n::tr("no").into()));
+        assert!(assembly.ok(), "{:?}", assembly.problems);
+        let tape = crate::asm::output::spectrum_tape(&assembly, "t").unwrap();
+        let run = Runnable { machine: Machine::Spectrum48, format: Format::Tap, name: "t.tap".into(), bytes: std::sync::Arc::new(tape) };
+        let mut machine = BuiltIn::start(&run).unwrap();
+        // Run on to the program's start, so what the tape's loader writes into it isn't watched.
+        machine.set_breakpoints([assembly.symbols["start"] as u16]);
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        machine.set_breakpoints([]);
+        machine.carry_on();
+        (machine, assembly.symbols)
+    }
+
+    const COUNTING: &str = "  org 32768\nstart: ld b,5\nloop: ld a,b\n  ld (count),a\n  ld a,(count)\n  ld hl,(word)\n  inc hl\nafter: ld (word),hl\n  djnz loop\ndone: jr done\ncount: db 0\nword: dw $12FE\n";
+
+    fn resolved(id: usize, address: u32, access: crate::watchpoints::Access, bytes: u32, mask: u32, rule: crate::watchpoints::Rule) -> crate::watchpoints::Resolved {
+        crate::watchpoints::Resolved { id, start: address, end: address + bytes - 1, access, bytes, mask, rule }
+    }
+
+    #[test]
+    fn watchpoints_on_reads_writes_or_either() {
+        use crate::watchpoints::{Access, Rule};
+        let (mut machine, labels) = spectrum_running(COUNTING);
+        let at = |name: &str| labels[name] as u16;
+        // A read of count stops after the instruction that read it (LD A,(count)), not at the write before it.
+        machine.set_watchpoints(vec![resolved(0, u32::from(at("count")), Access::Read, 1, 0xFF, Rule::Any)]);
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert_eq!(machine.stopped, Some(at("loop") + 1 + 3 + 3), "after LD A,(count)");
+        let reason = machine.stop_reason.clone().unwrap();
+        assert!(reason.contains("read of") && reason.contains("by the instruction at") && reason.contains("reading $05"), "{reason}");
+        // The same place watched for writes: the first stop is the write before that read.
+        let (mut machine, _) = spectrum_running(COUNTING);
+        machine.set_watchpoints(vec![resolved(0, u32::from(at("count")), Access::Write, 1, 0xFF, Rule::Any)]);
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert_eq!(machine.stopped, Some(at("loop") + 1 + 3), "after LD (count),A");
+        assert!(machine.stop_reason.as_deref().is_some_and(|r| r.contains("write to") && r.contains("$00 becoming $05")), "{:?}", machine.stop_reason);
+        // Either: the write, then (carrying on) the read.
+        let (mut machine, _) = spectrum_running(COUNTING);
+        machine.set_watchpoints(vec![resolved(0, u32::from(at("count")), Access::Either, 1, 0xFF, Rule::Any)]);
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert!(machine.stop_reason.as_deref().is_some_and(|r| r.contains("write to")));
+        machine.carry_on();
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert!(machine.stop_reason.as_deref().is_some_and(|r| r.contains("read of")), "{:?}", machine.stop_reason);
+        assert_eq!(machine.stopped, Some(at("loop") + 1 + 3 + 3));
+    }
+
+    #[test]
+    fn watchpoints_have_widths_masks_and_rules_for_the_value() {
+        use crate::watchpoints::{Access, Rule};
+        let (mut machine, labels) = spectrum_running(COUNTING);
+        let word = u32::from(labels["word"] as u16);
+        // A 16-bit write of word, as the Z80 keeps it (low byte first): $12FE becomes $12FF, then $1300.
+        // Under the mask $FF00, only the second changes it.
+        machine.set_watchpoints(vec![resolved(0, word, Access::Write, 2, 0xFF00, Rule::Changed)]);
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert_eq!(machine.stopped, Some(labels["after"] as u16 + 3));
+        assert_eq!(machine.peek(word as u16), 0x00, "the second write: $1300");
+        assert!(machine.stop_reason.as_deref().is_some_and(|r| r.contains("(16 bits)") && r.contains("$1200 becoming $1300")), "{:?}", machine.stop_reason);
+        // Rises and falls, and equals, on the 8-bit count: 5, 4, 3 ... falls from the second write on.
+        let (mut machine, labels) = spectrum_running(COUNTING);
+        let count = u32::from(labels["count"] as u16);
+        machine.set_watchpoints(vec![resolved(0, count, Access::Write, 1, 0xFF, Rule::Falls)]);
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert!(machine.stop_reason.as_deref().is_some_and(|r| r.contains("$05 becoming $04")), "{:?}", machine.stop_reason);
+        let (mut machine, _) = spectrum_running(COUNTING);
+        machine.set_watchpoints(vec![resolved(0, count, Access::Write, 1, 0xFF, Rule::Equals(3))]);
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert_eq!(machine.peek(count as u16), 3);
+        let (mut machine, _) = spectrum_running(COUNTING);
+        machine.set_watchpoints(vec![resolved(0, count, Access::Write, 1, 0xFF, Rule::Differs(5))]);
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert_eq!(machine.peek(count as u16), 4, "the first write, of 5, was passed by");
+        // A watchpoint that is never met lets the program run on.
+        let (mut machine, _) = spectrum_running(COUNTING);
+        machine.set_watchpoints(vec![resolved(0, count, Access::Write, 1, 0xFF, Rule::Rises)]);
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()), "the first write, 0 to 5, rises");
+        machine.set_watchpoints(vec![resolved(0, count, Access::Write, 1, 0xFF, Rule::Equals(99))]);
+        machine.carry_on();
+        assert!(!run_until(&mut machine, 20, |m| m.stopped.is_some()));
+    }
+
+    #[test]
+    fn breakpoints_stop_on_the_nth_time_every_nth_time_or_only_count() {
+        use crate::watchpoints::HitRule;
+        let (mut machine, labels) = spectrum_running(COUNTING);
+        let at = |name: &str| labels[name] as u16;
+        machine.set_breakpoints([at("loop")]);
+        machine.set_hit_rules([(at("loop"), HitRule::Nth(3))].into());
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert_eq!((machine.registers().bc >> 8, machine.hit_counts().get(&at("loop")).copied()), (3, Some(3)), "B is 5, 4, 3 on the third arrival");
+        assert_eq!(machine.stop_reason.as_deref(), Some("Stopped on its hit number 3"));
+        // Every second time, with a condition that only B below 5 meets: B=3 is the second to count.
+        let (mut machine, _) = spectrum_running(COUNTING);
+        machine.set_breakpoints([at("loop")]);
+        machine.set_conditions([(at("loop"), "B < 5".to_string())].into(), None);
+        machine.set_hit_rules([(at("loop"), HitRule::Every(2))].into());
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert_eq!(machine.registers().bc >> 8, 3);
+        // Counting only: it never stops there, so it reaches the next breakpoint, after five arrivals.
+        let (mut machine, _) = spectrum_running(COUNTING);
+        machine.set_breakpoints([at("loop"), at("done")]);
+        machine.set_hit_rules([(at("loop"), HitRule::Counter)].into());
+        assert!(run_until(&mut machine, 50 * 30, |m| m.stopped.is_some()));
+        assert_eq!((machine.stopped, machine.hit_counts().get(&at("loop")).copied()), (Some(at("done")), Some(5)));
+        // The frame it is on, and the instructions since it last stopped.
+        let (frames, instructions) = machine.debug_counts();
+        assert!(frames >= 1 && instructions > 20, "{frames} {instructions}");
+        machine.carry_on();
+        assert_eq!(machine.debug_counts().1, 0, "counted afresh from each carrying on");
     }
 
     #[test]

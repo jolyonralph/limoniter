@@ -97,9 +97,11 @@ struct System {
     zero_hold: i8,
     z_hold: u8,
     dac_sound: i8,
-    /// Writes to these stop the program, for the debugger.
-    watches: BTreeSet<u16>,
-    wrote: Option<(u16, u8)>,
+    /// Writes to watched places, noted for the machine to judge when the instruction is over.
+    touches: crate::watchpoints::Touches,
+    /// RAM whose writes are stopped (the trainer's Block writes), and what the program wrote to the debug console address.
+    blocked: BTreeSet<u16>,
+    console: crate::debug_console::Console,
 }
 
 impl System {
@@ -108,7 +110,7 @@ impl System {
         let bios = bios.unwrap_or_else(|| stand_in_bios(&cart));
         // The RAM is left as it powers up: not cleared, but this is as good as anything.
         let ram = std::array::from_fn(|i| i as u8);
-        System { cart, bios, has_bios, ram, via: Via::default(), ay: Ay::new(rate), beam: Beam::default(), controls: Controls::default(), y_hold: 0, zero_hold: 0, z_hold: 0, dac_sound: 0, watches: BTreeSet::new(), wrote: None }
+        System { cart, bios, has_bios, ram, via: Via::default(), ay: Ay::new(rate), beam: Beam::default(), controls: Controls::default(), y_hold: 0, zero_hold: 0, z_hold: 0, dac_sound: 0, touches: Default::default(), blocked: BTreeSet::new(), console: Default::default() }
     }
 
     /// What's read at an address, with nothing changed (for the debugger and its memory view).
@@ -206,7 +208,14 @@ impl Bus for System {
     }
 
     fn write(&mut self, address: u16, value: u8) {
+        if address == crate::debug_console::VECTREX_ADDRESS {
+            // Nothing is on the bus here: the debug console port, which a real Vectrex ignores.
+            self.console.put(value);
+        }
         if !(0xC000..=0xDFFF).contains(&address) {
+            return;
+        }
+        if !self.blocked.is_empty() && self.blocked.contains(&watched(address)) {
             return;
         }
         if address & 0x0800 != 0 {
@@ -219,9 +228,7 @@ impl Bus for System {
                 self.after_port_write();
             }
         }
-        if self.watches.contains(&watched(address)) {
-            self.wrote = Some((address, value));
-        }
+        self.touches.note(crate::watchpoints::Access::Write, u32::from(watched(address)), value);
     }
 }
 
@@ -269,6 +276,12 @@ pub struct Vectrex {
     phase: f64,
     dc: (f32, f32),
     pub frames: u64,
+    /// The judge of watchpoints, hit rules with how often each was reached, and the instructions run since it
+    /// last stopped.
+    watcher: crate::watchpoints::Watcher,
+    hit_rules: BTreeMap<u16, crate::watchpoints::HitRule>,
+    pub hit_counts: BTreeMap<u16, u64>,
+    pub instructions: u64,
     /// The last refresh's lines, for the tests.
     #[cfg(test)]
     pub last_segments: Vec<crate::vectrex_screen::Segment>,
@@ -327,6 +340,10 @@ impl Vectrex {
             phase: 0.0,
             dc: (0.0, 0.0),
             frames: 0,
+            watcher: Default::default(),
+            hit_rules: BTreeMap::new(),
+            hit_counts: BTreeMap::new(),
+            instructions: 0,
             #[cfg(test)]
             last_segments: Vec::new(),
             #[cfg(test)]
@@ -384,6 +401,16 @@ impl Vectrex {
                 },
                 None => Some(None),
             };
+            let stop = match (stop, self.hit_rules.get(&pc).copied()) {
+                (Some(reason), Some(rule)) => {
+                    let count = self.hit_counts.entry(pc).or_default();
+                    rule.reached(count).then(|| {
+                        let count = *count;
+                        reason.or_else(|| Some(crate::i18n::tf!("Stopped on its hit number {count}")))
+                    })
+                }
+                (stop, _) => stop,
+            };
             if let Some(reason) = stop {
                 self.stop(reason);
                 return Ok(());
@@ -408,8 +435,14 @@ impl Vectrex {
             self.in_frame -= FRAME_CYCLES;
             self.refresh();
         }
-        if let Some((address, value)) = self.sys.wrote.take() {
-            self.stop(Some(crate::i18n::tf!("Stopped after writing {value} (${value:02X}) to ${address:04X}")));
+        self.instructions += 1;
+        let touched = self.sys.touches.take();
+        if !touched.is_empty() {
+            let sys = &self.sys;
+            let peek = |a: u32| sys.peek(a as u16);
+            if let Some(hit) = touched.iter().find_map(|(what, address, value)| self.watcher.judge(*what, *address, *value, &peek)) {
+                self.stop(Some(hit.reason(Some(u32::from(pc)), 4)));
+            }
         }
         Ok(())
     }
@@ -487,17 +520,34 @@ impl Vectrex {
         self.labels = labels;
     }
 
-    pub fn set_write_watches(&mut self, addresses: impl IntoIterator<Item = u16>) {
-        self.sys.watches = addresses.into_iter().map(watched).collect();
+    /// The watchpoints. The 6809's reads can't be told from its dummy reads and instruction fetches without a
+    /// slower core, so only writes are watched. The RAM's copies are one place.
+    pub fn set_watchpoints(&mut self, list: Vec<crate::watchpoints::Resolved>) {
+        self.watcher.big_endian = true;
+        let list: Vec<_> = list.into_iter().filter(|w| w.access == crate::watchpoints::Access::Write).map(|w| crate::watchpoints::Resolved { start: u32::from(watched(w.start as u16)), end: u32::from(watched(w.end as u16)), ..w }).collect();
+        self.sys.touches.set(&list);
+        let sys = &self.sys;
+        self.watcher.set(list, &|a| sys.peek(a as u16));
+    }
+
+    /// How often the breakpoint at an address has been reached, if it has a hit rule.
+    pub fn hit_count(&self, address: u16) -> Option<u64> {
+        self.hit_counts.get(&address).copied()
+    }
+
+    pub fn set_hit_rules(&mut self, rules: BTreeMap<u16, crate::watchpoints::HitRule>) {
+        self.hit_rules = rules;
     }
 
     pub fn carry_on(&mut self) {
+        self.instructions = 0;
         self.stop_reason = None;
         self.paused = false;
     }
 
     /// Runs one instruction, and stops again.
     pub fn step(&mut self) -> Result<(), String> {
+        self.instructions = 0;
         self.paused = false;
         self.stopped = None;
         self.stop_reason = None;
@@ -543,6 +593,26 @@ impl Vectrex {
             crate::i18n::tf!("Beam at {}, {}", self.sys.beam.x, self.sys.beam.y),
         ];
         crate::remote_debug::Stop { pc: cpu.pc, z80: None, words, ..Default::default() }
+    }
+
+    /// Writes to RAM ($C800 to $CFFF), for the trainer; anything else is let go.
+    pub fn poke(&mut self, address: u16, values: &[u8]) {
+        for (i, value) in values.iter().enumerate() {
+            let a = address.wrapping_add(i as u16);
+            if (0xC800..=0xCFFF).contains(&a) {
+                self.sys.ram[usize::from(a & 0x3FF)] = *value;
+            }
+        }
+    }
+
+    /// The RAM addresses whose writes are stopped, for the trainer.
+    pub fn set_blocked(&mut self, addresses: impl IntoIterator<Item = u16>) {
+        self.sys.blocked = addresses.into_iter().map(watched).collect();
+    }
+
+    /// The lines the program has written to the debug console address since last asked.
+    pub fn take_console(&mut self) -> Vec<String> {
+        self.sys.console.take()
     }
 
     /// All 64K as the 6809 sees it, for the debugger.

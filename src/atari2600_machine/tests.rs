@@ -531,6 +531,109 @@ fn breakpoints_stop_before_the_instruction_and_step_over_runs_a_subroutine_whole
     assert!(atari.stop_reason.as_deref().is_some_and(|r| r.contains("$0081")), "{:?}", atari.stop_reason);
 }
 
+/// The 2600's watchpoints and hit rules, on a program that counts in RAM: `inc $81` in a subroutine, `inc $80` after it.
+fn counting_atari() -> Atari2600 {
+    let source = format!("        processor 6502\n{EQUATES}\n        org $F000\nReset:  ldx #$FF\n        txs\nLoop:   lda #1\n        jsr Sub\nAfter:  inc $80\n        jmp Loop\nSub:    inc $81\n        rts\n        org $FFFC\n        .word Reset\n        .word Reset\n");
+    Atari2600::from_rom(&assemble(&source))
+}
+
+fn watch(access: crate::watchpoints::Access, address: u32, mask: u32, rule: crate::watchpoints::Rule) -> Vec<crate::watchpoints::Resolved> {
+    vec![crate::watchpoints::Resolved { id: 0, start: address, end: address, access, bytes: 1, mask, rule }]
+}
+
+#[test]
+fn a_watchpoint_on_the_2600_judges_the_value_written() {
+    use crate::watchpoints::{Access, Rule};
+    // Rises: the INC's first write puts the old value back (as the 6502 does), the second adds one.
+    let mut atari = counting_atari();
+    atari.set_watchpoints(watch(Access::Write, 0x81, 0xFF, Rule::Rises));
+    atari.frame().unwrap();
+    assert!(atari.paused);
+    assert_eq!((atari.cpu().pc, atari.peek(0x81)), (0xF00F, 1), "after the INC");
+    assert!(atari.stop_reason.as_deref().is_some_and(|r| r.contains("write to $0081 (8 bits) by the instruction at $F00D, $00 becoming $01")), "{:?}", atari.stop_reason);
+    // Falls: a counter only rises until it wraps round from 255 to 0.
+    let mut atari = counting_atari();
+    atari.set_watchpoints(watch(Access::Write, 0x81, 0xFF, Rule::Falls));
+    atari.frame().unwrap();
+    assert!(atari.paused);
+    assert_eq!(atari.peek(0x81), 0);
+    assert!(atari.stop_reason.as_deref().is_some_and(|r| r.contains("$FF becoming $00")), "{:?}", atari.stop_reason);
+    // Under a mask that leaves bit 0 out, the change from 0 to 1 doesn't count; from 1 to 2 does.
+    let mut atari = counting_atari();
+    atari.set_watchpoints(watch(Access::Write, 0x81, 0xFE, Rule::Changed));
+    atari.frame().unwrap();
+    assert_eq!(atari.peek(0x81), 2);
+    assert!(atari.stop_reason.as_deref().is_some_and(|r| r.contains("$00 becoming $02")), "{:?}", atari.stop_reason);
+    // Equals, and differs from.
+    let mut atari = counting_atari();
+    atari.set_watchpoints(watch(Access::Write, 0x81, 0xFF, Rule::Equals(3)));
+    atari.frame().unwrap();
+    assert_eq!(atari.peek(0x81), 3);
+    let mut atari = counting_atari();
+    atari.set_watchpoints(watch(Access::Write, 0x81, 0xFF, Rule::Differs(0)));
+    atari.frame().unwrap();
+    assert_eq!(atari.peek(0x81), 1, "the dummy write of the old value, 0, was passed by");
+    // A 16-bit watch is joined low byte first, as the 6502 keeps words: $80 and $81 together.
+    let mut atari = counting_atari();
+    atari.set_watchpoints(vec![crate::watchpoints::Resolved { id: 0, start: 0x80, end: 0x81, access: Access::Write, bytes: 2, mask: 0xFFFF, rule: Rule::Equals(0x0201) }]);
+    atari.frame().unwrap();
+    assert_eq!((atari.peek(0x80), atari.peek(0x81)), (1, 2));
+    // Reads can't be watched on this core: a watchpoint asking for them is left out.
+    let mut atari = counting_atari();
+    atari.set_watchpoints(watch(Access::Read, 0x81, 0xFF, Rule::Any));
+    atari.frame().unwrap();
+    assert!(!atari.paused);
+}
+
+#[test]
+fn a_2600_breakpoint_stops_on_the_nth_time_every_nth_time_or_only_counts() {
+    use crate::watchpoints::HitRule;
+    let mut atari = counting_atari();
+    atari.set_breakpoints([0xF008]);
+    atari.set_hit_rules([(0xF008, HitRule::Nth(3))].into());
+    atari.frame().unwrap();
+    assert!(atari.paused);
+    assert_eq!((atari.hit_count(0xF008), atari.peek(0x80)), (Some(3), 2), "the third arrival, before its INC");
+    assert!(atari.stop_reason.as_deref().is_some_and(|r| r.contains('3')), "{:?}", atari.stop_reason);
+    atari.carry_on();
+    atari.frame().unwrap();
+    assert!(!atari.paused, "only the third time");
+    // Every second time; with a condition, only the arrivals it is true for count.
+    let mut atari = counting_atari();
+    atari.set_breakpoints([0xF008]);
+    atari.set_hit_rules([(0xF008, HitRule::Every(2))].into());
+    atari.frame().unwrap();
+    assert_eq!((atari.hit_count(0xF008), atari.peek(0x80)), (Some(2), 1));
+    atari.carry_on();
+    atari.frame().unwrap();
+    assert_eq!(atari.hit_count(0xF008), Some(4));
+    let mut atari = counting_atari();
+    atari.set_breakpoints([0xF008]);
+    atari.set_conditions([(0xF008, "[$80] >= 2".to_string())].into(), None);
+    atari.set_hit_rules([(0xF008, HitRule::Nth(2))].into());
+    atari.frame().unwrap();
+    assert_eq!((atari.hit_count(0xF008), atari.peek(0x80)), (Some(2), 3), "counted from when $80 was 2");
+    // A counter never stops, and counts.
+    let mut atari = counting_atari();
+    atari.set_breakpoints([0xF008]);
+    atari.set_hit_rules([(0xF008, HitRule::Counter)].into());
+    atari.frame().unwrap();
+    assert!(!atari.paused);
+    assert!(atari.hit_count(0xF008).is_some_and(|n| n > 100), "{:?}", atari.hit_count(0xF008));
+}
+
+#[test]
+fn the_2600_counts_instructions_since_the_last_stop() {
+    let mut atari = counting_atari();
+    atari.set_breakpoints([0xF008]);
+    atari.frame().unwrap();
+    assert!(atari.paused);
+    assert!(atari.instructions > 3 && atari.frames <= 1, "{} instructions", atari.instructions);
+    atari.step().unwrap();
+    atari.step().unwrap();
+    assert_eq!(atari.instructions, 1, "one for the last step: the count starts again at each");
+}
+
 #[test]
 fn wsync_holds_the_processor_to_the_end_of_the_line() {
     let source = format!("        processor 6502\n{EQUATES}\n        org $F000\nReset:  sta WSYNC\n        nop\nHere:   jmp Here\n        org $FFFC\n        .word Reset\n        .word Reset\n");

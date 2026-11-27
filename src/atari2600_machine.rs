@@ -304,9 +304,12 @@ struct System {
     /// What was last on the data bus, which the TIA's undriven bits read back.
     data_bus: u8,
     controls: Controls,
-    /// Addresses whose writing stops it, and the write that did.
-    watches: BTreeSet<u16>,
-    wrote: Option<(u16, u8)>,
+    /// Writes to watched places, noted for the machine to judge when the instruction is over.
+    touches: crate::watchpoints::Touches,
+    /// RAM whose writes are stopped (the trainer's Block writes), by `same_place`, and what the program wrote to
+    /// the debug console address.
+    blocked: BTreeSet<u16>,
+    console: crate::debug_console::Console,
 }
 
 /// An address as the 6507 sees it: thirteen lines, so 8K mirrored through the 64K.
@@ -369,9 +372,16 @@ impl Bus for System {
         self.cycle();
         self.data_bus = value;
         let a = mirror(address);
+        if !self.blocked.is_empty() && self.blocked.contains(&same_place(a)) {
+            return;
+        }
         if a & 0x1000 != 0 {
             self.cart.write(a, value);
         } else if a & 0x80 == 0 {
+            // $2D is no TIA register: the debug console port, which a real console ignores.
+            if a & 0x3F == crate::debug_console::ATARI_2600_ADDRESS {
+                self.console.put(value);
+            }
             self.tia.write(a, value);
             self.cart.saw_tia_write(a, value);
         } else if a & 0x200 == 0 {
@@ -379,9 +389,7 @@ impl Bus for System {
         } else {
             self.riot.write(a, value);
         }
-        if !self.watches.is_empty() && self.watches.contains(&same_place(a)) {
-            self.wrote = Some((address, value));
-        }
+        self.touches.note(crate::watchpoints::Access::Write, u32::from(same_place(a)), value);
     }
 }
 
@@ -418,6 +426,12 @@ pub struct Atari2600 {
     dc: (f32, f32),
     /// How many frames have run.
     pub frames: u64,
+    /// The judge of watchpoints, hit rules with how often each was reached, and the instructions run since it
+    /// last stopped.
+    watcher: crate::watchpoints::Watcher,
+    hit_rules: BTreeMap<u16, crate::watchpoints::HitRule>,
+    pub hit_counts: BTreeMap<u16, u64>,
+    pub instructions: u64,
     /// The sound's levels as the TIA made them (two a line), for the tests.
     #[cfg(test)]
     pub heard: Vec<f32>,
@@ -443,7 +457,7 @@ impl Atari2600 {
     }
 
     fn with_cartridge(rom: Vec<u8>, scheme: Scheme, speaker: Option<crate::speaker::Speaker>) -> Atari2600 {
-        let mut sys = System { tia: Tia::default(), riot: Riot::default(), cart: Cartridge::new(rom, scheme), cycles: 0, data_bus: 0, controls: Controls::default(), watches: BTreeSet::new(), wrote: None };
+        let mut sys = System { tia: Tia::default(), riot: Riot::default(), cart: Cartridge::new(rom, scheme), cycles: 0, data_bus: 0, controls: Controls::default(), touches: Default::default(), blocked: BTreeSet::new(), console: Default::default() };
         let mut cpu = Cpu { s: 0xFD, ..Cpu::default() };
         cpu.reset(&mut sys);
         Atari2600 {
@@ -469,6 +483,10 @@ impl Atari2600 {
             count: 0,
             dc: (0.0, 0.0),
             frames: 0,
+            watcher: Default::default(),
+            hit_rules: BTreeMap::new(),
+            hit_counts: BTreeMap::new(),
+            instructions: 0,
             #[cfg(test)]
             heard: Vec::new(),
         }
@@ -559,6 +577,17 @@ impl Atari2600 {
                 },
                 None => Some(None),
             };
+            // Reached with its condition true: counted, and the hit rule says whether to stop.
+            let stop = match (stop, self.hit_rules.get(&mirror(pc)).copied()) {
+                (Some(reason), Some(rule)) => {
+                    let count = self.hit_counts.entry(mirror(pc)).or_default();
+                    rule.reached(count).then(|| {
+                        let count = *count;
+                        reason.or_else(|| Some(crate::i18n::tf!("Stopped on its hit number {count}")))
+                    })
+                }
+                (stop, _) => stop,
+            };
             if let Some(reason) = stop {
                 self.stop(reason);
                 return Ok(());
@@ -571,8 +600,14 @@ impl Atari2600 {
             self.stopped = Some(self.cpu.pc);
             return Err(crate::i18n::tf!("The 6507 has jammed: the instruction at ${:04X} stops the processor.", self.cpu.pc.wrapping_sub(1)));
         }
-        if let Some((address, value)) = self.sys.wrote.take() {
-            self.stop(Some(crate::i18n::tf!("Stopped after writing {value} (${value:02X}) to ${address:04X}")));
+        self.instructions += 1;
+        let touched = self.sys.touches.take();
+        if !touched.is_empty() {
+            let sys = &self.sys;
+            let peek = |a: u32| sys.peek(a as u16);
+            if let Some(hit) = touched.iter().find_map(|(what, address, value)| self.watcher.judge(*what, *address, *value, &peek)) {
+                self.stop(Some(hit.reason(Some(u32::from(pc)), 4)));
+            }
         }
         Ok(())
     }
@@ -588,7 +623,7 @@ impl Atari2600 {
         let names = |name: &str| self.register(name);
         let peek = |a: u32| self.sys.peek(a as u16);
         let wide = crate::debug_panel::Wide { names: &names, peek: &peek };
-        crate::debug_panel::eval_wide(condition, &wide, self.labels.as_deref())
+        crate::debug_panel::eval_wide_little(condition, &wide, self.labels.as_deref())
     }
 
     fn register(&self, name: &str) -> Option<i64> {
@@ -640,18 +675,59 @@ impl Atari2600 {
         self.labels = labels;
     }
 
+    #[cfg(test)]
     pub fn set_write_watches(&mut self, addresses: impl IntoIterator<Item = u16>) {
-        self.sys.watches = addresses.into_iter().map(same_place).collect();
+        self.set_watchpoints(addresses.into_iter().enumerate().map(|(id, a)| crate::watchpoints::Resolved::write_to(id, u32::from(a))).collect());
+    }
+
+    /// The watchpoints. The 6507's reads can't be told from its dummy reads and instruction fetches, so only writes
+    /// are watched. RAM's mirrors are one place.
+    pub fn set_watchpoints(&mut self, list: Vec<crate::watchpoints::Resolved>) {
+        let list: Vec<_> = list.into_iter().filter(|w| w.access == crate::watchpoints::Access::Write).map(|w| crate::watchpoints::Resolved { start: u32::from(same_place(w.start as u16)), end: u32::from(same_place(w.end as u16)), ..w }).collect();
+        self.sys.touches.set(&list);
+        let sys = &self.sys;
+        self.watcher.set(list, &|a| sys.peek(a as u16));
+    }
+
+    /// How often the breakpoint at an address has been reached, if it has a hit rule.
+    pub fn hit_count(&self, address: u16) -> Option<u64> {
+        self.hit_counts.get(&mirror(address)).copied()
+    }
+
+    pub fn set_hit_rules(&mut self, rules: BTreeMap<u16, crate::watchpoints::HitRule>) {
+        self.hit_rules = rules.into_iter().map(|(a, r)| (mirror(a), r)).collect();
+    }
+
+    /// Writes to RAM ($80 to $FF), for the trainer; anything else is let go.
+    pub fn poke(&mut self, address: u16, values: &[u8]) {
+        for (i, value) in values.iter().enumerate() {
+            let a = mirror(address.wrapping_add(i as u16));
+            if a & 0x1080 == 0x80 && a & 0x200 == 0 {
+                self.sys.riot.ram[usize::from(a & 0x7F)] = *value;
+            }
+        }
+    }
+
+    /// The RAM addresses whose writes are stopped, for the trainer.
+    pub fn set_blocked(&mut self, addresses: impl IntoIterator<Item = u16>) {
+        self.sys.blocked = addresses.into_iter().map(same_place).collect();
+    }
+
+    /// The lines the program has written to the debug console address since last asked.
+    pub fn take_console(&mut self) -> Vec<String> {
+        self.sys.console.take()
     }
 
     /// Carries on from where it stopped.
     pub fn carry_on(&mut self) {
+        self.instructions = 0;
         self.stop_reason = None;
         self.paused = false;
     }
 
     /// Runs one instruction, and stops again.
     pub fn step(&mut self) -> Result<(), String> {
+        self.instructions = 0;
         self.paused = false;
         self.stopped = None;
         self.stop_reason = None;
@@ -799,7 +875,6 @@ impl Atari2600 {
         (self.sys.tia.frame_so_far().0.len() / WIDTH, self.sys.tia.hctr / 3)
     }
 
-    #[cfg(test)]
     pub fn peek(&self, address: u16) -> u8 {
         self.sys.peek(address)
     }

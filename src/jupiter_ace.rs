@@ -50,6 +50,8 @@ pub fn key(name: &str) -> Option<Key> {
 }
 
 pub struct Hw {
+    /// What the program has written to the debug console port.
+    console: crate::debug_console::Console,
     rom: Vec<u8>,
     /// &2000 to &3FFF (the screen, the patterns and the 1K), then the pack.
     ram: Vec<u8>,
@@ -77,7 +79,7 @@ impl Hw {
     fn new(rom: Vec<u8>, pack: bool) -> Hw {
         let mut rgba = vec![0; WIDTH * HEIGHT * 4];
         z80_micro::paint(&vec![0; WIDTH * HEIGHT], PAPER, INK, &mut rgba);
-        Hw { rom, ram: vec![0; if pack { 0x6000 } else { 0x2000 }], t: 0, next_frame: z80_micro::FRAME_T, int_pending: std::cell::Cell::new(false), iff1: false, keys: [0xFF; 8], rgba, tape: Vec::new(), next: 0, saved: Vec::new(), frames: 0 }
+        Hw { console: Default::default(), rom, ram: vec![0; if pack { 0x6000 } else { 0x2000 }], t: 0, next_frame: z80_micro::FRAME_T, int_pending: std::cell::Cell::new(false), iff1: false, keys: [0xFF; 8], rgba, tape: Vec::new(), next: 0, saved: Vec::new(), frames: 0 }
     }
 
     /// Where an address is in the RAM, if it's RAM: the screen's and the patterns' 1K each seen twice, and the 1K at
@@ -169,8 +171,11 @@ impl Z80Bus for Hw {
         keys
     }
 
-    fn write_io(&mut self, _port: u16, _data: u8) {
+    fn write_io(&mut self, port: u16, data: u8) {
         self.tick(4);
+        if port & 0xFF == u16::from(crate::debug_console::Z80_PORT) {
+            self.console.put(data);
+        }
     }
 
     fn read_interrupt(&mut self) -> u8 {
@@ -193,6 +198,10 @@ impl Z80Bus for Hw {
 }
 
 impl Hardware for Hw {
+    fn take_console(&mut self) -> Vec<String> {
+        self.console.take()
+    }
+
     fn now(&self) -> u64 {
         self.t
     }

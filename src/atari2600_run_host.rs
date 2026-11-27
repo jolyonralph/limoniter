@@ -50,9 +50,11 @@ impl Limoniter {
             return;
         };
         machine.set_breakpoints(breakpoints);
-        if let (Some(assembly), Some(code)) = (&assembly, &code) {
+        if let (Some(assembly), Some(code)) = (&assembly, &mut code) {
             machine.set_conditions(crate::debug_panel::conditions_by_address(code, assembly), Some(std::sync::Arc::new(assembly.symbols.clone())));
-            machine.set_write_watches(crate::debug_panel::write_addresses(code, Some(&assembly.symbols)));
+            machine.set_watchpoints(crate::debug_panel::watchpoints_for(code, Some(&assembly.symbols)));
+            machine.set_hit_rules(crate::debug_panel::hit_rules_by_address(code, assembly));
+            crate::debug_panel::show_hit_counts(code, assembly, &|a| machine.hit_count(a));
         }
         if error.is_none()
             && let Err(problem) = machine.catch_up()
@@ -147,6 +149,7 @@ impl Limoniter {
                 if machine.paused && error.is_none() && machine.stopped.is_some() {
                     let mut stop = machine.stop_words();
                     stop.reason = machine.stop_reason.clone();
+                stop.counts = Some((machine.frames, machine.instructions));
                     let memory = machine.memory();
                     match code.as_mut() {
                         Some(code) => debug = crate::debug_panel::stopped(ui, &stop, Some(&memory), machine.memory_before.as_deref().map(|m| m.as_slice()), assembly.as_deref(), code),
@@ -157,7 +160,7 @@ impl Limoniter {
                     }
                 }
                 if let (Some(code), true) = (code.as_mut(), assembly.is_some()) {
-                    crate::debug_panel::breakpoints(ui, code, &|line| line_texts.get(&line).cloned().unwrap_or_default(), true, true);
+                    crate::debug_panel::breakpoints(ui, code, &|line| line_texts.get(&line).cloned().unwrap_or_default(), &crate::debug_panel::Support::writes_only(crate::debug_panel::reads_unseen("6507")));
                 }
             });
         });

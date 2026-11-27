@@ -341,6 +341,7 @@ enum Command {
     AmigaNdk,
     AutoDocs,
     AmigaTools,
+    AmigaSetup,
     AmigaIcon,
     /// A new Amiga C project from a template, in a folder of its own.
     AmigaNewProject,
@@ -411,6 +412,7 @@ enum Command {
     /// Forgets the cookies a `.http` file's responses have set.
     HttpClearCookies,
     MachineMemory,
+    Trainer,
     MachineScreen,
     MachineBasicOut,
     MachineBasicIn,
@@ -529,6 +531,7 @@ impl Command {
                 | Command::AutoDocs
                 | Command::AmigaHardware
                 | Command::AmigaTools
+                | Command::AmigaSetup
                 | Command::StTools
                 | Command::C64Tools
                 | Command::CheckOpticos
@@ -610,6 +613,7 @@ impl Command {
                 | Command::ToggleTerminal
                 | Command::EditNewKinds
                 | Command::MachineMemory
+                | Command::Trainer
                 | Command::MachineScreen
                 | Command::MachineBasicOut
                 | Command::SourceControl
@@ -1978,6 +1982,10 @@ pub struct Limoniter {
     dragon_disk: Option<Box<dragon_disk_host::DragonDisk>>,
     binary_tools: Option<Box<binary_tools_host::BinaryTools>>,
     regex_tester: Option<Box<crate::regex_tester::Tester>>,
+    /// The Trainer box, when it's open; what's frozen for each program, and the programs whose freezes are being held.
+    trainer: Option<Box<trainer_host::TrainerBox>>,
+    trainer_kept: crate::trainer::Kept,
+    trainer_holding: std::collections::BTreeSet<String>,
     code_picture: Option<Box<binary_tools_host::CodePicture>>,
     /// How AVR and PIC chips are flashed, and whether that box is open.
     flashing: crate::tasks::Flashing,
@@ -2203,6 +2211,9 @@ impl Limoniter {
             dragon_disk: None,
             binary_tools: None,
             regex_tester: None,
+            trainer: None,
+            trainer_kept: crate::trainer::Kept::load(if cfg!(test) { None } else { settings::data_folder().map(|d| crate::trainer::Kept::file_in(&d)) }),
+            trainer_holding: Default::default(),
             code_picture: None,
             flashing: {
                 let mut flashing = crate::tasks::Flashing::default();
@@ -4689,6 +4700,7 @@ impl Limoniter {
                 | Command::RunInWindow(_)
                 | Command::StopRunning
                 | Command::MachineMemory
+                | Command::Trainer
                 | Command::MachineScreen
                 | Command::MachineBasicOut
                 | Command::MachineBasicIn
@@ -4857,6 +4869,7 @@ impl Limoniter {
             Command::AutoDocs => self.open_autodocs_at_caret(),
             Command::AmigaHardware => self.open_amiga_hardware(amiga_hw_host::Tab::Registers),
             Command::AmigaTools => self.open_amiga_tools(),
+            Command::AmigaSetup => self.open_amiga_setup(),
             Command::AmigaIcon => self.open_amiga_icon(ui.ctx()),
             Command::HatariProfile => self.profile_in_hatari(),
             Command::StFloppy => self.make_st_floppy(),
@@ -4965,6 +4978,7 @@ impl Limoniter {
                 self.save_project();
             }
             Command::MachineMemory => self.open_machine_memory(),
+            Command::Trainer => self.open_trainer(),
             Command::MachineScreen => self.open_machine_screen(),
             Command::MachineBasicOut => self.take_machine_basic(),
             Command::MachineBasicIn => self.put_machine_basic(),
@@ -7869,6 +7883,7 @@ impl Limoniter {
 
     fn dialogs(&mut self, ctx: &Context) {
         self.addon_panels_ui(ctx);
+        self.amiga_setup_dialog(ctx);
         if self.palette_dialog(ctx) || self.toolbar_dialog(ctx) || self.addons_dialog(ctx) || self.extensions_dialog(ctx) || self.remote_dialog(ctx) || self.theme_dialog(ctx) || self.send_dialog(ctx) || self.devices_dialog(ctx) || self.run_dialog(ctx) || self.assembler_dialog(ctx) || self.compilers_dialog(ctx) || self.new_kinds_dialog(ctx) || self.rename_dialog(ctx) || self.query_rows_dialog(ctx) || self.disassemble_dialog(ctx) || self.new_image_dialog(ctx) || self.web_dialog(ctx) || self.web_project_dialog(ctx) || self.c64_tools_dialog(ctx) || self.ndk_dialog(ctx) || self.amiga_project_dialog(ctx) || self.database_dialog(ctx) || self.amiga_tools_dialog(ctx) || self.amiga_icon_dialog(ctx) || self.st_tools_dialog(ctx) || self.language_servers_dialog(ctx) || self.tasks_dialog(ctx) || self.git_history_dialog(ctx) || self.git_wizard_dialog(ctx) || self.script_dialog(ctx) || self.file_tool_dialogs(ctx) || self.assistant_dialogs(ctx) || self.recovery_dialog(ctx) || self.update_dialog(ctx) || self.encoding_dialog(ctx) || self.node_dialog(ctx) || self.templates_dialog(ctx) || self.compare_dialogs(ctx) {
             return;
         }
@@ -8420,6 +8435,8 @@ impl Limoniter {
                     self.ribbon.popped = self.view.ribbon_folded && value == "buttons";
                 }
                 "new-image" => self.open_new_image_box(),
+                // Set up the Amiga, as it opens or when it has said it's ready.
+                "amiga-setup" => self.amiga_setup_screenshot_step(value),
                 // The Workbench icon window, for the icon in front.
                 "amiga-icon" => self.pending_command = Some(Command::AmigaIcon),
                 "amiga-project" => {
@@ -8700,6 +8717,25 @@ impl Limoniter {
                     self.run_on_target(run_host::Target::BuiltIn);
                     self.run_until_stopped_for_screenshot();
                 }
+                "debug-watch" => {
+                    // Stopped at a line with a conditional breakpoint with a hit rule, and two watchpoints, for a picture.
+                    let line: usize = value.parse().unwrap_or(1);
+                    highlight::load_now();
+                    self.doc().resolved_syntax = None;
+                    self.doc().update_syntax();
+                    self.assembly_tick();
+                    if let Some(code) = &mut self.doc().text.code {
+                        code.breakpoints.insert(line.saturating_sub(1));
+                        code.conditions.insert(line.saturating_sub(1), "B<5 && [count]>=$02".into());
+                        code.hit_rules.insert(line.saturating_sub(1), crate::watchpoints::HitRule::Every(2));
+                        code.watchpoints = vec![
+                            crate::watchpoints::Watchpoint { address: "word".into(), bits: 16, access: crate::watchpoints::Access::Write, mask: "$FF00".into(), rule: crate::watchpoints::RuleKind::Rises, ..Default::default() },
+                            crate::watchpoints::Watchpoint { address: "count".into(), access: crate::watchpoints::Access::Either, rule: crate::watchpoints::RuleKind::Equals, value: "3".into(), enabled: false, ..Default::default() },
+                        ];
+                    }
+                    self.run_on_target(run_host::Target::BuiltIn);
+                    self.run_until_stopped_for_screenshot();
+                }
                 // The Where box for a Spectrum program, whose machine in Limoniter's window lacks its downloads.
                 "run-where" => {
                     self.new_document();
@@ -8728,6 +8764,9 @@ impl Limoniter {
                     self.run_on_target(run_host::Target::BuiltIn2600);
                     self.run_until_stopped_for_screenshot();
                 }
+                // The Trainer box over a machine that's running: a snapshot, frames run, the changed addresses kept, and
+                // the first frozen as Lives.
+                "trainer" => self.trainer_for_screenshot(value.parse().unwrap_or(20)),
                 "run-frames" => self.run_frames_for_screenshot(value.parse().unwrap_or(50)),
                 // The file in front run on its machine in Limoniter's window (a libretro core), left to run for a
                 // number of seconds; seconds/memory opens the memory view too.
@@ -9599,6 +9638,8 @@ impl Limoniter {
         self.dragon_disk_window(&ctx);
         self.binary_tools_window(&ctx);
         self.regex_tester_window(&ctx);
+        self.trainer_tick();
+        self.trainer_window(&ctx);
         self.code_picture_window(&ctx);
         self.flashing_window(&ctx);
         self.serial_window(&ctx);
@@ -10403,6 +10444,8 @@ mod autodocs_host;
 mod st_host;
 #[path = "amiga_tools_host.rs"]
 mod amiga_tools_host;
+#[path = "amiga_setup_host.rs"]
+mod amiga_setup_host;
 #[path = "amiga_icon_host.rs"]
 mod amiga_icon_host;
 #[path = "amiga_vamos_host.rs"]
@@ -10479,6 +10522,8 @@ mod c64_converter_host;
 mod retro_converter_host;
 #[path = "retro_host.rs"]
 mod retro_host;
+#[path = "trainer_host.rs"]
+mod trainer_host;
 #[path = "next_painter_host.rs"]
 mod next_painter_host;
 #[path = "atari2600_painter_host.rs"]
@@ -10581,6 +10626,9 @@ mod git_host_tests;
 #[cfg(test)]
 #[path = "run_host_tests.rs"]
 mod run_host_tests;
+#[cfg(test)]
+#[path = "trainer_host_tests.rs"]
+mod trainer_host_tests;
 
 #[path = "table_view.rs"]
 mod table_view;

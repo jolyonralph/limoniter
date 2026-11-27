@@ -438,6 +438,24 @@ impl<H: Host> Z80Bus for ZXController<H> {
         }
     }
 
+    /// A byte of an instruction: read as data is, but not reported to a debugger watching for data reads.
+    fn fetch(&mut self, addr: u16, clk: usize) -> u8 {
+        self.wait_mreq(addr, clk);
+        self.read_internal(addr)
+    }
+
+    /// A data read, which a debugger may be watching for.
+    fn read(&mut self, addr: u16, clk: usize) -> u8 {
+        self.wait_mreq(addr, clk);
+        let value = self.read_internal(addr);
+        if let Some(debug) = &mut self.debug_interface {
+            if debug.check_memory_read(addr, value) {
+                self.events |= EmulationEvents::PC_BREAKPOINT;
+            }
+        }
+        value
+    }
+
     /// read data without taking onto account contention
     fn read_internal(&mut self, addr: u16) -> u8 {
         self.memory.read(addr)
@@ -446,6 +464,9 @@ impl<H: Host> Z80Bus for ZXController<H> {
     /// write data without taking onto account contention
     fn write_internal(&mut self, addr: u16, data: u8) {
         if let Some(debug) = &mut self.debug_interface {
+            if debug.blocks_memory_write(addr) {
+                return;
+            }
             if debug.check_memory_write(addr, data) {
                 self.events |= EmulationEvents::PC_BREAKPOINT;
             }
@@ -550,6 +571,9 @@ impl<H: Host> Z80Bus for ZXController<H> {
 
     /// write value to hardware port
     fn write_io(&mut self, port: u16, data: u8) {
+        if let Some(debug) = &mut self.debug_interface {
+            debug.port_write(port, data);
+        }
         // first contention
         self.io_contention_first(port);
 

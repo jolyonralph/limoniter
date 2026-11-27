@@ -155,6 +155,29 @@ mod tests {
         assert_eq!(code(&one), code(&split));
     }
 
+    /// The startup's DEBUG macro prints a line to Limoniter's debug console port, keeping every register.
+    #[test]
+    fn the_debug_macro_prints_to_the_console_port() {
+        let single = single_file_demo().replacen("\nInit:\n", "\nInit:\n        ld      hl,$1234\n        DEBUG   \"score 120\"\n        ld      a,h\n        cp      $12\n        jr      z,.kept\n        DEBUG   \"HL was lost\"\n.kept:\n", 1);
+        assert!(single.contains("DEBUG   \"score 120\""));
+        let path = std::env::temp_dir().join(format!("limoniter-zxdebug-{}", std::process::id())).join("demo.asm");
+        let tape = crate::cli_assemble::assemble_for(&path, &single, Path::new("demo.tap")).unwrap();
+        let run = Runnable { machine: Machine::Spectrum48, format: Format::Tap, name: "t.tap".into(), bytes: std::sync::Arc::new(tape) };
+        let mut spectrum = BuiltIn::start(&run).unwrap();
+        let mut printed = Vec::new();
+        for _ in 0..50 * 120 {
+            spectrum.frame().unwrap();
+            printed.extend(spectrum.take_console());
+            if !printed.is_empty() {
+                break;
+            }
+        }
+        // A frame later, in case a second line was to follow.
+        spectrum.frame().unwrap();
+        printed.extend(spectrum.take_console());
+        assert_eq!(printed, vec!["score 120"]);
+    }
+
     /// An example's tape run on the built-in Spectrum until it goes back to BASIC by itself (AUTOEXIT), or for
     /// `frames` if it's not to; returns the machine, and whether its main loop was reached.
     pub(crate) fn run_example(path: &Path, machine: Machine, frames: usize, autoexit: Option<usize>) -> (BuiltIn, bool) {

@@ -101,6 +101,8 @@ pub enum Model {
 /// The ZX81's hardware (and the ZX80's): its memory, the ULA's counters and the keyboard.
 pub struct Hw {
     pub(crate) model: Model,
+    /// What the program has written to the debug console port.
+    console: crate::debug_console::Console,
     rom: Vec<u8>,
     pub(crate) ram: Vec<u8>,
     t: u64,
@@ -143,6 +145,7 @@ impl Hw {
         let mut rgba = vec![0; WIDTH * HEIGHT * 4];
         z80_micro::paint(&vec![0; WIDTH * HEIGHT], PAPER, INK, &mut rgba);
         Hw {
+            console: Default::default(),
             model,
             rom,
             ram: vec![0; ram_k.clamp(1, 16) * 1024],
@@ -299,8 +302,11 @@ impl Z80Bus for Hw {
         (keys & 0x1F) | 0x60 | tape
     }
 
-    fn write_io(&mut self, port: u16, _data: u8) {
+    fn write_io(&mut self, port: u16, data: u8) {
         self.tick(4);
+        if port & 0xFF == u16::from(crate::debug_console::Z80_PORT) {
+            self.console.put(data);
+        }
         if let Some(since) = self.vsync.take() {
             self.line_t = 0;
             if self.t - since >= VSYNC_LEAST {
@@ -343,6 +349,10 @@ impl Z80Bus for Hw {
 }
 
 impl Hardware for Hw {
+    fn take_console(&mut self) -> Vec<String> {
+        self.console.take()
+    }
+
     fn now(&self) -> u64 {
         self.t
     }

@@ -53,7 +53,7 @@ pub const CORES: &[Core] = &[
     Core { core: "vice_xvic", name: "VICE (xvic)", machines: &[M::Vic20], formats: &[F::Prg, F::P00, F::T64, F::D64, F::Crt, F::Tap], keyboard: true, mouse: false, needs: None },
     Core { core: "vice_xplus4", name: "VICE (xplus4)", machines: &[M::Plus4], formats: &[F::Prg, F::P00, F::T64, F::D64, F::Tap], keyboard: true, mouse: false, needs: None },
     Core { core: "vice_xpet", name: "VICE (xpet)", machines: &[M::Pet], formats: &[F::Prg, F::P00, F::D64], keyboard: true, mouse: false, needs: None },
-    Core { core: "puae", name: "PUAE", machines: &[M::Amiga], formats: &[F::Adf], keyboard: true, mouse: true, needs: Some("Kickstart ROMs, named as PUAE looks for them (kick34005.A500 for an A500's Kickstart 1.3, kick40068.A1200 for an A1200's 3.1)") },
+    Core { core: "puae", name: "PUAE", machines: &[M::Amiga], formats: &[F::Adf, F::Hunk], keyboard: true, mouse: true, needs: Some("Kickstart ROMs, named as PUAE looks for them (kick34005.A500 for an A500's Kickstart 1.3, kick40068.A1200 for an A1200's 3.1)") },
     Core { core: "genesis_plus_gx", name: "Genesis Plus GX", machines: &[M::MegaDrive, M::MasterSystem, M::GameGear, M::Sg1000], formats: &[F::MdRom, F::SmsRom, F::GgRom, F::SgRom], keyboard: false, mouse: false, needs: None },
     Core { core: "picodrive", name: "PicoDrive", machines: &[M::MegaDrive, M::MasterSystem], formats: &[F::MdRom, F::SmsRom], keyboard: false, mouse: false, needs: None },
     Core { core: "stella", name: "Stella", machines: &[M::Atari2600], formats: &[F::A26], keyboard: false, mouse: false, needs: None },
@@ -381,6 +381,10 @@ fn missing_with(machine: Machine, run: &Runnable, helper_here: bool, core_here: 
 
 /// Whether a machine's programs can be run in Limoniter's window; if not, why not, in words that say what to do.
 pub fn takes(machine: Machine, run: &Runnable) -> Result<&'static Core, String> {
+    takes_with(machine, run, find_helper().is_some(), |core| installed_core(core).is_some(), || crate::amiga_setup::kickstart_ready(system_folder().as_deref(), &Prefs::load()))
+}
+
+fn takes_with(machine: Machine, run: &Runnable, helper_here: bool, core_here: impl Fn(&str) -> bool, kickstart_ready: impl Fn() -> bool) -> Result<&'static Core, String> {
     let run = &prepared(run);
     let core = core_for(machine).ok_or(crate::i18n::tr("No libretro core is known for it."))?;
     if run.machine != machine {
@@ -389,10 +393,13 @@ pub fn takes(machine: Machine, run: &Runnable) -> Result<&'static Core, String> 
     if !cores_for(machine).any(|c| c.formats.contains(&run.format)) {
         return Err(crate::i18n::tf!("{} isn't given .{} files.", core.name, run.format.ending()));
     }
-    if find_helper().is_none() {
+    if !helper_here {
         return Err(crate::i18n::tr("It needs the helper, limoniter-retro: Get an emulator, under Devices and emulators, gets it, or choose it by hand.").into());
     }
-    let core = cores_for(machine).find(|c| c.formats.contains(&run.format) && installed_core(c.core).is_some()).ok_or_else(|| crate::i18n::tf!("It needs the {} core: Get an emulator, under Devices and emulators, downloads it.", core.name))?;
+    let core = cores_for(machine).find(|c| c.formats.contains(&run.format) && core_here(c.core)).ok_or_else(|| crate::i18n::tf!("It needs the {} core: Get an emulator, under Devices and emulators, downloads it.", core.name))?;
+    if core.core == crate::amiga_setup::CORE && !kickstart_ready() {
+        return Err(crate::i18n::tr("PUAE needs a Kickstart ROM, or AROS, which is free: File, Run on, Set up the Amiga does either.").into());
+    }
     Ok(core)
 }
 
@@ -926,6 +933,35 @@ pub fn write_program(run: &Runnable, folder: &Path) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+/// Puts what the core is to load for a program in the run's folder, and gives it with any options this run needs
+/// besides those kept for the core. An Amiga program goes on a hard drive, made as it is for WinUAE and FS-UAE:
+/// a folder holding it and an S/Startup-Sequence that runs it, which PUAE takes as DH0:. PUAE's WHDLoad support is
+/// turned off for the run, as it would boot from a drive of PUAE's own first and only then run the program's:
+/// without it the Amiga boots from the program's drive itself, as it does in the other two. Anything else is
+/// written as `write_program` writes it.
+pub fn write_game(run: &Runnable, folder: &Path) -> Result<(PathBuf, Vec<(String, String)>), String> {
+    let run = prepared(run);
+    if run.machine == Machine::Amiga && run.format == Format::Hunk {
+        let drive = crate::amiga_run::hard_drive(folder, &run).map_err(|e| crate::i18n::tf!("The Amiga's drive couldn't be made.\n\n{e}"))?;
+        return Ok((drive, vec![("puae_use_whdload".to_string(), "disabled".to_string())]));
+    }
+    Ok((write_program(&run, folder)?, Vec::new()))
+}
+
+/// A core's options for a run: those kept for it, with the run's own put over them.
+pub fn with_options(mut kept: Vec<(String, String)>, run_own: Vec<(String, String)>) -> Vec<(String, String)> {
+    for (key, value) in run_own {
+        kept.retain(|(k, _)| *k != key);
+        kept.push((key, value));
+    }
+    kept
+}
+
+/// Bytes as hex, as the helper takes memory to write.
+pub fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// Bytes from hex, as the helper sends memory.
 pub fn unhex(text: &str) -> Option<Vec<u8>> {
     if !text.len().is_multiple_of(2) {
@@ -1164,6 +1200,101 @@ mod tests {
         assert_eq!(unhex(memory["data"].as_str().unwrap()).unwrap(), [113, 0]);
         drop(helper);
         assert!(!frames.exists(), "the frames file is tidied away");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A tiny Amiga program: it leaves $EDCBA987 at $100, worked out so it isn't in its own code, and returns.
+    fn marker_program() -> Vec<u8> {
+        // move.l #$12345678,d0; not.l d0; move.l d0,$100.w; moveq #0,d0; rts
+        let code = [0x20, 0x3C, 0x12, 0x34, 0x56, 0x78, 0x46, 0x80, 0x21, 0xC0, 0x01, 0x00, 0x70, 0x00, 0x4E, 0x75];
+        let mut file = Vec::new();
+        for long in [0x3F3u32, 0, 1, 0, 0, 4, 0x3E9, 4] {
+            file.extend(long.to_be_bytes());
+        }
+        file.extend(code);
+        file.extend(0x3F2u32.to_be_bytes());
+        file
+    }
+
+    #[test]
+    fn puae_takes_an_amiga_program_once_it_has_a_kickstart_or_aros() {
+        let program = Runnable { machine: Machine::Amiga, format: Format::Hunk, name: "demo.exe".into(), bytes: std::sync::Arc::new(marker_program()) };
+        let everything = |core: &str| core == "puae";
+        assert_eq!(takes_with(Machine::Amiga, &program, true, everything, || true).unwrap().core, "puae");
+        let refused = |result: Result<&Core, String>| result.err().unwrap_or_default();
+        let without = refused(takes_with(Machine::Amiga, &program, true, everything, || false));
+        assert!(without.contains("Set up the Amiga"), "{without}");
+        assert!(refused(takes_with(Machine::Amiga, &program, false, everything, || true)).contains("limoniter-retro"));
+        assert!(refused(takes_with(Machine::Amiga, &program, true, |_| false, || true)).contains("PUAE core"));
+        // Readiness as Set up the Amiga leaves it: a Kickstart in the system folder, or AROS chosen.
+        let system = scratch("kickstart-ready");
+        let mut prefs = Prefs::default();
+        let ready = |prefs: &Prefs| takes_with(Machine::Amiga, &program, true, everything, || crate::amiga_setup::kickstart_ready(Some(&system), prefs)).is_ok();
+        assert!(!ready(&prefs));
+        std::fs::write(system.join("kick34005.A500"), b"x").unwrap();
+        assert!(ready(&prefs));
+        std::fs::remove_file(system.join("kick34005.A500")).unwrap();
+        crate::amiga_setup::apply(&mut prefs, &crate::amiga_setup::choose(&[], true).unwrap());
+        assert!(ready(&prefs));
+        // What's missing is said for it too, and a disk is still taken.
+        assert!(missing_with(Machine::Amiga, &program, false, |_| false).is_some_and(|m| m.helper && m.core.is_some_and(|c| c.core == "puae")));
+        let disk = Runnable { machine: Machine::Amiga, format: Format::Adf, name: "game.adf".into(), bytes: std::sync::Arc::new(vec![0; 901_120]) };
+        assert!(takes_with(Machine::Amiga, &disk, true, everything, || true).is_ok());
+        std::fs::remove_dir_all(&system).ok();
+    }
+
+    #[test]
+    fn an_amiga_program_is_given_to_puae_on_a_hard_drive_that_starts_it() {
+        let dir = scratch("amiga-drive");
+        let program = Runnable { machine: Machine::Amiga, format: Format::Hunk, name: "my demo!.exe".into(), bytes: std::sync::Arc::new(marker_program()) };
+        let (game, own) = write_game(&program, &dir).unwrap();
+        // The same drive WinUAE and FS-UAE get: the program under a name AmigaDOS takes, and a Startup-Sequence.
+        assert_eq!(game, dir.join("dh0"));
+        assert!(game.is_dir());
+        assert_eq!(std::fs::read(game.join("mydemo")).unwrap(), marker_program());
+        assert_eq!(std::fs::read_to_string(game.join("s/startup-sequence")).unwrap(), "mydemo\n");
+        assert_eq!(own, [("puae_use_whdload".to_string(), "disabled".to_string())]);
+        // The run's own options are put over those kept for the core.
+        let kept = vec![("puae_use_whdload".to_string(), "enabled".to_string()), ("puae_model".to_string(), "A500".to_string())];
+        assert_eq!(with_options(kept, own), [("puae_model".to_string(), "A500".to_string()), ("puae_use_whdload".to_string(), "disabled".to_string())]);
+        // Anything else is the file, as before, with nothing of its own.
+        let tape = Runnable { machine: Machine::Spectrum48, format: Format::Tap, name: "game".into(), bytes: std::sync::Arc::new(vec![1, 2, 3]) };
+        let (file, own) = write_game(&tape, &dir).unwrap();
+        assert_eq!((file.file_name().unwrap().to_str(), own.len()), (Some("game.tap"), 0));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// PUAE itself, run by the real helper, booting an Amiga program from its hard drive with AROS (PUAE's own, so
+    /// no Kickstart is needed): the program ran when what it leaves in chip memory is there. Only when the helper
+    /// and the core are named, by `LIMONITER_RETRO_HELPER` and `LIMONITER_PUAE_CORE`.
+    #[test]
+    fn puae_boots_an_amiga_program_from_its_hard_drive() {
+        let (Some(helper), Some(core)) = (std::env::var_os("LIMONITER_RETRO_HELPER"), std::env::var_os("LIMONITER_PUAE_CORE")) else {
+            return;
+        };
+        let dir = scratch("puae-boots");
+        let (system, saves) = (dir.join("system"), dir.join("saves"));
+        std::fs::create_dir_all(&system).unwrap();
+        std::fs::create_dir_all(&saves).unwrap();
+        let program = Runnable { machine: Machine::Amiga, format: Format::Hunk, name: "marker.exe".into(), bytes: std::sync::Arc::new(marker_program()) };
+        let (game, own) = write_game(&program, &dir.join("run")).unwrap();
+        let mut prefs = Prefs::default();
+        crate::amiga_setup::apply(&mut prefs, &crate::amiga_setup::choose(&[], true).unwrap());
+        let options = with_options(prefs.options_for("puae"), own);
+        let frames = dir.join("frames");
+        let start = Start { helper: Path::new(&helper), core: Path::new(&core), frames: &frames, system: &system, saves: &saves, game: Some(&game), options: &options, silent: true };
+        let mut helper = Helper::start(&start).unwrap();
+        assert_eq!(helper.wait_ready(Duration::from_secs(30)).unwrap().core, "PUAE");
+        let read = |helper: &mut Helper| helper.ask(json!({"cmd": "read_memory", "region": "system_ram", "offset": 0x100, "length": 4}), Duration::from_secs(10)).ok().and_then(|reply| reply["data"].as_str().and_then(unhex));
+        let until = Instant::now() + Duration::from_secs(120);
+        loop {
+            if read(&mut helper).as_deref() == Some(&[0xED, 0xCB, 0xA9, 0x87][..]) {
+                break;
+            }
+            assert!(Instant::now() < until, "the program didn't run: chip memory at $100 is {:?}", read(&mut helper));
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        drop(helper);
         std::fs::remove_dir_all(&dir).ok();
     }
 }

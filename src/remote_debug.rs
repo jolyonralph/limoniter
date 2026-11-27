@@ -16,6 +16,9 @@ pub enum Ask {
     Breakpoints(Vec<u16>),
     /// The addresses whose writing stops it.
     Watches(Vec<u16>),
+    /// The places whose reading or writing stops it, as first and last address and what: 1 a read, 2 a write, 3
+    /// either. Where the emulator can (ZEsarUX and VICE); the rest of a watchpoint (its rule) is judged here.
+    Accesses(Vec<(u16, u16, u8)>),
     CarryOn,
     Step,
     StepOver,
@@ -38,6 +41,8 @@ pub struct Stop {
     pub memory: Option<std::sync::Arc<Vec<u8>>>,
     /// An Amiga's: its 68000's registers, where its hunks are, and the memory read.
     pub amiga: Option<Box<crate::amiga_debug::AmigaStop>>,
+    /// The frame it is on and how many instructions ran since the last stop, where the machine counts them.
+    pub counts: Option<(u64, u64)>,
 }
 
 impl Stop {
@@ -267,6 +272,17 @@ impl Link {
         Ok(stop)
     }
 
+    /// Stops it when it reads or writes these places (up to 256 bytes of each: ZEsarUX watches one address at a time).
+    fn set_accesses(&mut self, places: &[(u16, u16, u8)]) -> Result<(), String> {
+        self.command("clear-membreakpoints")?;
+        for (from, to, what) in places {
+            for address in *from..=(*to).min(from.saturating_add(255)) {
+                self.command(&format!("set-membreakpoint {address} {what}"))?;
+            }
+        }
+        Ok(())
+    }
+
     /// Stops it when it writes to these addresses.
     fn set_watches(&mut self, addresses: &[u16]) -> Result<(), String> {
         self.command("clear-membreakpoints")?;
@@ -326,6 +342,7 @@ fn talk(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, aske
             Ask::Amiga(_) => {}
             Ask::Breakpoints(addresses) => set = link.set_breakpoints(&addresses, set)?,
             Ask::Watches(addresses) => link.set_watches(&addresses)?,
+            Ask::Accesses(places) => link.set_accesses(&places)?,
             Ask::Pause => say(Told::Stopped(link.stop()?)),
             Ask::Step => {
                 link.command("cpu-step")?;
@@ -356,6 +373,12 @@ fn talk(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>, aske
                             link.send("")?;
                             link.until_prompt(Duration::from_secs(5))?;
                             link.set_watches(&addresses)?;
+                            link.send("run")?;
+                        }
+                        Ok(Ask::Accesses(places)) => {
+                            link.send("")?;
+                            link.until_prompt(Duration::from_secs(5))?;
+                            link.set_accesses(&places)?;
                             link.send("run")?;
                         }
                         Ok(_) | Err(TryRecvError::Empty) => {}
@@ -497,12 +520,19 @@ impl Monitor {
     }
 
     fn set_checkpoints_for(&mut self, addresses: &[u16], numbers: &mut Vec<u32>, op: u8) -> Result<(), String> {
+        let places: Vec<(u16, u16, u8)> = addresses.iter().map(|a| (*a, *a, op)).collect();
+        self.set_access_checkpoints(&places, numbers)
+    }
+
+    /// Checkpoints on places: first and last address and what (1 load, 2 store, 3 either, 4 run).
+    fn set_access_checkpoints(&mut self, places: &[(u16, u16, u8)], numbers: &mut Vec<u32>) -> Result<(), String> {
         for number in numbers.drain(..) {
             let _ = self.command(0x13, &number.to_le_bytes());
         }
-        for address in addresses {
-            let mut body = address.to_le_bytes().to_vec();
-            body.extend(address.to_le_bytes());
+        for (from, to, op) in places {
+            let op = *op;
+            let mut body = from.to_le_bytes().to_vec();
+            body.extend(to.to_le_bytes());
             // Stop when hit, enabled, on running the instruction there (or a write), not temporary.
             body.extend([1, 1, op, 0]);
             let answer = self.command(0x12, &body)?;
@@ -566,6 +596,10 @@ fn talk_vice(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>,
                         vice.set_checkpoints_for(&addresses, &mut watch_numbers, 2)?;
                         vice.command(0xAA, &[])?;
                     }
+                    Ok(Ask::Accesses(places)) => {
+                        vice.set_access_checkpoints(&places, &mut watch_numbers)?;
+                        vice.command(0xAA, &[])?;
+                    }
                     Ok(Ask::Finish) | Err(TryRecvError::Disconnected) => break,
                     Ok(_) | Err(TryRecvError::Empty) => {}
                 },
@@ -577,6 +611,7 @@ fn talk_vice(port: u16, file: Option<std::path::PathBuf>, breakpoints: Vec<u16>,
             Ask::Amiga(_) => {}
             Ask::Breakpoints(addresses) => vice.set_checkpoints(&addresses, &mut numbers)?,
             Ask::Watches(addresses) => vice.set_checkpoints_for(&addresses, &mut watch_numbers, 2)?,
+            Ask::Accesses(places) => vice.set_access_checkpoints(&places, &mut watch_numbers)?,
             Ask::CarryOn => {
                 vice.command(0xAA, &[])?;
                 running = true;

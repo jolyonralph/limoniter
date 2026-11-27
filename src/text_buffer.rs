@@ -233,6 +233,14 @@ pub struct CodeMarks {
     /// Addresses (or ranges, a..b) whose writing stops the program, and the one being typed.
     pub write_watches: Vec<String>,
     pub new_write_watch: String,
+    /// Watchpoints: reads and writes of an address, in widths, under masks, with a rule for the value (see
+    /// `watchpoints`); and the one being typed.
+    pub watchpoints: Vec<crate::watchpoints::Watchpoint>,
+    pub new_watchpoint: crate::watchpoints::Watchpoint,
+    /// What a breakpoint does beyond its condition (stop on the Nth time, every Nth, or only count), by line; and
+    /// how often each has been reached in the run now going, for showing beside it.
+    pub hit_rules: std::collections::BTreeMap<usize, crate::watchpoints::HitRule>,
+    pub hit_counts: std::collections::BTreeMap<usize, u64>,
 }
 
 impl CodeMarks {

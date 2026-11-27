@@ -86,6 +86,19 @@ pub trait DebugInterface {
     fn check_memory_write(&mut self, _addr: u16, _value: u8) -> bool {
         false
     }
+    /// Whether a write to `addr` is to be stopped, so the memory keeps what it has. (Added for Limoniter: the
+    /// trainer's Block writes.)
+    fn blocks_memory_write(&mut self, _addr: u16) -> bool {
+        false
+    }
+    /// Every write to a port, whatever it is, before the machine acts on it. (Added for Limoniter: the debug
+    /// console port.)
+    fn port_write(&mut self, _port: u16, _value: u8) {}
+    /// Returns true if a read of `value` from `addr` (data, not an instruction) should stop emulation once the
+    /// instruction doing it has finished. (Added for Limoniter: read watchpoints.)
+    fn check_memory_read(&mut self, _addr: u16, _value: u8) -> bool {
+        false
+    }
     /// After each instruction: the address of the next, and the clock within the frame and the frame's length.
     /// (Added for Limoniter: the profiler.)
     fn instruction_done(&mut self, _next: u16, _frame_clock: usize, _frame_length: usize) {}

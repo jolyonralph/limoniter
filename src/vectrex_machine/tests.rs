@@ -121,6 +121,17 @@ fn breakpoints_and_steps_stop_where_they_should() {
     vectrex.carry_on();
     vectrex.frame().unwrap();
     assert_eq!((vectrex.cpu.pc, vectrex.sys.peek(0xC882)), (symbol("side"), 1));
+    // A watchpoint on the count, which the program counts down: stops after the DEC that makes it fall.
+    let mut vectrex = Vectrex::with_cartridge(cartridge(SQUARE), None, None);
+    vectrex.set_watchpoints(vec![crate::watchpoints::Resolved { id: 0, start: 0xC882, end: 0xC882, access: crate::watchpoints::Access::Write, bytes: 1, mask: 0xFF, rule: crate::watchpoints::Rule::Falls }]);
+    vectrex.frame().unwrap();
+    assert!(vectrex.paused);
+    assert!(vectrex.stop_reason.as_deref().is_some_and(|r| r.contains("write to $C882 (8 bits)") && r.contains("becoming")), "{:?}", vectrex.stop_reason);
+    // Reads aren't watched on this core: the watchpoint is left out.
+    let mut vectrex = Vectrex::with_cartridge(cartridge(SQUARE), None, None);
+    vectrex.set_watchpoints(vec![crate::watchpoints::Resolved { id: 0, start: 0xC882, end: 0xC882, access: crate::watchpoints::Access::Read, bytes: 1, mask: 0xFF, rule: crate::watchpoints::Rule::Any }]);
+    vectrex.frame().unwrap();
+    assert!(!vectrex.paused);
 }
 
 /// With the real BIOS, if it's here: the starter cartridge runs, and after the BIOS's title it draws the square and

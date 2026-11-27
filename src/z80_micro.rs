@@ -31,6 +31,10 @@ pub trait Hardware: Z80Bus {
     fn picture(&self) -> &[u8];
     /// A key on the keyboard's matrix, by its row (the address line that reads it, A8 to A15) and its bit.
     fn set_key(&mut self, row: usize, bit: u8, down: bool);
+    /// The lines the program has written to the debug console port since last asked.
+    fn take_console(&mut self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 /// A key on the matrix: its row and bit.
@@ -62,11 +66,14 @@ pub struct Core<H: Hardware> {
     /// The keys the typing queue holds down now, and those held from the computer's keyboard.
     pressing: Vec<Key>,
     held: Vec<Key>,
+    /// Addresses whose writes are undone after the instruction that makes them, with the value each keeps (the
+    /// trainer's Block writes).
+    blocked: Vec<(u16, u8)>,
 }
 
 impl<H: Hardware> Core<H> {
     pub fn new(cpu: Z80, hw: H) -> Core<H> {
-        Core { cpu, hw, paused: false, stopped: None, breakpoints: BTreeSet::new(), once: None, memory_before: None, last: Instant::now(), owed: 0.0, typing: VecDeque::new(), pressing: Vec::new(), held: Vec::new() }
+        Core { cpu, hw, paused: false, stopped: None, breakpoints: BTreeSet::new(), once: None, memory_before: None, last: Instant::now(), owed: 0.0, typing: VecDeque::new(), pressing: Vec::new(), held: Vec::new(), blocked: Vec::new() }
     }
 
     /// One instruction, with its hardware round it.
@@ -77,6 +84,16 @@ impl<H: Hardware> Core<H> {
         let r = self.cpu.regs.get_r();
         self.cpu.emulate(&mut self.hw);
         self.hw.after(&mut self.cpu, r);
+        for &(address, value) in &self.blocked {
+            if self.hw.peek(address) != value {
+                self.hw.poke(address, value);
+            }
+        }
+    }
+
+    /// Stops writes to these addresses, each keeping the value it has now.
+    pub fn set_blocked(&mut self, addresses: impl IntoIterator<Item = u16>) {
+        self.blocked = addresses.into_iter().map(|a| (a, self.hw.peek(a))).collect();
     }
 
     /// Runs until `until` T-states, or a breakpoint. Whether it got there.

@@ -38,6 +38,9 @@ macro_rules! with_core {
     };
 }
 
+/// Where the trainer's view of these machines' memory starts: the ZX81's and the Ace's RAM are all above it.
+pub(super) const TRAINER_BASE: usize = 0x2000;
+
 pub(super) const ZX80_NAME: &str = "Built-in ZX80";
 pub(super) const ZX81_NAME: &str = "Built-in ZX81";
 pub(super) const ACE_NAME: &str = "Built-in Jupiter Ace";
@@ -111,6 +114,38 @@ impl Micro {
 
     pub(super) fn frame(&mut self) {
         with_core!(self, core => core.frame(), ())
+    }
+
+    /// The machine's name as the debug console's lines give it.
+    pub(super) fn console_name(&self) -> &'static str {
+        match self {
+            Micro::Zx80(_) => "ZX80",
+            Micro::Zx81(_) => "ZX81",
+            Micro::Ace(_) => "Jupiter Ace",
+            Micro::NeedsRom(_) => "",
+        }
+    }
+
+    /// The lines the program has written to the debug console port since last asked.
+    pub(super) fn take_console(&mut self) -> Vec<String> {
+        with_core!(self, core => core.hw.take_console(), Vec::new())
+    }
+
+    /// For the trainer: memory from $2000 up (all the RAM any of them has), and writing to it.
+    pub(super) fn trainer_ram(&mut self) -> Option<Vec<u8>> {
+        with_core!(self, core => Some(core.memory()[TRAINER_BASE..].to_vec()), None)
+    }
+
+    pub(super) fn trainer_poke(&mut self, address: u16, bytes: &[u8]) {
+        with_core!(self, core => {
+            for (i, byte) in bytes.iter().enumerate() {
+                core.hw.poke(address.wrapping_add(i as u16), *byte);
+            }
+        }, ())
+    }
+
+    pub(super) fn trainer_block(&mut self, addresses: Vec<u16>) {
+        with_core!(self, core => core.set_blocked(addresses), ())
     }
 
     fn catch_up(&mut self) {
