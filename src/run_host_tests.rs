@@ -1186,3 +1186,130 @@ fn ql_source_becomes_a_qdos_program_saved_beside_it() {
     assert_eq!((kind.group(), kind.starter.as_str()), ("Sinclair QL", crate::ql::STARTER));
     let _ = std::fs::remove_dir_all(&folder);
 }
+
+/// A stand-in for an emulator: a script that records where it was started, its arguments and what it was given, in
+/// files beside it, as POSIX sh (the same on BSD and GNU), and then ends. `body` is run after the first two records,
+/// one command to a line.
+#[cfg(unix)]
+fn stand_in(folder: &Path, name: &str, body: &str) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let script = folder.join(name);
+    let text = format!("#!/bin/sh\npwd > \"{0}/cwd.txt\"\nfor a in \"$@\"\ndo\necho \"$a\" >> \"{0}/args.txt\"\ndone\n{body}\n", folder.display());
+    std::fs::write(&script, text).unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    script
+}
+
+/// Waits for a file the stand-in writes, up to ten seconds.
+#[cfg(unix)]
+fn heard(file: &Path) -> String {
+    let began = std::time::Instant::now();
+    while began.elapsed() < Duration::from_secs(10) {
+        if let Some(text) = std::fs::read_to_string(file).ok().filter(|t| !t.is_empty()) {
+            return text;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    panic!("{} never came", file.display());
+}
+
+#[cfg(unix)]
+fn fresh_folder(name: &str) -> PathBuf {
+    let folder = std::env::temp_dir().join(format!("limoniter-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).unwrap();
+    folder
+}
+
+/// BBC BASIC that says it's for the Agon is run in the Agon emulator: a card made for the run, the emulator given
+/// it, and MOS told to start the program. Only a stand-in emulator, which records what it's given.
+#[cfg(unix)]
+#[test]
+fn agon_basic_runs_from_a_card_made_for_the_run() {
+    let folder = fresh_folder("agon-f9");
+    std::fs::create_dir_all(folder.join("sdcard").join("mos")).unwrap();
+    std::fs::write(folder.join("sdcard").join("mos").join("MOS.bin"), b"mos").unwrap();
+    let program = stand_in(&folder, "fab-agon-emulator", "ls \"$2\" > \"$(dirname \"$0\")/card.txt\"\ncat \"$2/autoexec.txt\" > \"$(dirname \"$0\")/autoexec.txt\"\ncat \"$2/demo.bas\" > \"$(dirname \"$0\")/program.txt\"\nls \"$2/mos\" > \"$(dirname \"$0\")/mos.txt\"");
+    let (mut app, _ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "Agon".into(), place: Place::Emulator { emulator: "fab-agon".into(), program: program.clone(), options: String::new() }, preset: None, eject: false }];
+    app.new_document();
+    app.doc().untitled = "demo.bas".into();
+    app.doc().text.set_content(["10 REM machine: agon", "20 PRINT \"HELLO\"", "30 END"].iter().map(|l| l.to_string()).collect());
+    let run = app.runnable().unwrap().unwrap();
+    assert_eq!((run.machine, run.format), (crate::running::Machine::Agon, crate::running::Format::AgonBas));
+    assert!(app.suits(run_host::Target::Device(0), &run).is_ok());
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", if let Dialog::Message { body, .. } = &app.dialog { body.clone() } else { String::new() });
+    assert_eq!(heard(&folder.join("program.txt")), "10 REM machine: agon\n20 PRINT \"HELLO\"\n30 END\n");
+    assert_eq!(heard(&folder.join("autoexec.txt")), "bbcbasic demo.bas\n");
+    assert_eq!(heard(&folder.join("mos.txt")), "MOS.bin\n", "the card it comes with is copied");
+    let args = heard(&folder.join("args.txt"));
+    let lines: Vec<&str> = args.lines().collect();
+    assert_eq!(lines[0], "--sdcard");
+    assert!(lines[1].ends_with("sdcard") && lines[1].contains("limoniter-run-"), "{}", lines[1]);
+    assert_eq!(lines.len(), 2);
+    assert_eq!(std::fs::read_to_string(folder.join("cwd.txt")).unwrap().trim(), std::fs::canonicalize(&folder).unwrap().display().to_string(), "started in the emulator's own folder");
+    assert!(!folder.join("sdcard").join("autoexec.txt").exists(), "the person's own card isn't changed");
+    app.stop_all_sessions();
+    let _ = std::fs::remove_dir_all(&folder);
+}
+
+/// 6502 source for the Neo6502 is run in its emulator, given the program with where it loads and starts.
+#[cfg(unix)]
+#[test]
+fn neo6502_source_runs_with_its_load_and_start_addresses() {
+    crate::highlight::load_now();
+    let folder = fresh_folder("neo-f9");
+    let program = stand_in(&folder, "neo", "cat \"${1%@*}\" | od -An -tx1 | tr -d ' \\n' > \"$(dirname \"$0\")/bytes.txt\"");
+    let (mut app, _ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "Neo".into(), place: Place::Emulator { emulator: "neo6502".into(), program, options: String::new() }, preset: None, eject: false }];
+    app.new_document();
+    app.doc().untitled = "demo.asm".into();
+    app.doc().text.set_content(["; machine: neo6502", "  * = $0A00", "  lda #1", "start", "  sta $70", "  rts"].iter().map(|l| l.to_string()).collect());
+    let id = highlight::engine().and_then(|e| e.names().iter().find(|(n, _)| n == "Assembly 6502").map(|(_, s)| *s)).unwrap();
+    app.doc().set_language(Language::Named(id));
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::M6502), "{}", app.doc().language_name());
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", if let Dialog::Message { body, .. } = &app.dialog { body.clone() } else { String::new() });
+    assert_eq!(heard(&folder.join("bytes.txt")), "a901857060");
+    let args = heard(&folder.join("args.txt"));
+    let lines: Vec<&str> = args.lines().collect();
+    assert_eq!(lines.len(), 2);
+    assert!(lines[0].ends_with("demo.bin@A00"), "{}", lines[0]);
+    assert!(lines[1].starts_with("run@"), "{}", lines[1]);
+    app.stop_all_sessions();
+    let _ = std::fs::remove_dir_all(&folder);
+}
+
+/// Z80 source at 100h is built as a CP/M .COM and RunCPM is started in a folder with it on drive A and an
+/// AUTOEXEC.TXT to run it, in the Terminal panel. Only a stand-in RunCPM, which records the folder it was started in.
+#[cfg(unix)]
+#[test]
+fn cpm_source_runs_in_runcpm_from_a_drive_folder() {
+    crate::highlight::load_now();
+    let folder = fresh_folder("cpm-f9");
+    std::fs::create_dir_all(folder.join("A").join("0")).unwrap();
+    std::fs::write(folder.join("CCP-DR.60K"), b"ccp").unwrap();
+    let program = stand_in(&folder, "RunCPM", "d=\"$(dirname \"$0\")\"\nfind A -type f | sort > \"$d/tree.txt\"\ncat A/0/HELLO.COM | od -An -tx1 | tr -d ' \\n' > \"$d/com.txt\"\ncat AUTOEXEC.TXT > \"$d/sub.txt\"\nls CCP-DR.60K > \"$d/ccp.txt\"\npwd > \"$d/where.txt\"");
+    let (mut app, _ctx) = app_with("");
+    app.sends.devices = vec![Device { name: "RunCPM".into(), place: Place::Emulator { emulator: "runcpm".into(), program, options: String::new() }, preset: None, eject: false }];
+    app.new_document();
+    app.doc().untitled = "hello.asm".into();
+    app.doc().text.set_content(["; machine: cpm", "  org 100h", "  ld c,9", "  ld de,msg", "  call 5", "  ret", "msg: db 'Hi$'"].iter().map(|l| l.to_string()).collect());
+    let id = highlight::engine().and_then(|e| e.names().iter().find(|(n, _)| n == "Assembly Z80").map(|(_, s)| *s)).unwrap();
+    app.doc().set_language(Language::Named(id));
+    app.doc().update_syntax();
+    assert_eq!(app.doc_cpu(app.active), Some(crate::assemblers::Cpu::Z80), "{}", app.doc().language_name());
+    let run = app.runnable().unwrap().unwrap();
+    assert_eq!((run.machine, run.format, run.name.as_str()), (crate::running::Machine::Cpm, crate::running::Format::CpmCom, "hello.com"));
+    app.run_on_target(run_host::Target::Device(0));
+    assert!(matches!(app.dialog, Dialog::None), "{:?}", if let Dialog::Message { body, .. } = &app.dialog { body.clone() } else { String::new() });
+    assert_eq!(heard(&folder.join("tree.txt")).lines().collect::<Vec<_>>(), ["A/0/HELLO.COM"]);
+    assert_eq!(heard(&folder.join("com.txt")), "0e09110901cd0500c9486924");
+    assert_eq!(heard(&folder.join("sub.txt")), "HELLO");
+    assert_eq!(heard(&folder.join("ccp.txt")).trim(), "CCP-DR.60K");
+    assert!(heard(&folder.join("where.txt")).contains("limoniter-run-"), "started in a folder made for the run");
+    assert!(app.terminal.is_some(), "in the Terminal panel");
+    let _ = std::fs::remove_dir_all(&folder);
+}

@@ -90,6 +90,8 @@ pub(super) struct RemoteBox {
     pub new_folder: Option<String>,
     /// Choosing a folder to open as a project, rather than a file.
     pub project: bool,
+    /// Choosing a folder to open a terminal in, rather than a file.
+    pub terminal: bool,
 }
 
 impl RemoteBox {
@@ -353,12 +355,15 @@ impl Limoniter {
             "Save to a server"
         } else if state.project {
             "Open a remote folder as a project"
+        } else if state.terminal {
+            "Open a terminal on a server"
         } else {
             "Open a remote file"
         };
         // FTP signs in with a password only.
         let ftp = state.address.trim_start().get(..3).is_some_and(|start| start.eq_ignore_ascii_case("ftp"));
         let mut open_project = None;
+        let mut open_terminal = None;
         let sites = self.remote_sites.clone();
         let recent = self.remote_recent.clone();
         crate::fit::Dialog::new(title).collapsible(false).resizable(true).default_size([640.0, 520.0]).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
@@ -519,7 +524,7 @@ impl Limoniter {
                                     ui.close();
                                 }
                             });
-                            if !entry.folder && response.double_clicked() && state.saving.is_none() && !state.project {
+                            if !entry.folder && response.double_clicked() && state.saving.is_none() && !state.project && !state.terminal {
                                 open = Some(remote::join(&folder, &entry.name));
                             }
                         }
@@ -532,8 +537,15 @@ impl Limoniter {
                             }
                         });
                     }
+                    if state.terminal {
+                        ui.horizontal(|ui| {
+                            if ui.add_enabled(!busy, egui::Button::new(crate::i18n::tf!("Open a terminal in {folder}"))).on_hover_text(crate::i18n::tr("A shell on the server, starting in this folder")).clicked() {
+                                open_terminal = Some(folder.clone());
+                            }
+                        });
+                    }
                     ui.horizontal(|ui| {
-                        if state.project {
+                        if state.project || state.terminal {
                             return;
                         }
                         ui.label(crate::i18n::tr("File name:"));
@@ -586,6 +598,11 @@ impl Limoniter {
         if let (Some(path), Some(site)) = (open, site.clone()) {
             self.remote_fetch(site, path);
             close = false;
+        }
+        if let (Some(folder), Some(site)) = (open_terminal, site.clone()) {
+            self.close_dialog();
+            self.open_ssh_terminal(&site, Some(folder));
+            return true;
         }
         if let (Some(folder), Some(site)) = (open_project, site.clone()) {
             self.close_dialog();

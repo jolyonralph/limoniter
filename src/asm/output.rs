@@ -90,6 +90,8 @@ pub enum Micro6502 {
     Atari7800,
     /// The Apple II: a floppy that boots into the program.
     Apple2,
+    /// The Neo6502: a program loaded at $0800 and run there.
+    Neo6502,
 }
 
 impl Micro6502 {
@@ -109,6 +111,7 @@ impl Micro6502 {
                 "atari8" | "atari 8-bit" | "atari 800" | "atari800" | "atari xl" | "atari xe" | "atari 800xl" | "atari 400" => Some(Micro6502::Atari8),
                 "7800" | "atari 7800" | "atari7800" => Some(Micro6502::Atari7800),
                 "apple2" | "apple ii" | "apple 2" | "apple ][" | "apple iie" | "apple2e" => Some(Micro6502::Apple2),
+                "neo6502" | "neo 6502" | "neo" => Some(Micro6502::Neo6502),
                 _ => None,
             }
         })

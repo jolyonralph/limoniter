@@ -26,6 +26,8 @@ pub(super) enum Flag {
     IndentGuides,
     HideComments,
     PanelsHide,
+    /// Project and Functions in one strip at the left.
+    StackPanels,
     BookmarkGutter,
     FoldLines,
     LineChange,
@@ -333,6 +335,7 @@ pub(super) const PANELS: &[Entry] = &[
             Check("Containers", Flag::Panel(PanelFlag::Containers)),
             Line,
             Check("Functions", Flag::Panel(PanelFlag::Functions)),
+            Check("Stack Project and Functions", Flag::StackPanels),
             Check("Call graph", Flag::Panel(PanelFlag::CallGraph)),
             Check("Instruction reference", Flag::Panel(PanelFlag::Instructions)),
             Check("Bookmarks", Flag::Panel(PanelFlag::Bookmarks)),
@@ -691,6 +694,7 @@ pub(super) const PROJECT: &[Entry] = &[
             Line,
             Item("Fetch the server's changes", Command::RemoteProjectFetch),
             Item("Sync with the server\u{2026}", Command::RemoteProjectSync),
+            Item("Open a terminal here", Command::RemoteProjectTerminal),
             Line,
             Item("Back up", Command::ProjectBackup),
             Item("Restore from a backup\u{2026}", Command::ProjectRestore),
@@ -750,6 +754,7 @@ pub(super) const FILE: &[Entry] = &[
     Item("Open a file from the web (http/https)\u{2026}", Command::OpenUrl),
     Item("Open a remote file (SFTP or FTP)\u{2026}", Command::OpenRemote),
     Item("Open a remote folder as a project (SFTP or FTP)\u{2026}", Command::OpenRemoteFolder),
+    Item("Open a terminal on a server (SSH)\u{2026}", Command::OpenSshTerminal),
     Item("Open a ZIP as a project\u{2026}", Command::OpenZipProject),
     Item("Open a project from a web address (a ZIP or Git)\u{2026}", Command::OpenWebProject),
     Line,
@@ -1203,6 +1208,7 @@ impl Limoniter {
             Flag::IndentGuides => v.indent_guides,
             Flag::HideComments => v.hide_comments,
             Flag::PanelsHide => v.panels_hide,
+            Flag::StackPanels => self.panels.stacked,
             Flag::StickyScroll => v.sticky_scroll,
             Flag::BookmarkGutter => v.bookmark_gutter,
             Flag::FoldLines => v.fold_lines,
@@ -1247,6 +1253,7 @@ impl Limoniter {
             Flag::IndentGuides => &mut v.indent_guides,
             Flag::HideComments => &mut v.hide_comments,
             Flag::PanelsHide => &mut v.panels_hide,
+            Flag::StackPanels => &mut self.panels.stacked,
             Flag::StickyScroll => &mut v.sticky_scroll,
             Flag::BookmarkGutter => &mut v.bookmark_gutter,
             Flag::FoldLines => &mut v.fold_lines,
@@ -1401,6 +1408,7 @@ impl Limoniter {
             Command::NewFromTemplate(_) | Command::ProjectAutosave(_) => has_project,
             Command::SaveAsTemplate => has_project && !no_file && text && !doc.placeholder,
             Command::RemoteProjectFetch | Command::RemoteProjectSync => self.remote_project.is_some(),
+            Command::RemoteProjectTerminal => self.remote_project.as_ref().is_some_and(|p| !p.origin.site.scheme.is_ftp()),
             Command::PlayMacro | Command::PlayMacroTimes => self.current_macro.is_some(),
             Command::ZoomIn => self.view.font_size < 40.0,
             Command::ZoomOut => self.view.font_size > 8.0,
@@ -1462,6 +1470,7 @@ impl Limoniter {
             | Command::NewAddOn
             | Command::OpenRemote
             | Command::OpenRemoteFolder
+            | Command::OpenSshTerminal
             | Command::OpenZipProject
             | Command::OpenWebProject
             | Command::ManageDevices

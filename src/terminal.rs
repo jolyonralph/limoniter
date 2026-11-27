@@ -5,15 +5,16 @@
 use eframe::egui::{self, Color32, FontId, Key, Modifiers, Rect, Sense, Ui, pos2, vec2};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
+use crate::remote::{self, KnownHosts, Refused, Secret, Site};
 
 pub struct Terminal {
     parser: Arc<Mutex<vt100::Parser>>,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
-    master: Box<dyn portable_pty::MasterPty + Send>,
-    child: Box<dyn portable_pty::Child + Send + Sync>,
+    backend: Backend,
     size: (u16, u16),
     /// Whether the shell has ended.
     ended: Arc<AtomicBool>,
@@ -23,6 +24,40 @@ pub struct Terminal {
     pub folder: std::path::PathBuf,
     /// The shell it runs, to start the same one again.
     pub shell: Shell,
+    /// The server and folder, when it's a session on a server rather than a shell here.
+    pub ssh: Option<(Site, Option<String>)>,
+    /// Why the server refused the connection, for the window to deal with (to ask about a new key, say).
+    refusal: Arc<Mutex<Option<Refused>>>,
+    /// A password or passphrase the person typed that the server accepted, to be kept for this session.
+    learned: Arc<Mutex<Option<Secret>>>,
+}
+
+/// What a terminal's shell is on the other end of: a pseudo-terminal here, or an SSH channel, which one thread
+/// looks after (the library's channels aren't to be read and written from two threads at once).
+enum Backend {
+    Pty { master: Box<dyn portable_pty::MasterPty + Send>, child: Box<dyn portable_pty::Child + Send + Sync> },
+    Ssh { to_server: Sender<ToServer> },
+}
+
+/// What the window asks of an SSH session's thread.
+enum ToServer {
+    Bytes(Vec<u8>),
+    Size(u16, u16),
+}
+
+/// A `Write` that hands what's written to an SSH session's thread, so the reading thread can answer a program's
+/// questions (where the cursor is) in the same way it does for a shell here.
+struct Sending(Sender<ToServer>);
+
+impl Write for Sending {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.send(ToServer::Bytes(bytes.to_vec())).map_err(|_| std::io::ErrorKind::BrokenPipe)?;
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 /// A shell a terminal can run. On Windows there's a choice; elsewhere, the person's own.
@@ -164,26 +199,7 @@ impl Terminal {
                 match reader.read(&mut buffer) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
-                        let got = &buffer[..n];
-                        let mut reply = Vec::new();
-                        if let Ok(mut parser) = screen.lock() {
-                            parser.process(got);
-                            // Where the cursor is, and what kind of terminal this is, when asked: Windows' ConPTY
-                            // asks as it starts, and shows nothing until it's answered.
-                            if got.windows(4).any(|w| w == b"\x1b[6n") {
-                                let (row, col) = parser.screen().cursor_position();
-                                reply.extend(format!("\x1b[{};{}R", row + 1, col + 1).into_bytes());
-                            }
-                            if got.windows(3).any(|w| w == b"\x1b[c") || got.windows(4).any(|w| w == b"\x1b[0c") {
-                                reply.extend(b"\x1b[?1;2c");
-                            }
-                        }
-                        if !reply.is_empty()
-                            && let Ok(mut writer) = answer.lock()
-                        {
-                            let _ = writer.write_all(&reply);
-                            let _ = writer.flush();
-                        }
+                        take_in(&screen, &answer, &buffer[..n]);
                         fresh.store(true, Ordering::Relaxed);
                     }
                 }
@@ -191,7 +207,7 @@ impl Terminal {
             done.store(true, Ordering::Relaxed);
             fresh.store(true, Ordering::Relaxed);
         });
-        Ok(Terminal { parser, writer, master: pair.master, child, size: (rows, cols), ended, changed, folder: folder.to_path_buf(), shell: Shell::Usual })
+        Ok(Terminal { parser, writer, backend: Backend::Pty { master: pair.master, child }, size: (rows, cols), ended, changed, folder: folder.to_path_buf(), shell: Shell::Usual, ssh: None, refusal: Arc::default(), learned: Arc::default() })
     }
 
     pub fn send(&mut self, bytes: &[u8]) {
@@ -206,7 +222,14 @@ impl Terminal {
             return;
         }
         self.size = (rows, cols);
-        let _ = self.master.resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 });
+        match &self.backend {
+            Backend::Pty { master, .. } => {
+                let _ = master.resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 });
+            }
+            Backend::Ssh { to_server } => {
+                let _ = to_server.send(ToServer::Size(rows, cols));
+            }
+        }
         if let Ok(mut parser) = self.parser.lock() {
             parser.screen_mut().set_size(rows, cols);
         }
@@ -228,9 +251,255 @@ impl Terminal {
     }
 }
 
+/// Puts what a program sent into the screen, and answers what it asked: where the cursor is, and what kind of
+/// terminal this is. Windows' ConPTY asks as it starts, and shows nothing until it's answered.
+fn take_in(screen: &Mutex<vt100::Parser>, answer: &Mutex<Box<dyn Write + Send>>, got: &[u8]) {
+    let mut reply = Vec::new();
+    if let Ok(mut parser) = screen.lock() {
+        parser.process(got);
+        if got.windows(4).any(|w| w == b"\x1b[6n") {
+            let (row, col) = parser.screen().cursor_position();
+            reply.extend(format!("\x1b[{};{}R", row + 1, col + 1).into_bytes());
+        }
+        if got.windows(3).any(|w| w == b"\x1b[c") || got.windows(4).any(|w| w == b"\x1b[0c") {
+            reply.extend(b"\x1b[?1;2c");
+        }
+    }
+    if !reply.is_empty()
+        && let Ok(mut writer) = answer.lock()
+    {
+        let _ = writer.write_all(&reply);
+        let _ = writer.flush();
+    }
+}
+
+/// A word for a shell to take as one: in single quotes, with any quote in it closed, escaped and opened again.
+pub fn shell_quote(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\\''"))
+}
+
+/// What to type to a server's shell to go to a folder. The space in front keeps it out of the history in the
+/// shells that are asked to leave such lines out.
+pub fn cd_command(folder: &str) -> String {
+    format!(" cd -- {}\r", shell_quote(folder))
+}
+
+/// How an SSH session's thread is told to start.
+struct SshStart {
+    site: Site,
+    secret: Secret,
+    known: KnownHosts,
+    folder: Option<String>,
+    size: (u16, u16),
+}
+
+/// What the thread shares with its terminal.
+struct SshShared {
+    parser: Arc<Mutex<vt100::Parser>>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
+    ended: Arc<AtomicBool>,
+    changed: Arc<AtomicBool>,
+    refusal: Arc<Mutex<Option<Refused>>>,
+    learned: Arc<Mutex<Option<Secret>>>,
+}
+
+impl SshShared {
+    /// Says something on the screen, as a line of its own.
+    fn say(&self, text: &str) {
+        if let Ok(mut parser) = self.parser.lock() {
+            parser.process(format!("{}\r\n", text.replace('\n', "\r\n")).as_bytes());
+        }
+        self.changed.store(true, Ordering::Relaxed);
+    }
+
+    fn finish(&self) {
+        self.ended.store(true, Ordering::Relaxed);
+        self.changed.store(true, Ordering::Relaxed);
+    }
+}
+
+/// Reads what's typed, without showing it, up to Enter: for a password. None if it's given up with Ctrl+C, or
+/// the terminal has gone. Size changes meanwhile are noted in `size`.
+fn read_secret(from: &Receiver<ToServer>, size: &mut (u16, u16)) -> Option<String> {
+    let mut typed = Vec::new();
+    loop {
+        match from.recv_timeout(std::time::Duration::from_millis(200)) {
+            Ok(ToServer::Size(rows, cols)) => *size = (rows, cols),
+            Ok(ToServer::Bytes(bytes)) => {
+                // An escape sequence (an arrow key) isn't part of a password.
+                for byte in bytes.into_iter().take_while(|b| *b != 0x1b) {
+                    match byte {
+                        b'\r' | b'\n' => return Some(String::from_utf8_lossy(&typed).into_owned()),
+                        3 => return None,
+                        8 | 0x7f => {
+                            while typed.last().is_some_and(|b| b & 0xC0 == 0x80) {
+                                typed.pop();
+                            }
+                            typed.pop();
+                        }
+                        b if b >= 0x20 => typed.push(b),
+                        _ => {}
+                    }
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return None,
+        }
+    }
+}
+
+/// Tries again after the library says it would have to wait: it's been told not to.
+fn waiting<T>(mut attempt: impl FnMut() -> std::io::Result<T>) -> std::io::Result<T> {
+    loop {
+        match attempt() {
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(std::time::Duration::from_millis(2)),
+            other => return other,
+        }
+    }
+}
+
+/// The whole life of an SSH session: connecting and signing in (asking for a password if what's kept isn't
+/// accepted), then passing bytes between the server's shell and the screen until either end closes.
+fn run_ssh(start: SshStart, from: &Receiver<ToServer>, shared: &SshShared) {
+    let SshStart { site, mut secret, known, folder, mut size } = start;
+    shared.say(&crate::i18n::tf!("Connecting to {}\u{2026}", site.host));
+    let mut tries = 0;
+    let session = loop {
+        match remote::open_session(&site, &secret, &known) {
+            Ok(session) => {
+                if tries > 0 {
+                    *shared.learned.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(secret.clone());
+                }
+                break session;
+            }
+            Err(Refused::SignIn(why)) if tries < 3 => {
+                tries += 1;
+                // What was tried first wasn't accepted, or there was nothing to try: ask.
+                shared.say(&Refused::SignIn(why).describe(&site));
+                let key = site.key_file.is_some();
+                shared.say(&if key { crate::i18n::tf!("Passphrase for {}:", site.key_file.as_ref().map_or_else(String::new, |k| k.display().to_string())) } else { crate::i18n::tf!("Password for {}@{}:", site.user, site.host) });
+                let Some(typed) = read_secret(from, &mut size) else {
+                    shared.say(crate::i18n::tr("Not connected."));
+                    return shared.finish();
+                };
+                secret = if key { Secret::KeyPassphrase(Some(typed)) } else { Secret::Password(typed) };
+                shared.say(&crate::i18n::tf!("Connecting to {}\u{2026}", site.host));
+            }
+            Err(refused) => {
+                shared.say(&refused.describe(&site));
+                *shared.refusal.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(refused);
+                return shared.finish();
+            }
+        }
+    };
+    let opened = (|| {
+        let mut channel = session.channel_session()?;
+        channel.request_pty("xterm-256color", None, Some((u32::from(size.1), u32::from(size.0), 0, 0)))?;
+        channel.shell()?;
+        Ok::<_, ssh2::Error>(channel)
+    })();
+    let mut channel = match opened {
+        Ok(channel) => channel,
+        Err(e) => {
+            shared.say(&crate::i18n::tf!("{} wouldn't start a shell: {e}", site.host));
+            return shared.finish();
+        }
+    };
+    session.set_blocking(false);
+    // What was typed while connecting is sent once there's a shell, after the move to the folder asked for.
+    let mut waiting_to_go: Vec<u8> = folder.map(|folder| cd_command(&folder).into_bytes()).unwrap_or_default();
+    let mut buffer = [0u8; 8192];
+    'session: loop {
+        loop {
+            match from.try_recv() {
+                Ok(ToServer::Bytes(bytes)) => waiting_to_go.extend(bytes),
+                Ok(ToServer::Size(rows, cols)) => {
+                    if waiting(|| channel.request_pty_size(u32::from(cols), u32::from(rows), None, None).map_err(std::io::Error::from)).is_err() {
+                        break 'session;
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => return,
+            }
+        }
+        let mut sent = &waiting_to_go[..];
+        while !sent.is_empty() {
+            match waiting(|| channel.write(sent)) {
+                Ok(n) => sent = &sent[n..],
+                Err(_) => break 'session,
+            }
+        }
+        waiting_to_go.clear();
+        match channel.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(n) => {
+                take_in(&shared.parser, &shared.writer, &buffer[..n]);
+                shared.changed.store(true, Ordering::Relaxed);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(std::time::Duration::from_millis(5)),
+            Err(_) => break,
+        }
+    }
+    shared.say(&crate::i18n::tf!("\nThe connection to {} has closed.", site.host));
+    shared.finish();
+}
+
+impl Terminal {
+    /// A shell on a server, over SSH: a terminal at once, which says it's connecting while a thread of its own
+    /// does so, and signs in as `remote::open_session` does. `folder` is a folder on the server to go to.
+    pub fn start_ssh(site: Site, secret: Secret, known: KnownHosts, folder: Option<String>, rows: u16, cols: u16) -> Terminal {
+        let (to_server, from) = std::sync::mpsc::channel();
+        let writer: Arc<Mutex<Box<dyn Write + Send>>> = Arc::new(Mutex::new(Box::new(Sending(to_server.clone()))));
+        let shared = SshShared { parser: Arc::new(Mutex::new(vt100::Parser::new(rows, cols, 2000))), writer: writer.clone(), ended: Arc::default(), changed: Arc::new(AtomicBool::new(true)), refusal: Arc::default(), learned: Arc::default() };
+        let terminal = Terminal {
+            parser: shared.parser.clone(),
+            writer,
+            backend: Backend::Ssh { to_server },
+            size: (rows, cols),
+            ended: shared.ended.clone(),
+            changed: shared.changed.clone(),
+            folder: PathBuf::from(folder.clone().unwrap_or_default()),
+            shell: Shell::Usual,
+            ssh: Some((site.clone(), folder.clone())),
+            refusal: shared.refusal.clone(),
+            learned: shared.learned.clone(),
+        };
+        let start = SshStart { site, secret, known, folder, size: (rows, cols) };
+        std::thread::spawn(move || {
+            let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_ssh(start, &from, &shared)));
+            if caught.is_err() {
+                shared.say(crate::i18n::tr("It failed unexpectedly."));
+                shared.finish();
+            }
+        });
+        terminal
+    }
+
+    /// What the tab is called: the server's address for a session on one, otherwise the folder's name.
+    pub fn title(&self) -> String {
+        match &self.ssh {
+            Some((site, _)) => format!("{}@{}", site.user, site.host),
+            None => self.folder.file_name().map_or_else(|| self.folder.display().to_string(), |n| n.to_string_lossy().into_owned()),
+        }
+    }
+
+    /// The server's refusal of a connection, once, if there was one.
+    pub fn take_refusal(&self) -> Option<Refused> {
+        self.refusal.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take()
+    }
+
+    /// A password the server accepted after it was typed here, once.
+    pub fn take_learned(&self) -> Option<Secret> {
+        self.learned.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take()
+    }
+}
+
 impl Drop for Terminal {
     fn drop(&mut self) {
-        let _ = self.child.kill();
+        // An SSH session's thread ends when its sender is dropped, with the terminal.
+        if let Backend::Pty { child, .. } = &mut self.backend {
+            let _ = child.kill();
+        }
     }
 }
 
@@ -415,6 +684,152 @@ mod tests {
         while !terminal.ended() && began.elapsed() < std::time::Duration::from_secs(10) {
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
+        assert!(terminal.ended());
+    }
+
+    #[test]
+    fn folders_are_quoted_for_the_servers_shell() {
+        assert_eq!(shell_quote("/srv/site"), "'/srv/site'");
+        assert_eq!(shell_quote("/tmp/it's here"), "'/tmp/it'\\''s here'");
+        assert_eq!(cd_command("/srv/my site"), " cd -- '/srv/my site'\r");
+        // A folder that looks like a command, or an option, or two, stays a folder.
+        assert_eq!(cd_command("-x; rm -rf ~"), " cd -- '-x; rm -rf ~'\r");
+        assert_eq!(cd_command("$(whoami)`id`"), " cd -- '$(whoami)`id`'\r");
+    }
+
+    #[test]
+    fn a_typed_password_is_read_without_being_shown() {
+        let (to, from) = std::sync::mpsc::channel();
+        to.send(ToServer::Bytes(b"pas".to_vec())).unwrap();
+        to.send(ToServer::Size(30, 100)).unwrap();
+        to.send(ToServer::Bytes(b"x\x7fs\r".to_vec())).unwrap();
+        let mut size = (12, 80);
+        assert_eq!(read_secret(&from, &mut size), Some("pass".to_string()));
+        assert_eq!(size, (30, 100));
+        to.send(ToServer::Bytes(vec![3])).unwrap();
+        assert_eq!(read_secret(&from, &mut size), None, "Ctrl+C gives up");
+    }
+
+    /// A server of our own for the SSH tests, which need `sshd`: run only when LIMONITER_SSHD_TEST is set, and
+    /// on Unix. It listens on this computer only, with its own keys and configuration in a folder of its own, and
+    /// is stopped when this is dropped.
+    #[cfg(unix)]
+    struct TestServer {
+        site: Site,
+        known: KnownHosts,
+        process: std::process::Child,
+        folder: PathBuf,
+    }
+
+    #[cfg(unix)]
+    impl TestServer {
+        fn start() -> Option<TestServer> {
+            std::env::var_os("LIMONITER_SSHD_TEST")?;
+            let folder = std::env::temp_dir().join(format!("limoniter-sshd-{}-{:?}", std::process::id(), std::thread::current().id()).replace(['(', ')'], ""));
+            let _ = std::fs::remove_dir_all(&folder);
+            std::fs::create_dir_all(&folder).unwrap();
+            let keygen = |name: &str| {
+                let key = folder.join(name);
+                let made = crate::platform::command("ssh-keygen").args(["-q", "-t", "ed25519", "-N", "", "-f"]).arg(&key).status().unwrap();
+                assert!(made.success());
+                key
+            };
+            let (host, user_key) = (keygen("host"), keygen("user"));
+            std::fs::copy(folder.join("user.pub"), folder.join("authorized")).unwrap();
+            let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+            let config = format!("Port {port}\nListenAddress 127.0.0.1\nHostKey {}\nPidFile {}\nAuthorizedKeysFile {}\nPasswordAuthentication yes\nKbdInteractiveAuthentication no\nUsePAM no\nPermitRootLogin yes\nStrictModes no\n", host.display(), folder.join("pid").display(), folder.join("authorized").display());
+            std::fs::write(folder.join("config"), config).unwrap();
+            let process = crate::platform::command("/usr/sbin/sshd").arg("-D").arg("-f").arg(folder.join("config")).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().unwrap();
+            // The server's key, as the person would be shown it.
+            let listed = crate::platform::command("ssh-keygen").arg("-l").arg("-f").arg(folder.join("host.pub")).output().unwrap();
+            let print = String::from_utf8_lossy(&listed.stdout).split_whitespace().nth(1).unwrap().to_string();
+            let user = String::from_utf8(crate::platform::command("id").arg("-un").output().unwrap().stdout).unwrap().trim().to_string();
+            let site = Site { host: "127.0.0.1".into(), port, user, key_file: Some(user_key), ..Site::default() };
+            let mut known = KnownHosts::default();
+            known.trust(&site, &print);
+            // Ready when it takes connections.
+            let began = std::time::Instant::now();
+            while std::net::TcpStream::connect(("127.0.0.1", port)).is_err() && began.elapsed() < std::time::Duration::from_secs(10) {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            Some(TestServer { site, known, process, folder })
+        }
+    }
+
+    #[cfg(unix)]
+    impl Drop for TestServer {
+        fn drop(&mut self) {
+            let _ = self.process.kill();
+            let _ = self.process.wait();
+            let _ = std::fs::remove_dir_all(&self.folder);
+        }
+    }
+
+    #[cfg(unix)]
+    fn wait_for(terminal: &Terminal, wanted: &str) -> bool {
+        let began = std::time::Instant::now();
+        while !terminal.text().contains(wanted) && began.elapsed() < std::time::Duration::from_secs(15) {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        terminal.text().contains(wanted)
+    }
+
+    /// A session on a server: it connects, goes to the folder asked for (quotes and all), runs what's typed,
+    /// tells the server when the terminal is resized, and says so when the shell ends.
+    #[cfg(unix)]
+    #[test]
+    fn an_ssh_session_runs_commands_and_is_resized() {
+        let Some(server) = TestServer::start() else { return };
+        let odd = std::env::temp_dir().join(format!("it's here {}", std::process::id()));
+        std::fs::create_dir_all(&odd).unwrap();
+        let mut terminal = Terminal::start_ssh(server.site.clone(), Secret::KeyPassphrase(None), server.known.clone(), Some(odd.display().to_string()), 24, 80);
+        assert!(wait_for(&terminal, "Connecting to 127.0.0.1"), "{}", terminal.text());
+        terminal.send(b"echo ab$((6*7))cd; pwd\r");
+        assert!(wait_for(&terminal, "ab42cd"), "{}", terminal.text());
+        assert!(terminal.text().contains(&format!("{}\n", odd.display())), "it started in the folder: {}", terminal.text());
+        terminal.resize(30, 100);
+        terminal.send(b"stty size\r");
+        assert!(wait_for(&terminal, "30 100"), "{}", terminal.text());
+        assert!(!terminal.ended());
+        terminal.send(b"exit\r");
+        assert!(wait_for(&terminal, "has closed"), "{}", terminal.text());
+        assert!(terminal.ended());
+        let _ = std::fs::remove_dir_all(&odd);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_ssh_session_refuses_a_changed_key_and_asks_about_a_new_one() {
+        let Some(server) = TestServer::start() else { return };
+        let mut changed = KnownHosts::default();
+        changed.trust(&server.site, "SHA256:notTheKeyTheServerHas");
+        let terminal = Terminal::start_ssh(server.site.clone(), Secret::KeyPassphrase(None), changed, None, 24, 80);
+        assert!(wait_for(&terminal, "isn't the one it had before"), "{}", terminal.text());
+        assert!(matches!(terminal.take_refusal(), Some(Refused::HostKeyChanged { .. })));
+        assert!(terminal.ended(), "nothing is signed in to");
+        let terminal = Terminal::start_ssh(server.site.clone(), Secret::KeyPassphrase(None), KnownHosts::default(), None, 24, 80);
+        assert!(wait_for(&terminal, "first time"), "{}", terminal.text());
+        assert!(matches!(terminal.take_refusal(), Some(Refused::UnknownHost(print)) if print.starts_with("SHA256:")));
+    }
+
+    /// A password the server doesn't accept is said so, and asked for again, without showing what's typed.
+    #[cfg(unix)]
+    #[test]
+    fn an_ssh_session_says_a_wrong_password_is_wrong() {
+        let Some(mut server) = TestServer::start() else { return };
+        server.site.key_file = None;
+        let mut terminal = Terminal::start_ssh(server.site.clone(), Secret::Password("not the password".into()), server.known.clone(), None, 24, 80);
+        assert!(wait_for(&terminal, "didn't accept the sign-in"), "{}", terminal.text());
+        assert!(wait_for(&terminal, "Password for"), "{}", terminal.text());
+        terminal.send(b"still wrong\r");
+        let began = std::time::Instant::now();
+        while terminal.text().matches("Password for").count() < 2 && began.elapsed() < std::time::Duration::from_secs(15) {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert_eq!(terminal.text().matches("Password for").count(), 2, "asked again: {}", terminal.text());
+        assert!(!terminal.text().contains("still wrong"), "what's typed isn't shown");
+        terminal.send(&[3]);
+        assert!(wait_for(&terminal, "Not connected"), "{}", terminal.text());
         assert!(terminal.ended());
     }
 }

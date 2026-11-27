@@ -516,6 +516,43 @@ pub const KNOWN: &[Emulator] = &[
         link: Link::None,
         website: "https://github.com/7800-devtools/a7800",
     },
+    // CP/M 2.2 as a program for a terminal: its drives are folders, A/0/ the first (see `cpm_run`). Limoniter starts
+    // it in its Terminal panel, in a folder made for the run.
+    Emulator {
+        id: "runcpm",
+        name: "RunCPM",
+        programs: &["RunCPM", "runcpm"],
+        folder_hints: &["runcpm"],
+        mac_apps: &[],
+        machines: &[Cpm],
+        formats: &[CpmCom],
+        link: Link::None,
+        website: "https://github.com/MockbaTheBorg/RunCPM",
+    },
+    // The Agon Light with its own MOS and VDP firmware: given a folder as its SD card (see `agon_run`).
+    Emulator {
+        id: "fab-agon",
+        name: "Fab Agon Emulator",
+        programs: &["fab-agon-emulator"],
+        folder_hints: &["fab-agon", "fab_agon"],
+        mac_apps: &[],
+        machines: &[Agon],
+        formats: &[AgonBas],
+        link: Link::None,
+        website: "https://github.com/tomm/fab-agon-emulator",
+    },
+    // The Neo6502's, given the program's file, where it loads and where to start (see `neo_run`).
+    Emulator {
+        id: "neo6502",
+        name: "Neo6502 emulator",
+        programs: &["neo"],
+        folder_hints: &["neo6502"],
+        mac_apps: &[],
+        machines: &[Neo6502],
+        formats: &[NeoBin],
+        link: Link::None,
+        website: "https://github.com/paulscottrobson/neo6502-firmware",
+    },
 ];
 
 /// A real Next on DeZog's debug cable, standing where an emulator would in a session.
@@ -655,6 +692,8 @@ impl Emulator {
                 args.extend([system.into(), "-cart".into(), file, "-skip_gameinfo".into()]);
             }
             "mame" if machine == Snes => args.extend(["snes".into(), "-cart".into(), file, "-skip_gameinfo".into()]),
+            "fab-agon" => args.extend(crate::agon_run::arguments(Path::new(&file))),
+            "neo6502" => args.extend(crate::neo_run::arguments(Path::new(&file))),
             "cpcec" => args.push(file),
             "caprice32" => args.extend(crate::cpc_run::caprice_arguments(Path::new(&file), format)),
             // A floppy boots from slot 6; a ProDOS disk larger than a floppy is the hard disk in slot 7.

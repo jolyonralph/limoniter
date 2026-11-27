@@ -187,6 +187,12 @@ impl Limoniter {
         if !doc.hex_mode && doc.text.is_disk_backed() {
             return Err(crate::i18n::tr("This file is too large to run.").into());
         }
+        // BBC BASIC that says it's for the Agon Light runs there, as the text it is (see `agon_run`).
+        if !doc.hex_mode && doc.browser.is_none() && crate::agon_run::says_agon((0..doc.text.line_count().min(30)).map(|n| doc.text.line(n).to_string()).collect::<Vec<_>>().iter().map(String::as_str)) {
+            let name = doc.name();
+            let stem = doc.path.as_deref().and_then(Path::file_stem).or_else(|| Path::new(&name).file_stem()).map_or_else(|| name.clone(), |s| s.to_string_lossy().into_owned());
+            return Ok(Some(crate::agon_run::program(&doc.text.all_lines(), &stem)));
+        }
         // RGC BASIC runs with its own interpreter, as the text it is.
         if !doc.hex_mode && doc.browser.is_none() && doc.language_name() == highlight::BASIC_RGC {
             let stem = doc.path.as_deref().and_then(Path::file_stem).map_or_else(|| doc.name(), |s| s.to_string_lossy().into_owned());
@@ -456,6 +462,10 @@ impl Limoniter {
         if emulator.id == "vamos" {
             return self.run_in_vamos(program, run);
         }
+        // RunCPM is a program for a terminal: it's run in the Terminal panel, in a folder made for the run.
+        if emulator.id == "runcpm" {
+            return self.run_in_runcpm(program, run);
+        }
         // Assembler source run on ZEsarUX is debugged there: its breakpoints set at their lines' addresses.
         let doc_id = self.docs[self.active].id;
         let kind = match emulator.link {
@@ -491,6 +501,16 @@ impl Limoniter {
         let file = st.as_ref().map_or(file, |st| st.file.clone());
         // A QL program goes where the emulator reads it: a folder made sQLux's drive, or a cartridge with a BOOT.
         let (file, format) = if run.machine == Machine::Ql { crate::ql_run::prepare(emulator.id, &folder, &file, run)? } else { (file, run.format) };
+        // An Agon runs from an SD card folder made for the run, and a Neo6502 is told where its program goes.
+        let file = match run.machine {
+            Machine::Agon => crate::agon_run::prepare(&folder, program.parent(), run)?,
+            Machine::Neo6502 => {
+                let place = self.running.assembled.as_ref().filter(|c| c.doc_id == doc_id).and_then(|c| crate::neo_run::program(&c.assembly, "p").ok()).map(|(_, place)| place).unwrap_or(crate::neo_run::Place { load: crate::neo_run::USUAL, start: crate::neo_run::USUAL });
+                crate::neo_run::write_place(&file, place)?;
+                file
+            }
+            _ => file,
+        };
         // An emulator already running, that can be reached, loads it where it is.
         if let Some(index) = self.running.sessions.iter().position(|s| s.target == device.name)
             && !debugging
@@ -601,6 +621,18 @@ impl Limoniter {
             self.running.st.profiling.push((device.name.clone(), doc_id, profile));
         }
         self.running.sessions.push(Session { target: device.name.clone(), machine: run.machine, file: run.name.clone(), kind: SessionKind::App { child: Some(child), emulator, port, log, debug }, started: Instant::now() });
+        Ok(())
+    }
+
+    /// Runs a CP/M program in RunCPM, in the Terminal panel, in a folder made for the run with the program on drive A
+    /// and an AUTOEXEC.TXT that starts it.
+    fn run_in_runcpm(&mut self, program: &Path, run: &Runnable) -> Result<(), String> {
+        self.running.number += 1;
+        let folder = std::env::temp_dir().join(format!("limoniter-run-{}", std::process::id())).join(self.running.number.to_string());
+        crate::cpm_run::stage(&folder, crate::cpm_run::home_of(program).as_deref(), run)?;
+        let command = portable_pty::CommandBuilder::new(program);
+        let terminal = crate::terminal::Terminal::start_with(command, &folder, 24, 80)?;
+        self.show_terminal(terminal);
         Ok(())
     }
 
@@ -1250,6 +1282,9 @@ impl Limoniter {
                 }
                 if ui.button(crate::i18n::tr("Apple II")).clicked() {
                     as_6502 = Some(Micro6502::Apple2);
+                }
+                if ui.button(crate::i18n::tr("Neo6502")).clicked() {
+                    as_6502 = Some(Micro6502::Neo6502);
                 }
                 ui.add_space(6.0);
                 ui.add(egui::Label::new(RichText::new(crate::i18n::tr("It's remembered while the file is open. To say in the source, put ; machine: c64, bbc, 2600, nes, atari8, 7800 or apple2 near the top.")).color(theme::text_dim())).wrap());

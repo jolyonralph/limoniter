@@ -11048,3 +11048,21 @@ Private A to Z, then public	Private von A bis Z, dann öffentliche
 Within each class, and among the functions outside them	Innerhalb jeder Klasse und unter den Funktionen außerhalb
 {}\nLine {}	{}\nZeile {}
 {}\nPrivate. Line {}	{}\nPrivat. Zeile {}
+\nThe connection to {} has closed.	\nDie Verbindung zu {} wurde geschlossen.
+A CP/M program has room for {MOST} bytes, and this is {}.	Ein CP/M-Programm hat Platz für {MOST} Bytes, und dieses hat {}.
+A CP/M program is loaded at 100h, but this starts at {low:X}h: put ORG 100H at its top.	Ein CP/M-Programm wird bei 100h geladen, dieses beginnt aber bei {low:X}h: Setzen Sie ORG 100H an den Anfang.
+A shell on the server, starting in this folder	Eine Shell auf dem Server, die in diesem Ordner beginnt
+Agon Light	Agon Light
+Neo6502	Neo6502
+Not connected.	Nicht verbunden.
+Open a terminal here	Hier ein Terminal öffnen
+Open a terminal in {folder}	Ein Terminal in {folder} öffnen
+Open a terminal on a server (SSH)…	Ein Terminal auf einem Server öffnen (SSH)…
+Passphrase for {}:	Passphrase für {}:
+Password for {}@{}:	Passwort für {}@{}:
+SSH: {name}	SSH: {name}
+Stack Project and Functions	Projekt und Funktionen übereinander
+The code reaches ${:04X}, in the Neo6502's own registers at $FF00. Keep it below.	Der Code reicht bis ${:04X}, in die eigenen Register des Neo6502 bei $FF00. Bleiben Sie darunter.
+The code starts at ${low:04X}, in the Neo6502's zero page and stack. Put it at $0800 (ORG $0800) or above.	Der Code beginnt bei ${low:04X}, in der Zero Page und dem Stack des Neo6502. Legen Sie ihn auf $0800 (ORG $0800) oder höher.
+Trust this key and connect?	Diesem Schlüssel vertrauen und verbinden?
+{} wouldn't start a shell: {e}	{} wollte keine Shell starten: {e}

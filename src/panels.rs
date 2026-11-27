@@ -286,6 +286,10 @@ pub struct Panels {
     pub functions: bool,
     pub tags: bool,
     pub project: bool,
+    /// Project and Functions drawn one above the other in a single strip at the left, when both are open.
+    pub stacked: bool,
+    /// How much of the strip's height Project has, as a share; None until the divider is first moved.
+    stack_share: Option<f32>,
     pub macros: bool,
     pub scripts: bool,
     pub history: bool,
@@ -337,7 +341,7 @@ impl Panels {
     pub fn to_settings(&self) -> String {
         let flags: String = self.flags().iter().map(|(name, value)| format!("{name}={value}\n")).collect();
         let tags: String = self.custom_tags.iter().map(|tag| format!("custom_tag={}\u{1}{}\u{1}{}\n", tag.name, tag.before.replace('\n', "\u{2}"), tag.after.replace('\n', "\u{2}"))).collect();
-        flags + tags.as_str() + self.project_panel.explorer.order.to_settings().as_str() + format!("functions_order={}\n", self.functions_panel.order.id()).as_str()
+        flags + tags.as_str() + self.project_panel.explorer.order.to_settings().as_str() + format!("functions_order={}\n", self.functions_panel.order.id()).as_str() + format!("stack_panels={}\nstack_share={}\n", self.stacked, self.stack_share()).as_str()
     }
 
     fn flags(&self) -> [(&'static str, bool); 27] {
@@ -387,6 +391,14 @@ impl Panels {
                 self.functions_panel.order = crate::function_classes::Order::from_id(value.trim()).unwrap_or_default();
                 continue;
             }
+            if name.trim() == "stack_share" {
+                if let Ok(share) = value.trim().parse::<f32>()
+                    && share.is_finite()
+                {
+                    self.stack_share = Some(share.clamp(0.0, 1.0));
+                }
+                continue;
+            }
             if name.trim() == "custom_tag" {
                 let parts: Vec<&str> = value.split('\u{1}').collect();
                 if let [tag_name, before, after] = parts[..] {
@@ -419,6 +431,7 @@ impl Panels {
                 "bookmarks" => self.bookmarks = flag,
                 "file_lists" => self.file_lists = flag,
                 "functions" => self.functions = flag,
+                "stack_panels" => self.stacked = flag,
                 "tags" => self.tags = flag,
                 "project_panel" => self.project = flag,
                 "macros_panel" => self.macros = flag,
@@ -514,20 +527,81 @@ impl Panels {
         acts
     }
 
-    /// Draws the Project panel, if it's open.
-    pub fn show_project(&mut self, ui: &mut Ui, project: Option<&crate::project::Project>, active: Option<&Path>) -> Vec<crate::project::PanelAction> {
+    /// Draws the Project panel, if it's open. With "Stack Project and Functions" on and both open, they're drawn
+    /// together here instead, in one strip, which is why this takes what the Functions panel needs too.
+    pub fn show_project(&mut self, ui: &mut Ui, project: Option<&crate::project::Project>, active: Option<&Path>, doc: &DocView<'_>, functions_actions: &mut Vec<Action>) -> Vec<crate::project::PanelAction> {
         let mut actions = Vec::new();
-        if self.project {
+        if self.project && self.functions && self.stacked {
+            self.show_stack(ui, project, active, doc, functions_actions, &mut actions);
+        } else if self.project {
             let mut open = true;
             let state = &mut self.project_panel;
             let mut gear = false;
-            dock_with_gear(ui, false, "project-panel", "Project", 220.0, &mut open, project.map(|_| &mut gear), |ui| actions = crate::project::panel(ui, state, project, active));
+            dock_with_gear(ui, false, "project-panel", "Project", 220.0, &mut open, project.map(|_| &mut gear), Some(&mut self.stacked), |ui| actions = crate::project::panel(ui, state, project, active));
             if gear {
                 actions.push(crate::project::PanelAction::Settings);
             }
             self.project = open;
         }
         actions
+    }
+
+    /// Where the divider between Project and Functions is, as Project's share of the strip's height.
+    pub fn stack_share(&self) -> f32 {
+        self.stack_share.filter(|share| share.is_finite()).unwrap_or(0.5).clamp(0.0, 1.0)
+    }
+
+    /// Project on top and Functions underneath in one dock, with a divider to drag between them.
+    fn show_stack(&mut self, ui: &mut Ui, project: Option<&crate::project::Project>, active: Option<&Path>, doc: &DocView<'_>, functions_actions: &mut Vec<Action>, actions: &mut Vec<crate::project::PanelAction>) {
+        if HIDING.get() && !SHOWING.get()[0] {
+            let mut tucked = TUCKED.get();
+            tucked[0] = true;
+            TUCKED.set(tucked);
+            return;
+        }
+        let (mut project_open, mut functions_open, mut gear) = (true, true, false);
+        let mut share = self.stack_share();
+        let Self { project_panel, functions_panel: functions_state, stacked, .. } = self;
+        let shown = Panel::left("stack-panel")
+            .default_size(220.0)
+            .size_range(90.0..=900.0)
+            .resizable(true)
+            .frame(egui::Frame::new().fill(theme::window()).inner_margin(egui::Margin::symmetric(3, 2)))
+            .show(ui, |ui| {
+                let whole = ui.available_rect_before_wrap();
+                let (top, bottom) = stack_split((whole.height() - DIVIDER).max(0.0), share);
+                let top_rect = egui::Rect::from_min_size(whole.min, vec2(whole.width(), top));
+                let divider = egui::Rect::from_min_size(egui::pos2(whole.min.x, top_rect.max.y), vec2(whole.width(), DIVIDER));
+                let bottom_rect = egui::Rect::from_min_size(egui::pos2(whole.min.x, divider.max.y), vec2(whole.width(), bottom));
+                ui.scope_builder(egui::UiBuilder::new().max_rect(top_rect), |ui| {
+                    ui.set_clip_rect(top_rect.intersect(ui.clip_rect()));
+                    title_row(ui, "Project", &mut project_open, project.map(|_| &mut gear), Some(&mut *stacked));
+                    ui.add_space(2.0);
+                    *actions = crate::project::panel(ui, project_panel, project, active);
+                });
+                let response = ui.interact(divider, ui.scope_id().with("stack-divider"), Sense::drag());
+                if response.hovered() || response.dragged() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+                }
+                let line = if response.hovered() || response.dragged() { theme::accent() } else { theme::text_dim().gamma_multiply(0.4) };
+                ui.painter().hline(divider.x_range(), divider.center().y, egui::Stroke::new(1.0, line));
+                if response.dragged() && top + bottom > 0.0 {
+                    share = ((top + response.drag_delta().y) / (top + bottom)).clamp(0.0, 1.0);
+                }
+                ui.scope_builder(egui::UiBuilder::new().max_rect(bottom_rect), |ui| {
+                    ui.set_clip_rect(bottom_rect.intersect(ui.clip_rect()));
+                    title_row(ui, "Functions", &mut functions_open, None, Some(&mut *stacked));
+                    ui.add_space(2.0);
+                    functions_panel(ui, functions_state, doc, functions_actions);
+                });
+            });
+        note_reach(false, shown.response.rect);
+        if gear {
+            actions.push(crate::project::PanelAction::Settings);
+        }
+        self.stack_share = Some(share);
+        self.project = project_open;
+        self.functions = functions_open;
     }
 
     /// Draws the picture of a file's earlier states, if it's open.
@@ -658,10 +732,10 @@ impl Panels {
             dock(ui, false, "bookmarks-panel", "Bookmarks", 220.0, &mut open, |ui| bookmarks_panel(ui, doc, actions));
             self.bookmarks = open;
         }
-        if self.functions {
+        if self.functions && !(self.stacked && self.project) {
             let mut open = true;
             let panel = &mut self.functions_panel;
-            dock(ui, false, "functions-panel", "Functions", 220.0, &mut open, |ui| functions_panel(ui, panel, doc, actions));
+            dock_with_gear(ui, false, "functions-panel", "Functions", 220.0, &mut open, None, Some(&mut self.stacked), |ui| functions_panel(ui, panel, doc, actions));
             self.functions = open;
         }
         if self.tags {
@@ -754,12 +828,12 @@ pub fn dock_right(ui: &mut Ui, id: &'static str, title: &str, width: f32, open: 
 }
 
 pub(crate) fn dock(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, open: &mut bool, content: impl FnOnce(&mut Ui)) {
-    dock_with_gear(ui, right, id, title, width, open, None, content);
+    dock_with_gear(ui, right, id, title, width, open, None, None, content);
 }
 
 /// A docked panel with a small gear button beside its close button, for the panel's settings: it sets `gear`.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn dock_with_gear(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, open: &mut bool, mut gear: Option<&mut bool>, content: impl FnOnce(&mut Ui)) {
+pub(crate) fn dock_with_gear(ui: &mut Ui, right: bool, id: &'static str, title: &str, width: f32, open: &mut bool, gear: Option<&mut bool>, stack: Option<&mut bool>, content: impl FnOnce(&mut Ui)) {
     let side = usize::from(right);
     if HIDING.get() && !SHOWING.get()[side] {
         let mut tucked = TUCKED.get();
@@ -774,27 +848,62 @@ pub(crate) fn dock_with_gear(ui: &mut Ui, right: bool, id: &'static str, title: 
         .resizable(true)
         .frame(egui::Frame::new().fill(theme::window()).inner_margin(egui::Margin::symmetric(3, 2)))
         .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(crate::i18n::tr(title)).color(theme::text()).size(12.5));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if crate::access::called(ui.add(egui::Button::new(RichText::new(crate::i18n::tr("\u{D7}")).color(theme::text_dim())).frame(false)), "Close").on_hover_text(crate::i18n::tr("Close")).clicked() {
-                        *open = false;
-                    }
-                    if let Some(gear) = gear.as_mut()
-                        && crate::access::called(ui.add(egui::Button::new(RichText::new("\u{2699}").color(theme::text_dim())).frame(false)), "Project settings").on_hover_text(crate::i18n::tr("Project settings")).clicked()
-                    {
-                        **gear = true;
-                    }
-                });
-            });
+            title_row(ui, title, open, gear, stack);
             ui.add_space(2.0);
             content(ui);
         });
-    // How far in this side's panels reach, so the pointer can move over them without their going.
+    note_reach(right, shown.response.rect);
+}
+
+/// Notes how far in this side's panels reach, so the pointer can move over them without their going.
+fn note_reach(right: bool, rect: egui::Rect) {
+    let side = usize::from(right);
     let mut reach = REACH.get();
-    reach[side] = if right { if reach[side] == 0.0 { shown.response.rect.min.x } else { reach[side].min(shown.response.rect.min.x) } } else { reach[side].max(shown.response.rect.max.x) };
+    reach[side] = if right { if reach[side] == 0.0 { rect.min.x } else { reach[side].min(rect.min.x) } } else { reach[side].max(rect.max.x) };
     REACH.set(reach);
 }
+
+/// A panel's title with its close button, and a gear if it has settings. A right-click on the title offers to stack
+/// Project and Functions (or unstack them), when `stack` is given.
+fn title_row(ui: &mut Ui, title: &str, open: &mut bool, mut gear: Option<&mut bool>, stack: Option<&mut bool>) {
+    ui.horizontal(|ui| {
+        let label = ui.add(egui::Label::new(RichText::new(crate::i18n::tr(title)).color(theme::text()).size(12.5)).sense(Sense::click()));
+        if let Some(stack) = stack {
+            crate::fit::context_menu(&label, |ui| {
+                if ui.checkbox(stack, crate::i18n::tr("Stack Project and Functions")).clicked() {
+                    ui.close();
+                }
+            });
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if crate::access::called(ui.add(egui::Button::new(RichText::new(crate::i18n::tr("\u{D7}")).color(theme::text_dim())).frame(false)), "Close").on_hover_text(crate::i18n::tr("Close")).clicked() {
+                *open = false;
+            }
+            if let Some(gear) = gear.as_mut()
+                && crate::access::called(ui.add(egui::Button::new(RichText::new("\u{2699}").color(theme::text_dim())).frame(false)), "Project settings").on_hover_text(crate::i18n::tr("Project settings")).clicked()
+            {
+                **gear = true;
+            }
+        });
+    });
+}
+
+/// The least height either of the stacked panels keeps, and the divider's thickness.
+const STACK_LEAST: f32 = 90.0;
+const DIVIDER: f32 = 6.0;
+
+/// The heights of the two stacked panels, from the height they share (without the divider) and the top one's share
+/// of it. Neither goes below its least height; if there's no room for both, they split what there is evenly.
+pub fn stack_split(total: f32, share: f32) -> (f32, f32) {
+    let total = if total.is_finite() { total.max(0.0) } else { 0.0 };
+    if total < STACK_LEAST * 2.0 {
+        return (total / 2.0, total / 2.0);
+    }
+    let share = if share.is_finite() { share } else { 0.5 };
+    let top = (total * share).clamp(STACK_LEAST, total - STACK_LEAST);
+    (top, total - top)
+}
+
 
 fn heading_label(ui: &mut Ui, text: &str) {
     ui.label(RichText::new(text).color(theme::text_dim()).size(12.5));
@@ -1982,6 +2091,39 @@ mod feature_tests {
         assert!(again.functions && again.tags);
         again.hide_all();
         assert!(!again.functions && !again.tags);
+    }
+
+    #[test]
+    fn the_stacking_choice_and_the_dividers_place_survive_the_settings_file() {
+        let mut panels = Panels::default();
+        assert!(!panels.stacked && panels.stack_share() == 0.5, "off, and halfway, until chosen");
+        panels.stacked = true;
+        panels.stack_share = Some(0.3);
+        let mut again = Panels::default();
+        again.read_settings(&panels.to_settings());
+        assert!(again.stacked);
+        assert!((again.stack_share() - 0.3).abs() < 1e-6);
+        let mut odd = Panels::default();
+        odd.read_settings("stack_share=nan\nstack_panels=maybe\n");
+        assert!(!odd.stacked && odd.stack_share() == 0.5);
+        odd.read_settings("stack_share=7\n");
+        assert_eq!(odd.stack_share(), 1.0);
+    }
+
+    #[test]
+    fn the_stack_splits_by_share_and_keeps_both_panels_their_least_height() {
+        let (top, bottom) = stack_split(600.0, 0.25);
+        assert!((top - 150.0).abs() < 1e-3 && (bottom - 450.0).abs() < 1e-3);
+        assert_eq!(stack_split(600.0, 0.0).0, STACK_LEAST);
+        assert_eq!(stack_split(600.0, 1.0).1, STACK_LEAST);
+        assert_eq!(stack_split(600.0, f32::NAN), (300.0, 300.0));
+        // Too short for both: they share what there is.
+        assert_eq!(stack_split(100.0, 0.9), (50.0, 50.0));
+        assert_eq!(stack_split(0.0, 0.5), (0.0, 0.0));
+        assert_eq!(stack_split(-5.0, 0.5), (0.0, 0.0));
+        // Huge heights keep the share.
+        let (top, bottom) = stack_split(1.0e6, 0.4);
+        assert!((top - 4.0e5).abs() < 1.0 && (top + bottom - 1.0e6).abs() < 1.0);
     }
 
     #[test]

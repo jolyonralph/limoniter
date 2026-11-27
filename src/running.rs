@@ -72,6 +72,12 @@ pub enum Machine {
     Atari7800,
     /// Nintendo's Super NES (the Super Famicom): a 65816, whose programs are its cartridges.
     Snes,
+    /// A CP/M 2.2 computer (an 8080 or Z80 with CP/M), whose programs are .COM files; RunCPM stands in for it.
+    Cpm,
+    /// The Agon Light: an eZ80 running MOS, with BBC BASIC.
+    Agon,
+    /// The Neo6502: a 65C02 with a Raspberry Pi Pico beside it for video, sound and files.
+    Neo6502,
 }
 
 impl Machine {
@@ -120,6 +126,9 @@ impl Machine {
             Machine::Atari8 => "Atari 8-bit",
             Machine::Atari7800 => "Atari 7800",
             Machine::Snes => "SNES",
+            Machine::Cpm => "CP/M",
+            Machine::Agon => "Agon Light",
+            Machine::Neo6502 => "Neo6502",
         }
     }
 
@@ -169,6 +178,9 @@ impl Machine {
             Machine::Atari8 => "atari8",
             Machine::Atari7800 => "atari7800",
             Machine::Snes => "snes",
+            Machine::Cpm => "cpm",
+            Machine::Agon => "agon",
+            Machine::Neo6502 => "neo6502",
         }
     }
 
@@ -281,6 +293,12 @@ pub enum Format {
     /// A SNES cartridge, its ROM as it is (.sfc), or after a copier's 512-byte header (.smc).
     Sfc,
     Smc,
+    /// A CP/M .COM program: its bytes, loaded at 100h (the same ending as a DOS one, told apart by its machine).
+    CpmCom,
+    /// An Agon Light BBC BASIC program, as text.
+    AgonBas,
+    /// A Neo6502 program's bytes as they go in memory, loaded and started where the run says.
+    NeoBin,
 }
 
 impl Format {
@@ -298,7 +316,7 @@ impl Format {
         }
     }
 
-    pub const ALL: [Format; 61] = [
+    pub const ALL: [Format; 64] = [
         Format::Tap,
         Format::Tzx,
         Format::Z80,
@@ -360,6 +378,9 @@ impl Format {
         Format::A78,
         Format::Sfc,
         Format::Smc,
+        Format::CpmCom,
+        Format::AgonBas,
+        Format::NeoBin,
     ];
 
     /// The file ending it's written with.
@@ -427,6 +448,9 @@ impl Format {
             Format::A78 => "a78",
             Format::Sfc => "sfc",
             Format::Smc => "smc",
+            Format::CpmCom => "com",
+            Format::AgonBas => "bas",
+            Format::NeoBin => "bin",
         }
     }
 
@@ -480,6 +504,9 @@ impl Runnable {
             "80" => Format::O,
             _ => Format::from_ending(ending)?,
         };
+        // A .COM that starts with a jump to the code after it, as CP/M programs usually do, is CP/M's: a DOS one
+        // that did would start with a short jump (EB), which is not the 8080's C3.
+        let format = if format == Format::Com && looks_like_cpm(&bytes) { Format::CpmCom } else { format };
         let machine = machine_for(format, &bytes)?;
         Some(Runnable { machine, format, name: name.to_string(), bytes: Arc::new(bytes) })
     }
@@ -677,7 +704,24 @@ pub fn machine_for(format: Format, bytes: &[u8]) -> Option<Machine> {
         // A SNES cartridge is 32K banks; a copier put 512 bytes of its own before them.
         Format::Sfc | Format::Smc if bytes.len() >= 0x8000 && matches!(bytes.len() % 0x8000, 0 | 512) => Machine::Snes,
         Format::Sfc | Format::Smc => return None,
+        // CP/M's .COM is told from DOS's by `looks_like_cpm`, when a file is opened; a Neo6502's bytes and an
+        // Agon's BASIC come only from F9 (their endings are shared with other things).
+        Format::CpmCom if looks_like_cpm(bytes) => Machine::Cpm,
+        Format::CpmCom | Format::AgonBas | Format::NeoBin => return None,
     })
+}
+
+/// Whether a .COM looks like a CP/M program rather than a DOS one: it starts with JP (C3) to an address inside the
+/// program, 8080 and Z80 programs' usual way to jump over their data. In 8086 code C3 is RET, which a program
+/// doesn't start with.
+pub fn looks_like_cpm(bytes: &[u8]) -> bool {
+    match bytes {
+        [0xC3, low, high, ..] => {
+            let target = u16::from_le_bytes([*low, *high]) as usize;
+            (0x103..0x100 + bytes.len()).contains(&target)
+        }
+        _ => false,
+    }
 }
 
 /// The sizes of the PC's floppies: 160K to 1.44M, and 2.88M.

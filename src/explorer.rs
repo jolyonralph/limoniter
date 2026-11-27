@@ -159,6 +159,8 @@ pub enum Editing {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Act {
     Open(PathBuf),
+    /// A terminal on the server of a remote project, in this folder of its mirror.
+    ServerTerminal(PathBuf),
     Create { path: PathBuf, folder: bool },
     Rename { from: PathBuf, to: PathBuf },
     Delete(PathBuf),
@@ -195,6 +197,8 @@ pub enum Act {
 
 #[derive(Default)]
 pub struct Explorer {
+    /// The project is a folder on an SSH server, which a terminal can be opened on.
+    pub on_server: bool,
     root: Option<PathBuf>,
     expanded: HashSet<PathBuf>,
     listings: HashMap<PathBuf, Listing>,
@@ -833,6 +837,9 @@ impl Explorer {
         ui.separator();
         item(ui, "Find in this folder\u{2026}", Act::FindIn(folder.clone()));
         item(ui, "Open a terminal here", Act::Terminal(folder.clone()));
+        if self.on_server {
+            item(ui, "Open a terminal on the server here", Act::ServerTerminal(folder.clone()));
+        }
         item(ui, "Show in the file manager", Act::Reveal(path.clone()));
         ui.separator();
         item(ui, "Copy path", Act::CopyPath(path.clone()));

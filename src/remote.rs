@@ -252,6 +252,14 @@ pub fn connect(site: &Site, secret: &Secret, known: &KnownHosts) -> Result<Conne
         let client = crate::ftp::connect(&site.host, site.port, site.scheme.security(), &site.user, &password, known.known(site))?;
         return Ok(Connection::Ftp(Mutex::new(client)));
     }
+    let session = open_session(site, secret, known)?;
+    let sftp = session.sftp().map_err(|e| Refused::Failed(crate::i18n::tf!("{} doesn't offer SFTP: {e}", site.host)))?;
+    Ok(Connection::Sftp { _session: session, sftp })
+}
+
+/// Reaches an SSH server and signs in: the one way both SFTP and the SSH terminal do it. The server's key is
+/// checked against those trusted before; see `Refused`.
+pub fn open_session(site: &Site, secret: &Secret, known: &KnownHosts) -> Result<ssh2::Session, Refused> {
     let address = (site.host.as_str(), site.port).to_socket_addrs().map_err(|e| Refused::Failed(crate::i18n::tf!("{} couldn't be found: {e}", site.host)))?.next().ok_or_else(|| Refused::Failed(crate::i18n::tf!("{} couldn't be found.", site.host)))?;
     let tcp = TcpStream::connect_timeout(&address, CONNECT_TIMEOUT).map_err(|e| Refused::Failed(crate::i18n::tf!("Couldn't reach {} on port {}: {e}", site.host, site.port)))?;
     let mut session = ssh2::Session::new().map_err(failed)?;
@@ -276,8 +284,7 @@ pub fn connect(site: &Site, secret: &Secret, known: &KnownHosts) -> Result<Conne
     if !session.authenticated() {
         return Err(Refused::SignIn(String::new()));
     }
-    let sftp = session.sftp().map_err(|e| Refused::Failed(crate::i18n::tf!("{} doesn't offer SFTP: {e}", site.host)))?;
-    Ok(Connection::Sftp { _session: session, sftp })
+    Ok(session)
 }
 
 fn path(text: &str) -> &Path {

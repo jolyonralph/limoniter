@@ -433,6 +433,10 @@ impl Limoniter {
                 self.new_terminal(Some(folder));
                 false
             }
+            Act::ServerTerminal(folder) => {
+                self.open_server_terminal_here(Some(&folder));
+                false
+            }
             Act::FindIn(folder) => {
                 self.open_find(FindTab::InFiles);
                 self.find.scope = FileScope::Folder;

@@ -291,6 +291,10 @@ enum Command {
     SaveRemote,
     /// A folder on a server, opened as the project.
     OpenRemoteFolder,
+    /// A terminal on a server, chosen in the remote box.
+    OpenSshTerminal,
+    /// A terminal on the server of the open remote project, in its folder.
+    RemoteProjectTerminal,
     /// File, Open a ZIP as a project; Open a project from a web address.
     OpenZipProject,
     OpenWebProject,
@@ -636,9 +640,11 @@ impl Command {
                 | Command::NewAddOn
                 | Command::OpenRemote
                 | Command::OpenRemoteFolder
+                | Command::OpenSshTerminal
                 | Command::OpenZipProject
                 | Command::OpenWebProject
                 | Command::RemoteProjectFetch
+                | Command::RemoteProjectTerminal
                 | Command::RemoteProjectSync
                 | Command::ManageDevices
                 | Command::Themes
@@ -4790,6 +4796,8 @@ impl Limoniter {
             Command::Extensions => self.open_extensions(),
             Command::OpenRemote => self.open_remote_box(None),
             Command::OpenRemoteFolder => self.open_remote_folder_box(),
+            Command::OpenSshTerminal => self.open_ssh_terminal_box(),
+            Command::RemoteProjectTerminal => self.open_server_terminal_here(None),
             Command::OpenZipProject => self.open_zip_project(),
             Command::OpenWebProject => self.open_web_project_box(),
             Command::RemoteProjectFetch => self.remote_project_refresh(false),
@@ -5955,7 +5963,8 @@ impl Limoniter {
         let entries = self.git.status.as_ref().map(|s| s.entries.as_slice()).unwrap_or_default();
         self.panels.project_panel.explorer.set_git(self.git.repo.as_deref(), entries);
         let doc = &self.docs[active];
-        let project_actions = self.panels.show_project(ui, self.project.as_ref(), doc.path.as_deref());
+        let stack_view = DocView { id: doc.id, text: &doc.text, hex: &doc.hex, format: &doc.text.format, path: doc.path.as_deref(), hex_mode: doc.hex_mode, name: doc.name(), language: doc.language_name(), no_file: doc.placeholder, syntax: doc.resolved_syntax.flatten(), image: doc.browser.as_ref().map(|b| b.view()) };
+        let project_actions = self.panels.show_project(ui, self.project.as_ref(), doc.path.as_deref(), &stack_view, &mut actions);
         let todo_view = DocView { id: doc.id, text: &doc.text, hex: &doc.hex, format: &doc.text.format, path: doc.path.as_deref(), hex_mode: doc.hex_mode, name: doc.name(), language: doc.language_name(), no_file: doc.placeholder, syntax: doc.resolved_syntax.flatten(), image: None };
         let todo_acts = self.panels.show_todos(ui, &todo_view, self.project.as_ref());
         self.database_panel(ui);
@@ -8488,6 +8497,11 @@ impl Limoniter {
                 "tests" => self.tests_screenshot_step(value),
                 // The Containers panel, for the compose file in front.
                 "containers" => self.panels.containers = true,
+                "stacked" => {
+                    self.panels.project = true;
+                    self.panels.functions = true;
+                    self.panels.stacked = true;
+                }
                 // The Query the rows box, with the query typed after the step's colon.
                 "query-rows" => {
                     self.open_query_rows();
@@ -10305,6 +10319,8 @@ mod vsix_host;
 
 #[path = "remote_host.rs"]
 mod remote_host;
+#[path = "ssh_terminal_host.rs"]
+mod ssh_terminal_host;
 #[path = "remote_project_host.rs"]
 mod remote_project_host;
 #[path = "project_import_host.rs"]
@@ -11803,6 +11819,34 @@ mod tests {
         assert!(app.panels.functions && app.show_results);
         let settings = app.current_settings();
         assert_eq!(crate::layouts::from_settings(&settings), app.layouts);
+    }
+
+    #[test]
+    fn stacked_project_and_functions_share_one_strip_and_closing_one_leaves_the_other() {
+        let (mut app, ctx) = app_with("");
+        // Each pass says which of the panels' docks were drawn; they're kept under the window's own id.
+        let drawn = |app: &mut Limoniter, ctx: &Context, id: &str| {
+            let mut found = false;
+            for _ in 0..3 {
+                let _ = ctx.run_ui(input(Vec::new()), |ui| {
+                    app.draw_frame(ui);
+                    found = egui::containers::panel::PanelState::load(ui.ctx(), ui.scope_id().with_salt(egui::IdSalt::new(id))).is_some();
+                });
+            }
+            found
+        };
+        app.panels.project = true;
+        app.panels.functions = true;
+        app.panels.stacked = true;
+        assert!(drawn(&mut app, &ctx, "stack-panel"), "both panels are in the one strip");
+        assert!(!drawn(&mut app, &ctx, "project-panel") && !drawn(&mut app, &ctx, "functions-panel"), "and not in their own docks");
+        app.panels.functions = false;
+        assert!(drawn(&mut app, &ctx, "project-panel"), "Project alone is as it is on its own");
+        // Off, everything is as before.
+        let (mut plain, plain_ctx) = app_with("");
+        plain.panels.project = true;
+        plain.panels.functions = true;
+        assert!(drawn(&mut plain, &plain_ctx, "project-panel") && drawn(&mut plain, &plain_ctx, "functions-panel") && !drawn(&mut plain, &plain_ctx, "stack-panel"));
     }
 
     #[test]

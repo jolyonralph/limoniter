@@ -104,6 +104,11 @@ fn windows_release(id: &str) -> Option<Release> {
         "altirra" => Linked("https://www.virtualdub.org/altirra.html", |link| link.contains("/downloads/Altirra-") && link.ends_with(".zip") && !link.contains("-src") && link.contains("-ARM64") == arm()),
         "atari800" => GitHub("atari800/atari800", |n| n.starts_with("atari800-") && n.ends_with("-win64.zip")),
         "a7800" => GitHub("7800-devtools/a7800", |n| n.starts_with("a7800-win-") && n.ends_with(".zip")),
+        // The harder machines'. RunCPM publishes no releases (it's built from source), so its page is given.
+        // Fab Agon's Windows zip is fab-agon-emulator-v1.2.6-windows-x64.zip; the Neo6502's one neo6502.zip has
+        // the firmware and both emulators, neo.exe among them (both as published, 27 November 2026).
+        "fab-agon" => GitHub("tomm/fab-agon-emulator", |n| n.starts_with("fab-agon-emulator-") && n.ends_with("-windows-x64.zip")),
+        "neo6502" => GitHub("paulscottrobson/neo6502-firmware", |n| n == "neo6502.zip"),
         _ => return None,
     })
 }

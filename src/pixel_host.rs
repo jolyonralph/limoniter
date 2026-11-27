@@ -252,6 +252,10 @@ impl Limoniter {
         let mut close = false;
         let mut restart = false;
         let mut new_with: Option<crate::terminal::Shell> = None;
+        let mut new_ssh: Option<crate::remote::Site> = None;
+        // Looked at before the terminal is borrowed: a new server's key to ask about, a password to keep.
+        self.check_ssh_terminals();
+        let servers = super::ssh_terminal_host::ssh_servers(&self.remote_sites);
         let mut default_shell: Option<String> = None;
         let font_size = self.text_view_options().font_size;
         let Some(terminal) = self.terminal.as_mut() else {
@@ -263,7 +267,7 @@ impl Limoniter {
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
         let folder = terminal.folder.display().to_string();
         // Every terminal's tab, in the order they were started: its number and its folder's name.
-        let name_of = |t: &crate::terminal::Terminal| t.folder.file_name().map_or_else(|| t.folder.display().to_string(), |n| n.to_string_lossy().into_owned());
+        let name_of = |t: &crate::terminal::Terminal| t.title();
         let mut tabs: Vec<(u32, String, String)> = self.terminals_behind.iter().map(|(n, t)| (*n, name_of(t), t.folder.display().to_string())).collect();
         tabs.push((self.terminal_number, name_of(terminal), folder.clone()));
         tabs.sort_by_key(|(n, ..)| *n);
@@ -277,7 +281,7 @@ impl Limoniter {
                     }
                 }
                 let shells = crate::terminal::shells();
-                if shells.len() < 2 {
+                if shells.len() < 2 && servers.is_empty() {
                     if ui.small_button("+").on_hover_text(crate::i18n::tr("Another terminal")).clicked() {
                         new = true;
                     }
@@ -290,15 +294,24 @@ impl Limoniter {
                                 ui.close();
                             }
                         }
-                        ui.separator();
-                        crate::fit::menu_button(ui, crate::i18n::tr("Open new terminals with"), |ui| {
-                            for shell in &shells {
-                                if ui.radio(shell.id() == self.terminal_shell, shell.label()).clicked() {
-                                    default_shell = Some(shell.id());
-                                    ui.close();
-                                }
+                        // The servers saved for SFTP, which a terminal can open on too.
+                        for (name, site) in &servers {
+                            if ui.button(crate::i18n::tf!("SSH: {name}")).on_hover_text(site.url("")).clicked() {
+                                new_ssh = Some(site.clone());
+                                ui.close();
                             }
-                        });
+                        }
+                        if shells.len() > 1 {
+                            ui.separator();
+                            crate::fit::menu_button(ui, crate::i18n::tr("Open new terminals with"), |ui| {
+                                for shell in &shells {
+                                    if ui.radio(shell.id() == self.terminal_shell, shell.label()).clicked() {
+                                        default_shell = Some(shell.id());
+                                        ui.close();
+                                    }
+                                }
+                            });
+                        }
                     })
                     .response
                     .on_hover_text(crate::i18n::tr("Another terminal"));
@@ -314,8 +327,13 @@ impl Limoniter {
             self.close_terminal();
         } else if restart {
             let (folder, shell) = self.terminal.as_ref().map_or((None, Default::default()), |t| (Some(t.folder.clone()), t.shell.clone()));
+            let ssh = self.terminal.as_ref().and_then(|t| t.ssh.clone());
             self.terminal = None;
-            self.new_terminal_with(folder, &shell);
+            if let Some((site, folder)) = ssh {
+                self.open_ssh_terminal(&site, folder);
+            } else {
+                self.new_terminal_with(folder, &shell);
+            }
             // A restarted one keeps its number and place.
             self.terminals_made -= 1;
             self.terminal_number = front;
@@ -325,6 +343,8 @@ impl Limoniter {
             self.new_terminal(None);
         } else if let Some(shell) = new_with {
             self.new_terminal_with(None, &shell);
+        } else if let Some(site) = new_ssh {
+            self.open_ssh_terminal(&site, None);
         }
         if let Some(id) = default_shell {
             self.terminal_shell = id;

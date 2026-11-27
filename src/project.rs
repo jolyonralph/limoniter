@@ -629,6 +629,7 @@ pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, act
         ui.add(egui::TextEdit::singleline(&mut state.filter).hint_text(crate::i18n::tr("Find a file by its name (Ctrl+E)")).desired_width(f32::INFINITY));
         ui.add_space(2.0);
         comparisons(ui, project, &mut actions);
+        state.explorer.on_server = project.remote.as_ref().is_some_and(|origin| !origin.site.scheme.is_ftp());
         let acts = if state.filter.trim().is_empty() { state.explorer.draw(ui, root, active, &project.explorer, &project.colours) } else { crate::explorer::filtered(ui, root, &project.files, &state.filter, active, &project.colours) };
         for act in acts {
             actions.push(match act {

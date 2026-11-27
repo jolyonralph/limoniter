@@ -833,6 +833,8 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
         }
         // A cartridge for one of Sega's consoles, or the ColecoVision, as the source says or its header shows.
         Cpu::M68k | Cpu::Z80 if assembled.tape.is_none() && let Some(made) = console_cartridge(cpu, assembled, stem) => made.map(Made::Run),
+        // A CP/M program, as the source says or its ORG 100h shows: a .COM RunCPM runs (see `cpm_run`).
+        Cpu::Z80 if assembled.tape.is_none() && assembled.assembly.device.is_none() && is_cpm(assembled) => crate::cpm_run::program(&assembled.assembly, stem).map(Made::Run),
         // A QL program: an executable QDOS starts as a job, as the source says or the 68008 it's for shows.
         Cpu::M68k if crate::ql_run::is_ql(assembled) => crate::ql_run::program(assembled, stem).map(Made::Run),
         // An Amiga executable, made by the assembler from source for the Amiga.
@@ -880,6 +882,13 @@ pub fn made_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) -> R
         }
         _ => runnable_from(cpu, assembled, stem, micro).map(Made::Run),
     }
+}
+
+/// Whether Z80 source is for CP/M: it says so, or says nothing of its machine and starts at 100h, where CP/M loads
+/// programs and no other Z80 machine here has any RAM.
+fn is_cpm(assembled: &Assembled) -> bool {
+    let lines = || assembled.source.as_deref().unwrap_or_default().lines();
+    crate::cpm_run::says_cpm(lines()) || (machine_z80(lines()).is_none() && assembled.assembly.lowest() == Some(0x100))
 }
 
 /// A Mega Drive cartridge from 68000 source, or a Master System, Game Gear, SG-1000 or ColecoVision cartridge
@@ -1059,6 +1068,8 @@ pub fn runnable_from(cpu: Cpu, assembled: &Assembled, stem: &str, micro: Micro) 
                 let bytes = crate::apple2_run::program_disk(assembly)?;
                 Ok(Runnable { machine: Machine::Apple2, format: Format::Dsk, name: format!("{stem}.dsk"), bytes: Arc::new(bytes) })
             }
+            // A Neo6502 program, loaded where it's put and started there (see `neo_run`).
+            Some(Micro6502::Neo6502) => crate::neo_run::program(assembly, stem).map(|(run, _)| run),
             None => Err(ASK_6502.to_string()),
         };
     }
