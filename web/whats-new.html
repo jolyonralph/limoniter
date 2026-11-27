@@ -51,6 +51,7 @@
       </div>
       <nav class="contents" aria-label="Releases">
         <ul>
+<li><a href="#v0-17-0">0.17.0</a></li>
 <li><a href="#v0-16-4">0.16.4</a></li>
 <li><a href="#v0-16-3">0.16.3</a></li>
 <li><a href="#v0-16-2">0.16.2</a></li>
@@ -74,6 +75,19 @@
 <li><a href="#v0-5-0">0.5.0</a></li>
         </ul>
       </nav>
+<h2 id="v0-17-0">0.17.0</h2>
+<p class="released">Released 27 November 2026.</p>
+<p>Limoniter 0.17.0 runs emulators inside its own window, adds an SSH terminal, groups the Functions panel by class, and gives F9 three more machines: CP/M, the Agon Light and the Neo6502.</p>
+<h3>Emulators in Limoniter's window</h3>
+<ul><li>Machines run in a <strong>panel beside your file</strong>, docked like the built-in ones: the Spectrum (Fuse), C64 and the other Commodores (VICE), the Amiga (PUAE), Mega Drive, Master System and Game Gear (Genesis Plus GX, PicoDrive), Atari 2600 (Stella), and more, through libretro cores.</li><li><strong>Keys, joypad and mouse</strong> go to the machine; <strong>Reset</strong>, <strong>Save state</strong> and <strong>Load state</strong>; and a <strong>memory view</strong> of the machine as it runs.</li><li><strong>F9's Run on</strong> offers each machine "in Limoniter's window", and remembers it if you like.</li><li><strong>Get an emulator</strong> downloads the cores, and the small helper program that runs them, <strong>limoniter-retro</strong>: a separate GPL project, so Limoniter itself stays Apache-2.0.</li></ul>
+<h3>F9 on more machines</h3>
+<ul><li><strong>CP/M</strong>: Z80 source at 100h (or saying <code>; machine: cpm</code>) is built as a .COM and run in <strong>RunCPM</strong>, in the Terminal panel.</li><li><strong>Agon Light</strong>: BBC BASIC runs in <strong>fab-agon-emulator</strong>, from an SD card folder made for the run.</li><li><strong>Neo6502</strong>: 6502 code runs in its <strong>emulator</strong>, loaded at its address.</li></ul>
+<h3>Code</h3>
+<ul><li><strong>The Functions panel by class</strong>: each function under the class it's in, the rest under Not in a class; <strong>Order</strong> as in the file, A to Z, or private A to Z then public; private ones marked; classes fold; hovering shows the signature.</li><li><strong>Project and Functions in one strip</strong> (View, Panels, Stack Project and Functions): one above the other, with a divider to drag.</li><li><strong>An SSH terminal</strong>: SSH: and a server's name in the terminal's <strong>+</strong>, File, <strong>Open a terminal on a server (SSH)</strong>, and <strong>Open a terminal here</strong> in a remote project. It uses SFTP's saved servers, logins, keys and host key checks, and the server's terminal follows the panel's size.</li></ul>
+<h3>Projects</h3>
+<ul><li><strong>Open the last project when Limoniter starts</strong> (Settings, Files, and on the start page).</li><li><strong>Always shown</strong>: files and folders the recency slider never hides (README.md, src/main.rs, docs/, *.toml), in Project settings, Files, or with <strong>Always show</strong> in a right-click in the Explorer and the Project panel.</li></ul>
+<h3>And</h3>
+<ul><li><strong>Dialogs can be moved</strong>: About and the other boxes in the middle of the window can be dragged.</li><li><strong>File, New as</strong>: OpticBASIC is with the ZX machines.</li></ul>
 <h2 id="v0-16-4">0.16.4</h2>
 <p class="released">Released 23 November 2026.</p>
 <p>Limoniter 0.16.4 puts Code and Retro on the menu bar, adds File, Export and a choice of shell for the terminal, starts npm's tools on Windows, and fixes a crash, the window size slider and Settings' widths.</p>
@@ -111,20 +125,7 @@
 <h2 id="v0-16-0">0.16.0</h2>
 <p class="released">Released 22 November 2026.</p>
 <p>Limoniter 0.16 is a release for modern coding: Jupyter notebooks, Python and R as their users expect them, Node and React, PHP's own tools, a data viewer, a database browser, one Tests panel, <code>.http</code> request files and Docker Compose, each built on the language servers, debugger and tasks Limoniter already has.</p>
-<h3>Jupyter notebooks</h3>
-<ul><li><strong><code>.ipynb</code> files open as notebooks</strong>:<ul><li>code cells are edited in place with their language's colours, and Markdown cells are shown as they read;</li><li>outputs show below each cell: text with terminal colours, PNG, JPEG and SVG pictures, plots, pandas tables as a grid, and errors with their traceback;</li><li>run a cell, all, above or below, interrupt and restart, all with Jupyter's keys (Shift+Enter, A, B, D D, M, Y);</li><li>a notebook is saved exactly as Jupyter saves it, and Git compares it cell by cell;</li><li>File, New as starts a Python or an R notebook.</li></ul></li><li><strong>Kernels with nothing else installed</strong>: Limoniter speaks Jupyter's protocol and ZeroMQ itself, finds the kernels Jupyter knows of (Python's ipykernel, R's IRkernel and any other), and offers to install one when there's none.</li><li><strong>The Variables panel</strong> lists what a notebook's kernel holds, as RStudio's Environment pane does. Double-click a pandas or R data frame to open it in the data viewer.</li></ul>
-<h3>Python and R</h3>
-<ul><li><strong>Environments</strong>: a project's virtual environments (venv, uv, Poetry, conda) are found, and the one in use shows in the status bar, where a click picks another or makes one. F9, the debugger, pytest, the language server and the kernels all use it.</li><li><strong>A Python and R console</strong> beside the editor. Ctrl+Enter sends the line or the selection, as RStudio does, and plots are kept to step back through.</li><li><strong><code># %%</code> cells</strong> in ordinary scripts get Run cell and Run above links, as in VS Code.</li><li>R's languageserver, and R Markdown and Quarto previews with Knit / Render.</li></ul>
-<h3>Data and databases</h3>
-<ul><li><strong>A data viewer</strong> for <code>.xlsx</code> workbooks (read by Limoniter itself), JSON lines, query results and data frames:<ul><li>millions of rows, sorted, filtered and summed up column by column;</li><li>copied as a spreadsheet copies them, or saved as CSV;</li><li>View, Open in the data viewer shows a CSV file there too.</li></ul></li><li><strong>A database browser</strong> for SQLite, PostgreSQL and MySQL/MariaDB, through Limoniter's own clients with TLS:<ul><li>the Database panel shows schemas, tables and columns;</li><li>double-click a table for its rows;</li><li>in a <code>.sql</code> file, <strong>Ctrl+Enter</strong> runs the statement at the cursor, and an error is marked at its place;</li><li>passwords are kept only in the system's keychain.</li></ul></li></ul>
-<h3>Node, React and the web</h3>
-<ul><li>npm, pnpm, yarn or bun, as the project's lock file says. <strong>F9</strong> starts a front-end's dev server (Vite, Next and the rest) and opens the page. Node is debugged with js-debug.</li><li>JSX and TSX coloured and laid out properly, with components in the outline.</li><li><strong>Emmet</strong>: <code>ul&gt;li.item*3</code> and Tab, in HTML, JSX, Vue, Svelte, PHP templates and CSS.</li><li><strong><code>.env</code> files</strong>: values hidden until you look, a warning when one isn't left out of Git, and given to tasks and F9.</li><li><strong><code>.http</code> request files</strong>, as VS Code's REST Client has them:<ul><li>Send request above each request;</li><li>the response laid out;</li><li>variables, environments, values taken from an earlier response, and cookies.</li></ul></li><li><strong>Docker Compose</strong>: a Containers panel with each service's state and ports. For each service: up, down, restart, rebuild, logs and a shell.</li></ul>
-<h3>PHP, tests and tidying</h3>
-<ul><li>PHP: Intelephense or Phpactor, Composer's commands as tasks, debugging with Xdebug, and php-cs-fixer.</li><li><strong>One Tests panel</strong> for pytest, Jest, Vitest, PHPUnit, R's testthat, <code>cargo test</code> and <code>go test</code>: run one, a file's, the failed ones or all, with each failure marked at its line.</li><li>Formatters kept in the project (<code>node_modules/.bin</code>, <code>vendor/bin</code>, <code>.venv/bin</code>) come first, and R is formatted with styler.</li><li><strong>Outdated packages</strong>: what npm, pip, Composer and R have newer versions of, in one table, updated as tasks.</li></ul>
-<h3>Projects and files</h3>
-<ul><li><strong>A recency slider</strong> at the bottom of a project's Explorer: show only the newest 25% (or any share) of the files, with how many are shown and hidden. The order is unchanged.</li><li><strong>A project's own file templates</strong>, in File, New as, with blanks filled in, and folders of templates making several files at once.</li><li><strong>Autosave as VS Code has it</strong>:<ul><li>after a delay (from 1 second), when you change tab, or when the window loses the focus;</li><li>it can leave alone files with errors;</li><li><strong>hot exit</strong>: Quit doesn't ask about unsaved files, and they come back next time.</li></ul></li><li>File, <strong>Close all</strong> and <strong>Close the others</strong>, also on a tab's right-click menu.</li></ul>
-<h3>Windows</h3>
-<ul><li>No more consoles flashing up and taking the focus when Limoniter starts a program.</li><li>Every system dialog now stays in front of Limoniter's window, so a click can't hide one.</li></ul>
+<p><a href="https://github.com/jolyonralph/limoniter/releases/tag/v0.16.0">All that was new in 0.16.0</a></p>
 <h2 id="v0-15-0">0.15.0</h2>
 <p class="released">Released 21 November 2026.</p>
 <p>Limoniter 0.15 is a release for retro coders: the whole 680x0 family, How To Code for the ZX Spectrum and a games chapter for the Amiga, the ZX80, the Vectrex and three of the first computers ever built, the Sinclair QL, five more machines for F9, structure templates for the hex view, tape audio, and Limoniter updating itself.</p>
