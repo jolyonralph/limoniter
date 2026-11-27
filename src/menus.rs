@@ -1351,7 +1351,7 @@ impl Limoniter {
             Command::SendTo(n) if matches!(self.sends.devices.get(n).map(|d| &d.place), Some(crate::deploy::Place::Emulator { .. })) => !no_file,
             Command::SendTo(_) | Command::SendAgain => !no_file && doc.browser.is_none(),
             Command::SendRequest | Command::HttpClearCookies => !no_file && super::http_host::is_http_doc(doc),
-            Command::RunOnMachine | Command::RunOnBuiltIn | Command::RunOnBuiltIn2600 | Command::RunOnBuiltInVectrex | Command::RunOn(_) => !no_file,
+            Command::RunOnMachine | Command::RunOnBuiltIn | Command::RunOnBuiltIn2600 | Command::RunOnBuiltInVectrex | Command::RunOn(_) | Command::RunInWindow(_) => !no_file,
             Command::FindUses | Command::RenameLabel => !no_file && (self.doc_cpu(self.active).is_some() || self.has_lsp()),
             Command::GoToDefinition | Command::PeekDefinition => !no_file,
             Command::QuickFix => self.has_lsp(),
@@ -1824,6 +1824,10 @@ impl Limoniter {
                 // What the file in front would run as, so each machine says whether it can take it.
                 let runnable = if self.no_file() { None } else { self.runnable_quietly().ok().flatten() };
                 let mut targets = vec![(super::run_host::Target::BuiltIn, super::run_host::BUILT_IN_NAME.to_string(), Pick::RunOn(None)), (super::run_host::Target::BuiltIn2600, super::run_host::BUILT_IN_2600_NAME.to_string(), Pick::Command(Command::RunOnBuiltIn2600)), (super::run_host::Target::BuiltInVectrex, super::run_host::BUILT_IN_VECTREX_NAME.to_string(), Pick::Command(Command::RunOnBuiltInVectrex))];
+                // The file in front's machine, in Limoniter's window, when it has a libretro core.
+                if let Some(machine) = runnable.as_ref().map(|run| run.machine).filter(|m| crate::retro::core_for(*m).is_some()) {
+                    targets.push((super::run_host::Target::Retro(machine), crate::retro::target_name(machine), Pick::Command(Command::RunInWindow(machine))));
+                }
                 targets.extend((0..self.sends.devices.len()).map(|n| (super::run_host::Target::Device(n), self.sends.devices[n].name.clone(), Pick::RunOn(Some(n)))));
                 for (target, name, pick) in targets {
                     let suits = runnable.as_ref().map(|run| self.suits(target, run));

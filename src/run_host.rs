@@ -26,6 +26,8 @@ pub(super) enum Target {
     Ace,
     /// The machines built in for teaching: the Manchester Baby, EDSAC and the PDP-8.
     Teaching(Machine),
+    /// A machine run by a libretro core, in a panel in Limoniter's window (see `retro`).
+    Retro(Machine),
 }
 
 pub(super) const BUILT_IN_NAME: &str = "Built-in Spectrum";
@@ -56,6 +58,8 @@ pub(super) enum SessionKind {
     Micro { machine: Box<super::micro_host::Micro>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle>, error: Option<String> },
     /// A built-in teaching machine (the Manchester Baby, EDSAC or the PDP-8), in a panel beside its source.
     Teaching { machine: Box<super::teaching_host::Teaching>, doc_id: u64, run: Box<Runnable> },
+    /// A machine run by a libretro core in the helper, drawn in a panel beside the document it was run from.
+    Retro { machine: Box<super::retro_host::RetroRun>, doc_id: u64, run: Box<Runnable>, texture: Option<egui::TextureHandle> },
 }
 
 /// A program from assembler source being debugged in an emulator: the document, the debugger, and the
@@ -227,6 +231,7 @@ impl Limoniter {
             Target::Zx81 => super::micro_host::ZX81_NAME.to_string(),
             Target::Ace => super::micro_host::ACE_NAME.to_string(),
             Target::Teaching(machine) => super::teaching_host::MACHINES.iter().find(|(m, _)| *m == machine).map_or_else(String::new, |(_, name)| name.to_string()),
+            Target::Retro(machine) => crate::retro::target_name(machine),
             Target::Device(n) => self.sends.devices.get(n).map_or_else(String::new, |device| device.name.clone()),
         }
     }
@@ -253,6 +258,9 @@ impl Limoniter {
         if let Some((machine, _)) = super::teaching_host::MACHINES.iter().find(|(_, n)| *n == name) {
             return Some(Target::Teaching(*machine));
         }
+        if let Some(machine) = crate::retro::machine_named(name) {
+            return Some(Target::Retro(machine));
+        }
         self.sends.devices.iter().position(|device| device.name == name).map(Target::Device)
     }
 
@@ -266,6 +274,7 @@ impl Limoniter {
             Target::Zx81 => super::micro_host::takes(crate::micro_roms::Needs::Zx81, run),
             Target::Ace => super::micro_host::takes(crate::micro_roms::Needs::Ace, run),
             Target::Teaching(machine) => super::teaching_host::takes(machine, run),
+            Target::Retro(machine) => crate::retro::takes(machine, run).map(|_| ()),
             Target::Device(n) => {
                 let Some(device) = self.sends.devices.get(n) else {
                     return Err(crate::i18n::tr("It's no longer set up.").into());
@@ -303,6 +312,10 @@ impl Limoniter {
             if run.machine == machine {
                 all.insert(0, (Target::Teaching(machine), name.to_string(), self.suits(Target::Teaching(machine), run)));
             }
+        }
+        // A machine with a libretro core runs in Limoniter's window too.
+        if crate::retro::core_for(run.machine).is_some() {
+            all.push((Target::Retro(run.machine), crate::retro::target_name(run.machine), self.suits(Target::Retro(run.machine), run)));
         }
         all.extend((0..self.sends.devices.len()).map(|n| (Target::Device(n), self.sends.devices[n].name.clone(), self.suits(Target::Device(n), run))));
         all
@@ -421,6 +434,7 @@ impl Limoniter {
             Target::BuiltInVectrex => self.run_built_in_vectrex(run.clone()),
             Target::Zx80 | Target::Zx81 | Target::Ace => self.run_micro(run.clone()),
             Target::Teaching(_) => self.run_teaching(run.clone()),
+            Target::Retro(machine) => self.run_in_window(machine, run.clone()),
             Target::Device(n) => {
                 let device = self.sends.devices[n].clone();
                 match &device.place {

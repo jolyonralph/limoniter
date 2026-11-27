@@ -11066,3 +11066,75 @@ The code reaches ${:04X}, in the Neo6502's own registers at $FF00. Keep it below
 The code starts at ${low:04X}, in the Neo6502's zero page and stack. Put it at $0800 (ORG $0800) or above.	Der Code beginnt bei ${low:04X}, in der Zero Page und dem Stack des Neo6502. Legen Sie ihn auf $0800 (ORG $0800) oder höher.
 Trust this key and connect?	Diesem Schlüssel vertrauen und verbinden?
 {} wouldn't start a shell: {e}	{} wollte keine Shell starten: {e}
+A helper you've built or downloaded yourself	Ein Hilfsprogramm, das Sie selbst gebaut oder heruntergeladen haben
+Choose helper…	Hilfsprogramm wählen…
+Choose the helper, limoniter-retro	Das Hilfsprogramm wählen, limoniter-retro
+Click the screen to give the machine the keyboard.	Klicken Sie auf den Bildschirm, um der Maschine die Tastatur zu geben.
+Downloading {what}…	{what} wird heruntergeladen…
+From github.com/{}	Von github.com/{}
+GitHub answered {code} when asked for the helper's latest release.	GitHub antwortete {code} auf die Frage nach der neuesten Version des Hilfsprogramms.
+Helper for emulators in Limoniter's window	Hilfsprogramm für Emulatoren in Limoniters Fenster
+In Limoniter's window	In Limoniters Fenster
+It needs the helper, limoniter-retro: Get an emulator, under Devices and emulators, gets it, or choose it by hand.	Es braucht das Hilfsprogramm limoniter-retro: Emulator besorgen, unter Geräte und Emulatoren, holt es, oder wählen Sie es selbst.
+It needs the {} core: Get an emulator, under Devices and emulators, downloads it.	Es braucht den Core {}: Emulator besorgen, unter Geräte und Emulatoren, lädt ihn herunter.
+It runs {} programs.	Er führt {}-Programme aus.
+Its latest nightly build, from {address}	Sein neuester nächtlicher Build, von {address}
+Its latest release, from github.com/{}	Seine neueste Version, von github.com/{}
+Keeps the machine as it is now, in {}	Behält die Maschine so, wie sie jetzt ist, in {}
+Load state	Zustand laden
+Machines run in a panel beside the file, by libretro cores, which the helper limoniter-retro runs. F9's Run on offers each machine whose core is here.	Maschinen laufen in einem Bereich neben der Datei, durch libretro-Cores, die das Hilfsprogramm limoniter-retro ausführt. „Ausführen auf“ (F9) bietet jede Maschine an, deren Core vorhanden ist.
+No libretro core is known for it.	Dafür ist kein libretro-Core bekannt.
+No release of the helper ({HELPER_REPOSITORY}) has been published on GitHub yet, so there's nothing to download. If you've built it yourself, choose it with Choose helper….	Vom Hilfsprogramm ({HELPER_REPOSITORY}) wurde auf GitHub noch keine Version veröffentlicht, es gibt also nichts herunterzuladen. Wenn Sie es selbst gebaut haben, wählen Sie es mit Hilfsprogramm wählen….
+Puts the machine back as Save state kept it	Setzt die Maschine zurück auf den Zustand, den „Zustand speichern“ behalten hat
+Reset	Zurücksetzen
+Save state	Zustand speichern
+Save state keeps a state to come back to	„Zustand speichern“ behält einen Zustand, zu dem man zurückkehren kann
+Some take effect only when the machine is restarted.	Manche wirken erst, wenn die Maschine neu gestartet wird.
+Starting {}…	{} wird gestartet…
+Starts the machine again, with the program loaded afresh	Startet die Maschine neu, mit dem Programm frisch geladen
+State loaded.	Zustand geladen.
+State saved.	Zustand gespeichert.
+The arrow keys are the joypad, Z and X its B and A, A and S its Y and X, Enter Start and Shift Select. Click the text to type there again.	Die Pfeiltasten sind das Joypad, Z und X seine B und A, A und S seine Y und X, Eingabe Start und Umschalt Select. Klicken Sie in den Text, um dort wieder zu tippen.
+The buildbot answered {code} for {address}.	Der Buildbot antwortete {code} für {address}.
+The core's own options, kept for next time	Die eigenen Optionen des Cores, für das nächste Mal behalten
+The core's system RAM: {size} bytes, numbered from 0 as the core keeps it, which may not be the machine's own addresses.	Der System-RAM des Cores: {size} Bytes, ab 0 nummeriert, wie der Core ihn hält, was nicht die Adressen der Maschine sein müssen.
+The download from {address} didn't have {} in it.	Der Download von {address} enthielt {} nicht.
+The helper	Das Hilfsprogramm
+The helper (limoniter-retro)	Das Hilfsprogramm (limoniter-retro)
+The helper ({}) couldn't be started: {e}	Das Hilfsprogramm ({}) konnte nicht gestartet werden: {e}
+The helper can't be reached: it may have stopped.	Das Hilfsprogramm ist nicht erreichbar: Es hat vielleicht angehalten.
+The helper didn't answer.	Das Hilfsprogramm hat nicht geantwortet.
+The helper didn't say it was ready.	Das Hilfsprogramm hat nicht gemeldet, dass es bereit ist.
+The helper is {}.	Das Hilfsprogramm ist {}.
+The helper isn't built for this kind of computer: build it from its source, and choose it by hand.	Das Hilfsprogramm ist nicht für diese Art Computer gebaut: Bauen Sie es aus dem Quelltext und wählen Sie es selbst.
+The helper speaks protocol {}, and this Limoniter speaks {PROTOCOL}: get the helper again.	Das Hilfsprogramm spricht Protokoll {}, und dieses Limoniter spricht {PROTOCOL}: Besorgen Sie das Hilfsprogramm erneut.
+The helper stopped.	Das Hilfsprogramm hat angehalten.
+The helper stopped. It said: {tail}	Das Hilfsprogramm hat angehalten. Es sagte: {tail}
+The helper was unpacked into {}, but its program wasn't found in it.	Das Hilfsprogramm wurde nach {} entpackt, aber sein Programm wurde dort nicht gefunden.
+The helper's download answered {code}.	Der Download des Hilfsprogramms antwortete {code}.
+The helper's frames ({}) couldn't be opened: {e}	Die Bilder des Hilfsprogramms ({}) konnten nicht geöffnet werden: {e}
+The helper's input couldn't be reached.	Die Eingabe des Hilfsprogramms ist nicht erreichbar.
+The helper's latest release ({tag}) has no {wanted} for this computer.	Die neueste Version des Hilfsprogramms ({tag}) hat kein {wanted} für diesen Computer.
+The helper's log is in {}	Das Protokoll des Hilfsprogramms liegt in {}
+The helper's output couldn't be reached.	Die Ausgabe des Hilfsprogramms ist nicht erreichbar.
+The helper, limoniter-retro, isn't here: Get an emulator gets it, or choose it by hand.	Das Hilfsprogramm limoniter-retro ist nicht da: Emulator besorgen holt es, oder wählen Sie es selbst.
+The keys go to the machine. Click the text to type there again.	Die Tasten gehen an die Maschine. Klicken Sie in den Text, um dort wieder zu tippen.
+The libretro buildbot has no cores for this kind of computer.	Der libretro-Buildbot hat keine Cores für diese Art Computer.
+The machine switched itself off.	Die Maschine hat sich selbst ausgeschaltet.
+The machine's memory is only {size:X} (hex) bytes long.	Der Speicher der Maschine ist nur {size:X} (hex) Bytes lang.
+The machine's memory, as it runs	Der Speicher der Maschine, während sie läuft
+The machine's memory, by its own addresses, as the core maps it. Addresses with nothing there read as 00.	Der Speicher der Maschine, nach ihren eigenen Adressen, wie der Core ihn abbildet. Adressen, an denen nichts ist, lesen sich als 00.
+The machine's reset, as its own button would	Die Maschine wird zurückgesetzt, wie mit ihrem eigenen Knopf
+The {} core	Der Core {}
+The {} core isn't downloaded: Get an emulator gets it.	Der Core {} ist nicht heruntergeladen: Emulator besorgen holt ihn.
+This core doesn't let its memory be seen	Dieser Core lässt seinen Speicher nicht sehen
+Type an address in hex, such as 4000 or $C000.	Geben Sie eine Adresse in Hex ein, etwa 4000 oder $C000.
+hex, from 0	hex, ab 0
+limoniter-retro, which runs libretro cores for machines in Limoniter's window. Without one chosen, it's looked for beside Limoniter and where Get an emulator puts it	limoniter-retro, das libretro-Cores für Maschinen in Limoniters Fenster ausführt. Ohne Wahl wird es neben Limoniter gesucht und dort, wo Emulator besorgen es ablegt
+protocol	Protokoll
+{what} is downloaded, to {}.	{what} ist heruntergeladen, nach {}.
+{} core	Core {}
+{} isn't given .{} files.	{} bekommt keine .{}-Dateien.
+{} needs {needs}, in {system}.	{} braucht {needs}, in {system}.
+{}, in Limoniter's window	{}, in Limoniters Fenster
+{}. It needs {needs}, in the system folder: {}	{}. Er braucht {needs}, im Systemordner: {}

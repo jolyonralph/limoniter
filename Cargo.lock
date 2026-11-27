@@ -2316,6 +2316,7 @@ dependencies = [
  "limoniter-macros",
  "lzfse_rust",
  "memchr",
+ "memmap2",
  "miniz_oxide 0.8.9",
  "objc2 0.6.5",
  "png",

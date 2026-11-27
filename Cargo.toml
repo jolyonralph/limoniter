@@ -54,6 +54,8 @@ keyring = { version = "3", features = ["windows-native", "apple-native", "async-
 similar = { version = "2", default-features = false }
 syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy", "yaml-load"] }
 cpal = "0.18"
+# The frames limoniter-retro (the helper that runs libretro cores) shares with Limoniter, read where it writes them.
+memmap2 = "0.9"
 # Sound files to play: MP3, WAV, FLAC, Ogg Vorbis and AIFF, decoded in Rust with no C library.
 symphonia = { version = "0.6", default-features = false, features = ["mp1", "mp2", "mp3", "wav", "aiff", "pcm", "adpcm", "flac", "ogg", "vorbis", "id3v1", "id3v2"] }
 rustzx-core = { version = "0.16", features = ["embedded-roms", "autoload", "precise-border", "sound", "ay"] }

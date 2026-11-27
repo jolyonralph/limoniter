@@ -79,6 +79,8 @@ impl Limoniter {
             SessionKind::Micro { .. } => None,
             SessionKind::Vectrex { .. } => None,
             SessionKind::Teaching { .. } => None,
+            // A machine in a core is reached through its own panel.
+            SessionKind::Retro { .. } => None,
         };
         let own = self.running.sessions.iter().find(|s| matches!(s.kind, SessionKind::BuiltIn { doc_id: d, .. } if Some(d) == doc_id));
         own.into_iter().chain(self.running.sessions.iter().rev()).find_map(|session| reach(session).map(|r| (r, session.machine, session.target.clone())))

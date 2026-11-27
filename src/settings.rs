@@ -417,6 +417,7 @@ pub enum Outcome {
     Assemblers,
     AmigaNdk,
     AmigaTools,
+    RetroHelper,
     NewKinds,
     LanguageServers,
     CompareRules,
@@ -508,6 +509,7 @@ enum Special {
     Assemblers,
     AmigaNdk,
     AmigaTools,
+    RetroHelper,
     NewKinds,
     LanguageServers,
     OwnGrammars,
@@ -603,6 +605,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Special("With the memory management unit (MMU)", Special::M68kMmu),
             Row::Special("Amiga code hints", Special::AmigaNdk),
             Row::Special("Amiga crunchers and music", Special::AmigaTools),
+            Row::Special("Helper for emulators in Limoniter's window", Special::RetroHelper),
             Row::Flag("Check for a newer Limoniter", "Once a day, Limoniter asks GitHub whether a newer version is out, and says so once for each. The Store's Limoniter and the Flatpak are updated by the Store and Flathub instead. Help, Check for a newer Limoniter asks at once", |t| &mut t.prefs.update_checks),
             Row::Flag("Download a newer Limoniter by itself", "When the daily check finds one, it's downloaded in the background and checked against its signature, and Limoniter says when it's ready to restart into. Off, it asks first. Nothing is installed without asking, and never while anything is unsaved", |t| &mut t.prefs.update_download),
             Row::Flag("Keep the OpticOS ROM up to date", "Once a day, Limoniter asks github.com/brixham99/OpticOS for a newer release and runs its ROM in the built-in Spectrum. A ROM whose OpticBASIC keywords differ waits for a newer Limoniter. Help, Check for a newer OpticOS ROM asks at once", |t| &mut t.prefs.opticos_updates),
@@ -873,6 +876,11 @@ fn draw_special(ui: &mut Ui, label: &str, kind: Special, target: &mut Target<'_>
             Special::AmigaTools => {
                 if ui.button(crate::i18n::tr("Amiga crunchers and music\u{2026}")).on_hover_text(crate::i18n::tr("Shrinkler and Cranker for programs (and crunching what F9 builds), LSPConvert and P61Con for music modules: where they are, and their options")).clicked() {
                     *outcome = Some(Outcome::AmigaTools);
+                }
+            }
+            Special::RetroHelper => {
+                if ui.button(crate::i18n::tr("Choose helper\u{2026}")).on_hover_text(crate::i18n::tr("limoniter-retro, which runs libretro cores for machines in Limoniter's window. Without one chosen, it's looked for beside Limoniter and where Get an emulator puts it")).clicked() {
+                    *outcome = Some(Outcome::RetroHelper);
                 }
             }
             Special::M68kProcessor => {

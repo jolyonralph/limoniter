@@ -307,6 +307,8 @@ enum Command {
     RunOnBuiltIn2600,
     RunOnBuiltInVectrex,
     RunOn(usize),
+    /// Run on, a machine in Limoniter's window (a libretro core).
+    RunInWindow(crate::running::Machine),
     StopRunning,
     ChooseAssembler,
     /// Which compilers (Boriel's ZX Basic, C for the older machines) are installed, and where to get them.
@@ -4675,6 +4677,7 @@ impl Limoniter {
                 | Command::RunOnBuiltIn2600
                 | Command::RunOnBuiltInVectrex
                 | Command::RunOn(_)
+                | Command::RunInWindow(_)
                 | Command::StopRunning
                 | Command::MachineMemory
                 | Command::MachineScreen
@@ -4815,6 +4818,7 @@ impl Limoniter {
             Command::RunOnBuiltIn2600 => self.run_on_target(run_host::Target::BuiltIn2600),
             Command::RunOnBuiltInVectrex => self.run_on_target(run_host::Target::BuiltInVectrex),
             Command::RunOn(device) => self.run_on_target(run_host::Target::Device(device)),
+            Command::RunInWindow(machine) => self.run_on_target(run_host::Target::Retro(machine)),
             Command::StopRunning => {
                 self.stop_vamos();
                 self.stop_all_sessions();
@@ -6993,6 +6997,11 @@ impl Limoniter {
                     Some(settings::Outcome::Assemblers) => self.open_assembler_box(),
                     Some(settings::Outcome::AmigaNdk) => self.open_ndk_box(),
                     Some(settings::Outcome::AmigaTools) => self.open_amiga_tools(),
+                    Some(settings::Outcome::RetroHelper) => {
+                        if let Some(said) = self.choose_retro_helper() {
+                            self.running.note = Some((said, std::time::Instant::now()));
+                        }
+                    }
                     Some(settings::Outcome::NewKinds) => self.open_new_kinds_box(),
                     Some(settings::Outcome::CompareRules) => self.open_rules_box(None),
                     Some(settings::Outcome::ToolbarButtons) => self.open_toolbar_box(),
@@ -8690,6 +8699,16 @@ impl Limoniter {
                     self.run_until_stopped_for_screenshot();
                 }
                 "run-frames" => self.run_frames_for_screenshot(value.parse().unwrap_or(50)),
+                // The file in front run on its machine in Limoniter's window (a libretro core), left to run for a
+                // number of seconds; seconds/memory opens the memory view too.
+                "run-window" => {
+                    let (seconds, memory) = value.split_once('/').map_or((value, false), |(s, m)| (s, m == "memory"));
+                    if let Ok(Some(run)) = self.runnable() {
+                        self.run_on_target(run_host::Target::Retro(run.machine));
+                    }
+                    retro_host::open_memory_for_screenshot(self, memory);
+                    std::thread::sleep(Duration::from_secs_f32(seconds.parse().unwrap_or(3.0)));
+                }
                 // The controls window for a built-in machine (2600, vectrex, spectrum, zx80, zx81 or ace).
                 "controls" => {
                     if let Some(pad) = crate::control_hints::Pad::ALL.into_iter().find(|p| p.id() == value) {
@@ -9409,6 +9428,7 @@ impl Limoniter {
         self.assistant_panel(ui);
         self.machine_panel(ui);
         self.atari2600_panel(ui);
+        self.retro_panel(ui);
         self.vectrex_panel(ui);
         self.micro_panel(ui);
         self.teaching_panel(ui);
@@ -10417,6 +10437,8 @@ mod st_converter_host;
 mod c64_converter_host;
 #[path = "retro_converter_host.rs"]
 mod retro_converter_host;
+#[path = "retro_host.rs"]
+mod retro_host;
 #[path = "next_painter_host.rs"]
 mod next_painter_host;
 #[path = "atari2600_painter_host.rs"]

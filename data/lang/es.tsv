@@ -11066,3 +11066,75 @@ The code reaches ${:04X}, in the Neo6502's own registers at $FF00. Keep it below
 The code starts at ${low:04X}, in the Neo6502's zero page and stack. Put it at $0800 (ORG $0800) or above.	El código empieza en ${low:04X}, en la página cero y la pila del Neo6502. Ponlo en $0800 (ORG $0800) o más arriba.
 Trust this key and connect?	¿Confiar en esta clave y conectar?
 {} wouldn't start a shell: {e}	{} no quiso iniciar una shell: {e}
+A helper you've built or downloaded yourself	Un programa auxiliar que has compilado o descargado tú
+Choose helper…	Elegir programa auxiliar…
+Choose the helper, limoniter-retro	Elegir el programa auxiliar, limoniter-retro
+Click the screen to give the machine the keyboard.	Haz clic en la pantalla para darle el teclado a la máquina.
+Downloading {what}…	Descargando {what}…
+From github.com/{}	Desde github.com/{}
+GitHub answered {code} when asked for the helper's latest release.	GitHub respondió {code} al pedir la última versión del programa auxiliar.
+Helper for emulators in Limoniter's window	Programa auxiliar para los emuladores en la ventana de Limoniter
+In Limoniter's window	En la ventana de Limoniter
+It needs the helper, limoniter-retro: Get an emulator, under Devices and emulators, gets it, or choose it by hand.	Necesita el programa auxiliar, limoniter-retro: Conseguir un emulador, en Dispositivos y emuladores, lo consigue, o elígelo tú.
+It needs the {} core: Get an emulator, under Devices and emulators, downloads it.	Necesita el núcleo {}: Conseguir un emulador, en Dispositivos y emuladores, lo descarga.
+It runs {} programs.	Ejecuta programas de {}.
+Its latest nightly build, from {address}	Su última compilación nocturna, desde {address}
+Its latest release, from github.com/{}	Su última versión, desde github.com/{}
+Keeps the machine as it is now, in {}	Guarda la máquina tal como está ahora, en {}
+Load state	Cargar estado
+Machines run in a panel beside the file, by libretro cores, which the helper limoniter-retro runs. F9's Run on offers each machine whose core is here.	Las máquinas funcionan en un panel junto al archivo, con núcleos libretro que ejecuta el programa auxiliar limoniter-retro. Ejecutar en (F9) ofrece cada máquina cuyo núcleo está aquí.
+No libretro core is known for it.	No se conoce ningún núcleo libretro para esto.
+No release of the helper ({HELPER_REPOSITORY}) has been published on GitHub yet, so there's nothing to download. If you've built it yourself, choose it with Choose helper….	Todavía no se ha publicado en GitHub ninguna versión del programa auxiliar ({HELPER_REPOSITORY}), así que no hay nada que descargar. Si lo has compilado tú, elígelo con Elegir programa auxiliar….
+Puts the machine back as Save state kept it	Devuelve la máquina a como la guardó Guardar estado
+Reset	Reiniciar
+Save state	Guardar estado
+Save state keeps a state to come back to	Guardar estado guarda un estado al que volver
+Some take effect only when the machine is restarted.	Algunas solo tienen efecto cuando se reinicia la máquina.
+Starting {}…	Iniciando {}…
+Starts the machine again, with the program loaded afresh	Vuelve a iniciar la máquina, con el programa cargado de nuevo
+State loaded.	Estado cargado.
+State saved.	Estado guardado.
+The arrow keys are the joypad, Z and X its B and A, A and S its Y and X, Enter Start and Shift Select. Click the text to type there again.	Las flechas son el mando, Z y X sus B y A, A y S sus Y y X, Intro Start y Mayús Select. Haz clic en el texto para volver a escribir ahí.
+The buildbot answered {code} for {address}.	El buildbot respondió {code} para {address}.
+The core's own options, kept for next time	Las opciones propias del núcleo, guardadas para la próxima vez
+The core's system RAM: {size} bytes, numbered from 0 as the core keeps it, which may not be the machine's own addresses.	La RAM de sistema del núcleo: {size} bytes, numerados desde 0 como los guarda el núcleo, que pueden no ser las direcciones de la máquina.
+The download from {address} didn't have {} in it.	La descarga desde {address} no contenía {}.
+The helper	El programa auxiliar
+The helper (limoniter-retro)	El programa auxiliar (limoniter-retro)
+The helper ({}) couldn't be started: {e}	No se pudo iniciar el programa auxiliar ({}): {e}
+The helper can't be reached: it may have stopped.	No se puede llegar al programa auxiliar: quizá se ha detenido.
+The helper didn't answer.	El programa auxiliar no respondió.
+The helper didn't say it was ready.	El programa auxiliar no dijo que estuviera listo.
+The helper is {}.	El programa auxiliar es {}.
+The helper isn't built for this kind of computer: build it from its source, and choose it by hand.	El programa auxiliar no está compilado para este tipo de ordenador: compílalo desde sus fuentes y elígelo tú.
+The helper speaks protocol {}, and this Limoniter speaks {PROTOCOL}: get the helper again.	El programa auxiliar habla el protocolo {}, y este Limoniter habla el {PROTOCOL}: vuelve a conseguir el programa auxiliar.
+The helper stopped.	El programa auxiliar se detuvo.
+The helper stopped. It said: {tail}	El programa auxiliar se detuvo. Dijo: {tail}
+The helper was unpacked into {}, but its program wasn't found in it.	El programa auxiliar se descomprimió en {}, pero no se encontró su programa allí.
+The helper's download answered {code}.	La descarga del programa auxiliar respondió {code}.
+The helper's frames ({}) couldn't be opened: {e}	No se pudieron abrir las imágenes del programa auxiliar ({}): {e}
+The helper's input couldn't be reached.	No se puede llegar a la entrada del programa auxiliar.
+The helper's latest release ({tag}) has no {wanted} for this computer.	La última versión del programa auxiliar ({tag}) no tiene {wanted} para este ordenador.
+The helper's log is in {}	El registro del programa auxiliar está en {}
+The helper's output couldn't be reached.	No se puede llegar a la salida del programa auxiliar.
+The helper, limoniter-retro, isn't here: Get an emulator gets it, or choose it by hand.	El programa auxiliar, limoniter-retro, no está: Conseguir un emulador lo consigue, o elígelo tú.
+The keys go to the machine. Click the text to type there again.	Las teclas van a la máquina. Haz clic en el texto para volver a escribir ahí.
+The libretro buildbot has no cores for this kind of computer.	El buildbot de libretro no tiene núcleos para este tipo de ordenador.
+The machine switched itself off.	La máquina se apagó sola.
+The machine's memory is only {size:X} (hex) bytes long.	La memoria de la máquina solo mide {size:X} bytes (hex).
+The machine's memory, as it runs	La memoria de la máquina, mientras funciona
+The machine's memory, by its own addresses, as the core maps it. Addresses with nothing there read as 00.	La memoria de la máquina, por sus propias direcciones, como la mapea el núcleo. Las direcciones sin nada se leen como 00.
+The machine's reset, as its own button would	La máquina se reinicia, como con su propio botón
+The {} core	El núcleo {}
+The {} core isn't downloaded: Get an emulator gets it.	El núcleo {} no está descargado: Conseguir un emulador lo consigue.
+This core doesn't let its memory be seen	Este núcleo no deja ver su memoria
+Type an address in hex, such as 4000 or $C000.	Escribe una dirección en hex, como 4000 o $C000.
+hex, from 0	hex, desde 0
+limoniter-retro, which runs libretro cores for machines in Limoniter's window. Without one chosen, it's looked for beside Limoniter and where Get an emulator puts it	limoniter-retro, que ejecuta núcleos libretro para máquinas en la ventana de Limoniter. Si no se elige uno, se busca junto a Limoniter y donde lo pone Conseguir un emulador
+protocol	protocolo
+{what} is downloaded, to {}.	{what} está descargado, en {}.
+{} core	Núcleo {}
+{} isn't given .{} files.	{} no recibe archivos .{}.
+{} needs {needs}, in {system}.	{} necesita {needs}, en {system}.
+{}, in Limoniter's window	{}, en la ventana de Limoniter
+{}. It needs {needs}, in the system folder: {}	{}. Necesita {needs}, en la carpeta del sistema: {}

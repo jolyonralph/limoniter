@@ -158,6 +158,8 @@ pub(super) struct DevicesBox {
     /// An emulator being downloaded, and what's said about the last one.
     pub download: Option<(&'static crate::emulators::Emulator, std::sync::mpsc::Receiver<Result<PathBuf, String>>)>,
     pub get_note: String,
+    /// The libretro cores and their helper, for machines in Limoniter's window.
+    pub retro: super::retro_host::Getting,
 }
 
 /// The key a file is remembered by: its path, or for one never saved, its tab.
@@ -467,7 +469,7 @@ impl Limoniter {
     }
 
     pub(super) fn open_devices_box(&mut self) {
-        self.dialog = Dialog::Devices(Box::new(DevicesBox { devices: self.sends.devices.clone(), selected: 0, password: String::new(), keep: true, found: None, told: String::new(), getting: None, download: None, get_note: String::new() }));
+        self.dialog = Dialog::Devices(Box::new(DevicesBox { devices: self.sends.devices.clone(), selected: 0, password: String::new(), keep: true, found: None, told: String::new(), getting: None, download: None, get_note: String::new(), retro: Default::default() }));
     }
 
     /// The box that sends.
@@ -595,6 +597,7 @@ impl Limoniter {
         let mut done = false;
         let mut forget = None;
         let mut get_wanted: Option<(&'static crate::emulators::Emulator, crate::emulator_get::Way)> = None;
+        let mut choose_helper = false;
         // A download that's finished: the emulator goes in the list, as Find emulators would add it.
         if let Some((emulator, result)) = state.download.as_ref().and_then(|(e, r)| r.try_recv().ok().map(|result| (*e, result))) {
             state.download = None;
@@ -729,6 +732,9 @@ impl Limoniter {
                     if !state.get_note.is_empty() {
                         ui.label(RichText::new(&state.get_note).color(theme::text_dim()));
                     }
+                    if let Some(super::retro_host::GetAsk::ChooseHelper) = super::retro_host::getting_section(ui, &mut state.retro) {
+                        choose_helper = true;
+                    }
                 }
             }
             crate::fit::Part::Buttons => {
@@ -748,6 +754,12 @@ impl Limoniter {
                 });
             }
         });
+        if choose_helper
+            && let Some(said) = self.choose_retro_helper()
+            && let Dialog::Devices(state) = &mut self.dialog
+        {
+            state.retro.note = said;
+        }
         if let Some((emulator, way)) = get_wanted {
             match way {
                 crate::emulator_get::Way::Download => {

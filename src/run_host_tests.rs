@@ -18,11 +18,14 @@ fn the_first_run_asks_where_and_the_answer_is_remembered() {
     let Dialog::Run(boxed) = &app.dialog else { panic!("it asks where") };
     let run_host::RunBox::Where { runnable, .. } = boxed.as_ref() else { panic!("it asks where") };
     assert_eq!(runnable.machine, crate::running::Machine::Spectrum48);
-    // The built-in Spectrum takes it; with nothing else set up, it's the only place (the built-in 2600 says no).
+    // The built-in Spectrum takes it; with nothing else set up, it's the only place (the built-in 2600 says no, and
+    // so does Fuse in Limoniter's window, with no core downloaded).
     let targets = app.targets_for(runnable);
-    assert_eq!(targets.len(), 2);
+    assert_eq!(targets.len(), 3);
     assert!(targets[0].2.is_ok());
     assert!(targets[1].2.is_err());
+    assert_eq!(targets[2].0, run_host::Target::Retro(crate::running::Machine::Spectrum48));
+    assert!(targets[2].2.is_err());
     let run = (**runnable).clone();
     app.close_dialog();
     app.running.defaults.push(("spectrum48".into(), run_host::BUILT_IN_NAME.into()));

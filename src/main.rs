@@ -165,6 +165,7 @@ mod c64_gfx;
 mod next_painter;
 mod next_screen;
 mod next_tiles;
+mod retro;
 mod retro_convert;
 mod retro_converter;
 mod st_planar;
