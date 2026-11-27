@@ -183,7 +183,12 @@ impl Terminal {
         };
         crate::claude_ide::note_terminal(wsl);
         // A `claude` run in it finds Limoniter by itself.
-        for (name, value) in crate::claude_ide::terminal_env(wsl.is_some(), std::env::var("WSLENV").ok().as_deref()) {
+        let wslenv = std::env::var("WSLENV").ok();
+        let mut env = crate::claude_ide::terminal_env(wsl.is_some(), wslenv.as_deref());
+        // And a `limoniter` run in it finds this window, not whichever opened last.
+        let program_folder = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf));
+        crate::instance::terminal_environment(&mut env, wsl.is_some(), wslenv.as_deref(), std::env::var_os("PATH").as_deref(), program_folder.as_deref());
+        for (name, value) in env {
             command.env(name, value);
         }
         let mut terminal = Self::start_with(command, folder, rows, cols)?;

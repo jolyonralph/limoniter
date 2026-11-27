@@ -90,11 +90,55 @@ fn files_handed_over_open_as_tabs_in_this_window() {
     let file = dir.join("from explorer.txt");
     std::fs::write(&file, "opened from Explorer\r\n").unwrap();
     let (mut app, ctx) = app_with_text(&["already here"]);
-    app.listening = crate::instance::listen(&dir, || {});
-    assert!(crate::instance::hand_off(&dir, std::slice::from_ref(&file)));
+    app.listening = crate::instance::listen(&dir, || {}, &[]);
+    assert!(crate::instance::hand_off(&dir, &crate::instance::Request { files: vec![crate::instance::Opening { path: file.clone(), line: None, column: None }], wait: false }).is_some());
     wait_until(&mut app, &ctx, |app| app.docs.len() == 2);
     assert_eq!(app.docs[app.active].path.as_deref(), Some(file.as_path()));
     assert_eq!(lines(&app)[0], "opened from Explorer");
+    drop(app);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_file_handed_over_with_a_line_and_column_opens_there() {
+    let dir = folder("handed-place");
+    let file = dir.join("places.txt");
+    std::fs::write(&file, "one\ntwo\nthree is longer\nfour\n").unwrap();
+    let (mut app, ctx) = app_with_text(&["already here"]);
+    app.listening = crate::instance::listen(&dir, || {}, &[]);
+    let asked = crate::instance::Request { files: vec![crate::instance::Opening { path: file.clone(), line: Some(3), column: Some(7) }], wait: false };
+    assert!(crate::instance::hand_off(&dir, &asked).is_some());
+    wait_until(&mut app, &ctx, |app| app.docs.len() == 2);
+    assert_eq!((app.doc().text.caret_line, app.doc().text.caret_col), (2, 6), "line 3, column 7, counting from 1");
+    // A line alone puts the cursor at the start of it.
+    let again = crate::instance::Opening { path: dir.join("places.txt"), line: Some(4), column: None };
+    app.open_opening(&again);
+    assert_eq!((app.doc().text.caret_line, app.doc().text.caret_col), (3, 0));
+    drop(app);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_program_waiting_on_a_file_is_let_go_when_its_tab_is_closed() {
+    let dir = folder("handed-wait");
+    let file = dir.join("message.txt");
+    std::fs::write(&file, "commit message\n").unwrap();
+    let (mut app, ctx) = app_with_text(&["already here"]);
+    app.listening = crate::instance::listen(&dir, || {}, &[]);
+    let asked = crate::instance::Request { files: vec![crate::instance::Opening { path: file.clone(), line: None, column: None }], wait: true };
+    let taken = crate::instance::hand_off(&dir, &asked).expect("taken");
+    let (done, finished) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        taken.wait_until_closed();
+        let _ = done.send(());
+    });
+    wait_until(&mut app, &ctx, |app| app.docs.len() == 2);
+    app.tell_waiting(&ctx);
+    assert!(finished.recv_timeout(std::time::Duration::from_millis(300)).is_err(), "the tab is still open");
+    let at = app.active;
+    app.close_tab(at);
+    app.tell_waiting(&ctx);
+    assert!(finished.recv_timeout(std::time::Duration::from_secs(5)).is_ok(), "closing the tab let it go");
     drop(app);
     let _ = std::fs::remove_dir_all(dir);
 }

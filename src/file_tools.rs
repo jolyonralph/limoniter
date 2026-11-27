@@ -352,28 +352,78 @@ impl Limoniter {
         }
         if let Some(folder) = settings_folder() {
             let ctx = ctx.clone();
-            self.listening = crate::instance::listen(&folder, move || ctx.request_repaint());
+            // On Windows, a `limoniter` in WSL that can't run the program reaches this window by the address WSL sees.
+            let also_on = if cfg!(windows) && crate::terminal::shells().iter().any(|shell| matches!(shell, crate::terminal::Shell::Wsl(_))) { super::claude_ide_host::wsl_gateway() } else { Vec::new() };
+            self.listening = crate::instance::listen(&folder, move || ctx.request_repaint(), &also_on);
+        }
+    }
+
+    /// Opens a file and puts the caret where it was asked to be (counting from 1). Gives the tab it's in.
+    pub(super) fn open_opening(&mut self, file: &crate::instance::Opening) -> Option<u64> {
+        if !self.open_path(&file.path) {
+            return None;
+        }
+        let doc = self.docs.get_mut(self.active)?;
+        if let Some(line) = file.line.filter(|_| !doc.hex_mode) {
+            match file.column {
+                Some(column) => doc.text.move_caret_to_char(line - 1, column - 1),
+                None => {
+                    doc.text.go_to(&line.to_string());
+                }
+            }
+        }
+        Some(doc.id)
+    }
+
+    /// Opens files and notes which tabs they're in, so that whoever is waiting is told when all are closed.
+    pub(super) fn open_and_wait(&mut self, files: &[crate::instance::Opening], waiter: crate::instance::Waiter) {
+        let ids: Vec<u64> = files.iter().filter_map(|file| self.open_opening(file)).collect();
+        self.waiting.push((ids, waiter));
+    }
+
+    /// Tells those waiting on files that they've all been closed.
+    pub(super) fn tell_waiting(&mut self, ctx: &Context) {
+        if self.waiting.is_empty() {
+            return;
+        }
+        let open: Vec<u64> = self.docs.iter().map(|doc| doc.id).collect();
+        let (done, waiting): (Vec<_>, Vec<_>) = std::mem::take(&mut self.waiting).into_iter().partition(|(ids, _)| ids.iter().all(|id| !open.contains(id)));
+        self.waiting = waiting;
+        for (_, waiter) in done {
+            // A window made only to wait for these files has nothing more to do.
+            if waiter.is_own() {
+                ctx.send_viewport_cmd(ViewportCommand::Close);
+            }
+            waiter.finish();
         }
     }
 
     pub(super) fn open_handed_over(&mut self, ctx: &Context) {
+        self.tell_waiting(ctx);
         let Some(listening) = &self.listening else {
             return;
         };
-        let mut files = Vec::new();
+        let mut handed = Vec::new();
         while let Ok(more) = listening.files.try_recv() {
-            files.extend(more);
+            handed.push(more);
         }
-        if files.is_empty() {
+        if handed.is_empty() {
             return;
         }
         // While a script runs, the file in front has to stay in front, so these wait their turn.
         if self.script.is_some() {
-            self.handed_over.extend(files);
+            self.handed_over.extend(handed);
             return;
         }
-        for file in std::mem::take(&mut self.handed_over).into_iter().chain(files) {
-            self.open_path(&file);
+        for more in std::mem::take(&mut self.handed_over).into_iter().chain(handed) {
+            match more.waiter {
+                Some(waiter) => self.open_and_wait(&more.files, waiter),
+                None => {
+                    for file in &more.files {
+                        self.open_opening(file);
+                    }
+                }
+            }
         }
         ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
         ctx.send_viewport_cmd(ViewportCommand::Focus);

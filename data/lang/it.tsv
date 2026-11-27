@@ -11390,3 +11390,40 @@ New AI agent session…	Nuova sessione dell'agente IA…
 AI agents	Agenti IA
 Allowed for this session	Consentito per questa sessione
 Allowed	Consentito
+Limoniter, a text and hex editor.	Limoniter, un editor di testo ed esadecimale.
+Usage:	Uso:
+  limoniter [FILE...]                         Opens the files.	  limoniter [FILE...]                         Apre i file.
+  limoniter FILE:LINE[:COLUMN]                Opens the file with the cursor there (or --line N).	  limoniter FILE:RIGA[:COLONNA]               Apre il file con il cursore in quel punto (o --line N).
+  limoniter --new-window FILE...              Opens the files in a window of their own, not as tabs in one	  limoniter --new-window FILE...              Apre i file in una finestra a parte, non come schede in una già
+                                              that's already open.	                                              aperta.
+  limoniter --wait FILE...                    Waits until the files have been closed before it exits, for	  limoniter --wait FILE...                    Aspetta che i file siano chiusi prima di terminare, per
+                                              git commit and $EDITOR.	                                              git commit e $EDITOR.
+  limoniter --diff LEFT RIGHT                 Compares two files side by side.	  limoniter --diff SINISTRA DESTRA            Confronta due file affiancati.
+  limoniter --merge BASE MINE THEIRS RESULT   Merges MINE and THEIRS, both changed from BASE, into RESULT.	  limoniter --merge BASE MIO SUO USCITA       Unisce MIO e SUO, entrambi modificati a partire da BASE, in USCITA.
+                                              The program waits until the merge tab is closed, then exits	                                              Il programma aspetta che la scheda di unione sia chiusa, poi termina
+                                              with 0 if RESULT was saved with no conflicts left, 1 if not,	                                              con 0 se USCITA è stato salvato senza conflitti rimasti, con 1 altrimenti,
+                                              as git mergetool expects.	                                              come si aspetta git mergetool.
+  limoniter --screenshot PICTURE [FILE...]    Saves a picture of the window, then closes.	  limoniter --screenshot IMMAGINE [FILE...]   Salva un'immagine della finestra, poi si chiude.
+  limoniter --assemble SOURCE OUTPUT [NAME=VALUE...]	  limoniter --assemble SORGENTE USCITA [NOME=VALORE...]
+                                              Makes 68000 source into an Amiga program, as F9 does, with no	                                              Trasforma sorgente 68000 in un programma Amiga, come F9, senza
+                                              window. NAME=VALUE gives a setting (NAME equ in the source) a	                                              finestra. NOME=VALORE assegna un valore a un'impostazione (NOME equ nel
+                                              value, such as OS_FRIENDLY=1.	                                              sorgente), ad esempio OS_FRIENDLY=1.
+  limoniter --version                         Shows which version this is (also -V).	  limoniter --version                         Mostra quale versione è (anche -V).
+  limoniter --help                            Shows this.	  limoniter --help                            Mostra questo.
+  limoniter -- FILE...                        Opens files even if their names start with -.	  limoniter -- FILE...                        Apre i file anche se i loro nomi iniziano con -.
+Git can use Limoniter for git difftool and git mergetool: Git, Use Limoniter for Git diff and merge.	Git può usare Limoniter per git difftool e git mergetool: Git, Usa Limoniter per diff e merge di Git.
+--line needs a line number, counting from 1.	--line richiede un numero di riga, contando da 1.
+There's no file {}.	Il file {} non esiste.
+Couldn't open {}.	Impossibile aprire {}.
+WSL couldn't be started: {problem}	Impossibile avviare WSL: {problem}
+WSL didn't answer: {problem}	WSL non ha risposto: {problem}
+The command couldn't be put in place.	Non è stato possibile installare il comando.
+Limoniter command in WSL…	Comando Limoniter in WSL…
+Limoniter command in WSL	Comando Limoniter in WSL
+{name} has no limoniter command, to open files in this window from its shell.	{name} non ha il comando limoniter per aprire i file in questa finestra dalla sua shell.
+Install the limoniter command in {name}	Installa il comando limoniter in {name}
+Don't ask again	Non chiedere più
+It goes in ~/.local/bin, which isn't on that shell's PATH yet; add it there, or open a new shell after installing if your profile does so.	Va in ~/.local/bin, che non è ancora nel PATH di quella shell; aggiungilo lì, oppure apri una nuova shell dopo l'installazione se il tuo profilo lo fa.
+The limoniter command opens files in this window from a WSL shell, as it does from any other terminal. It's a small script in the distribution's ~/.local/bin.	Il comando limoniter apre i file in questa finestra da una shell WSL, come da qualsiasi altro terminale. È un piccolo script nella ~/.local/bin della distribuzione.
+There are no WSL distributions on this computer.	Non ci sono distribuzioni WSL su questo computer.
+It has a limoniter command of its own, which is left alone.	Ha un proprio comando limoniter, che viene lasciato com'è.

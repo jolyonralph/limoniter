@@ -24,6 +24,14 @@
 \n{there} in a 6309's native mode
 \n{there} on a 6809, or a 6309 in emulation mode
 \n{} of its {} arguments are pushed in the lines just above.
+                                              Makes 68000 source into an Amiga program, as F9 does, with no
+                                              The program waits until the merge tab is closed, then exits
+                                              as git mergetool expects.
+                                              git commit and $EDITOR.
+                                              that's already open.
+                                              value, such as OS_FRIENDLY=1.
+                                              window. NAME=VALUE gives a setting (NAME equ in the source) a
+                                              with 0 if RESULT was saved with no conflicts left, 1 if not,
         * = $c000\nstart:  lda #2\n        sta $d020           ; a red border\n        rts
         org $3000\nstart:  lda #1\n        rts\n        end start
    OK   
@@ -46,6 +54,17 @@
   Texture start (bits 15–12): {}
   The function reads: {}
   and {} more
+  limoniter -- FILE...                        Opens files even if their names start with -.
+  limoniter --assemble SOURCE OUTPUT [NAME=VALUE...]
+  limoniter --diff LEFT RIGHT                 Compares two files side by side.
+  limoniter --help                            Shows this.
+  limoniter --merge BASE MINE THEIRS RESULT   Merges MINE and THEIRS, both changed from BASE, into RESULT.
+  limoniter --new-window FILE...              Opens the files in a window of their own, not as tabs in one
+  limoniter --screenshot PICTURE [FILE...]    Saves a picture of the window, then closes.
+  limoniter --version                         Shows which version this is (also -V).
+  limoniter --wait FILE...                    Waits until the files have been closed before it exits, for
+  limoniter FILE:LINE[:COLUMN]                Opens the file with the cursor there (or --line N).
+  limoniter [FILE...]                         Opens the files.
  (ZIP64)
  (a whole triangle is {:.2} Hz)
  (addq.l #{},sp)
@@ -217,6 +236,7 @@ ${} is too large a number
 , {unreadable} couldn't be read
 , {} symbols
 -({inner}) needs an address register
+--line needs a line number, counting from 1.
 -23 to C      A = a
 -24 to C      A = -b1 (the first b to try)
 -25 to C      A = -remainder
@@ -2100,6 +2120,7 @@ Couldn't open a connection for the file: {e}
 Couldn't open a new window.\n\n{e}
 Couldn't open the browser.\n\n{e}
 Couldn't open {FILE_MANAGER}.\n\n{e}
+Couldn't open {}.
 Couldn't open {}.\n\n{e}
 Couldn't open {}.\n\n{problem}
 Couldn't reach {host} on port {port}: {e}
@@ -2380,6 +2401,7 @@ Documents and markup
 Documents no rule fits use:
 Does every step that isn't ticked yet
 Does one instruction
+Don't ask again
 Don't check code
 Don't erase first
 Don't save
@@ -2984,6 +3006,7 @@ GetKeyScanCode: the code of the key held down, for MultiKeys.
 Gets the screen and copper list ready before the display starts.
 Getting started
 Git
+Git can use Limoniter for git difftool and git mergetool: Git, Use Limoniter for Git diff and merge.
 Git couldn't be started: {e}
 Git couldn't change its settings.
 Git couldn't clone {url}: {e}
@@ -3317,6 +3340,7 @@ Install packages
 Install packages from requirements-dev.txt
 Install packages from requirements.txt
 Install packages into this kernel…
+Install the limoniter command in {name}
 Install the project and its packages (pyproject.toml)
 Install the project's packages
 Install the {} core
@@ -3392,8 +3416,10 @@ It doesn't say which machine it's for. Put ; machine: c64, bbc, 2600, nes, atari
 It ends too soon.
 It failed unexpectedly.
 It gives NaN for some lists
+It goes in ~/.local/bin, which isn't on that shell's PATH yet; add it there, or open a new shell after installing if your profile does so.
 It goes into supervisor mode, keeps what it changes (the resolution, the screen's address, the palette, the
 It has a hunk of a kind not read here (${other:X}).
+It has a limoniter command of its own, which is left alone.
 It has changed since the comparison, so it was left alone. Compare again first.
 It has changed since the patch was checked against it.
 It has gone since the comparison. Compare again first.
@@ -3780,6 +3806,8 @@ Limoniter can now open {count} types. To finish, choose Limoniter for each one o
 Limoniter can read this kind of image, but can't change it yet.
 Limoniter can't decode this sound ({e}).
 Limoniter can't update itself on this system.
+Limoniter command in WSL
+Limoniter command in WSL…
 Limoniter couldn't do this here: {other:?}
 Limoniter didn't close normally last time. These unsaved edits were kept.
 Limoniter doesn't know how to install a Jupyter kernel for {language} here. For Python, install Python first; for R, install R. Other languages' kernels have their own instructions.
@@ -3819,6 +3847,7 @@ Limoniter's own assembler, or one you've installed, for Z80, 6502, 6809 and 6800
 Limoniter's own badges
 Limoniter's own icon
 Limoniter's x86 assembler keeps a program in one piece, as it's written: SECTION {name} would move what follows elsewhere, as NASM does, so leave it out and put the data where it's to go
+Limoniter, a text and hex editor.
 Line
 Line ${:03X} is in {}{}.
 Line ${line:03X} ({line}), x ${clock:02X}: COLOR00 #{r:02X}{g:02X}{b:02X}
@@ -6795,6 +6824,7 @@ The colours: two bytes each, GGGGRRRR then 0000BBBB, 32 of them.
 The column name starting here never ends: it needs a closing quote
 The column ruler above the text
 The column with the cursor
+The command couldn't be put in place.
 The command line failed ({status}).\n\n{said}
 The command line needs {file} where the file goes.
 The command that starts the debug adapter
@@ -7141,6 +7171,7 @@ The left one is newer
 The level voice {v} holds, and how quickly it fades once the gate is off.
 The libretro buildbot has no cores for this kind of computer.
 The licences of Limoniter and of the work it's built on
+The limoniter command opens files in this window from a WSL shell, as it does from any other terminal. It's a small script in the distribution's ~/.local/bin.
 The line is too wide.
 The line to run from is a number below 10000, or left empty.
 The line with the cursor
@@ -7531,6 +7562,7 @@ Themes that come with Limoniter can't be changed. Make a copy to change it.
 Themes…
 Then click where its top left cell goes
 Then click where its top left goes
+There are no WSL distributions on this computer.
 There are no add-ons yet. New add-on makes one to start from.
 There are no autodocs in that folder: no .doc files with pages such as Area.mui/MUIA_Background. Choose the MUI SDK's Autodocs folder.
 There are no autodocs to read yet. The Amiga's come with Hyperion's NDK: download it, or use one you have, with the NDK button. MUI's come with the MUI SDK: point to its Autodocs folder with MUI's autodocs.
@@ -7598,6 +7630,7 @@ There's no database at {}.
 There's no database to run this on. Add a connection in the Database panel (View, Panels, Database).
 There's no difference there.
 There's no file in front to look through.
+There's no file {}.
 There's no folder to keep Limoniter's files in.
 There's no function called {name}.
 There's no label called {t}.
@@ -8264,6 +8297,7 @@ Update the conda environment from environment.yml
 Update {} ({})
 Updated the to-do list
 Upper case and graphics
+Usage:
 Usage: limoniter --assemble SOURCE OUTPUT [NAME=VALUE...] (OUTPUT ending .tap, .sna or .nex for Z80 source)
 Use
 Use AROS (free, no Kickstart needed)
@@ -8355,6 +8389,8 @@ WLA-DX: .db, .dw
 WOZ image
 WOZ version
 WOZ {} image ({label}): {inner}
+WSL couldn't be started: {problem}
+WSL didn't answer: {problem}
 WSL: {name}
 Wait at x
 Wait for line $41, from the left edge ($07 and the mask $fffe), then set the background colour.
@@ -10442,6 +10478,7 @@ zx_notation
 {name} has no end block, so it may be cut short.
 {name} has no end-of-file mark, so it may be cut short.
 {name} has no folder {folder}.
+{name} has no limoniter command, to open files in this window from its shell.
 {name} has no string: the line after its name should be the string.
 {name} has no string: the line after its name should be the translation.
 {name} has the id {id}, which {} already has.

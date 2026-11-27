@@ -35,11 +35,14 @@ SolidCompression=yes
 ; Offers to close Limoniter if it's running while upgrading. It asks about unsaved work itself as it closes.
 CloseApplications=yes
 RestartApplications=no
+; Tells running programs the environment changed, so new terminals see the PATH entry.
+ChangesEnvironment=yes
 OutputDir=..\target\installer
 OutputBaseFilename=Limoniter-Setup-{#AppVersion}
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
+Name: "addtopath"; Description: "Add &limoniter to PATH, so it can be run from any terminal"; GroupDescription: "Command line:"
 
 [Files]
 Source: "..\target\release\limoniter.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -57,3 +60,40 @@ Filename: "{app}\limoniter.exe"; Description: "Start Limoniter"; Flags: nowait p
 ; Takes back any file types this copy registered for, so Windows isn't left pointing at a program that's gone.
 ; Settings, macros, scripts and kept undo history stay, in case Limoniter is installed again.
 Filename: "{app}\limoniter.exe"; Parameters: "--unregister-file-types"; RunOnceId: "UnregisterFileTypes"; Flags: runhidden waituntilterminated
+
+[Registry]
+; The user's own PATH only, so no administrator password is needed.
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Tasks: addtopath; Check: NeedsAddPath(ExpandConstant('{app}'))
+
+[Code]
+function NeedsAddPath(Folder: string): Boolean;
+var
+  Paths: string;
+begin
+  if not RegQueryStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', Paths) then
+    Paths := '';
+  Result := Pos(';' + Lowercase(Folder) + ';', ';' + Lowercase(Paths) + ';') = 0;
+end;
+
+// Takes Limoniter's folder out of PATH again, leaving every other entry as it was.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Paths, Folder: string;
+  Found: Integer;
+begin
+  if CurUninstallStep <> usPostUninstall then
+    Exit;
+  if not RegQueryStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', Paths) then
+    Exit;
+  Folder := ExpandConstant('{app}');
+  Paths := ';' + Paths + ';';
+  Found := Pos(';' + Lowercase(Folder) + ';', Lowercase(Paths));
+  if Found = 0 then
+    Exit;
+  Delete(Paths, Found, Length(Folder) + 1);
+  if (Length(Paths) > 0) and (Paths[1] = ';') then
+    Delete(Paths, 1, 1);
+  if (Length(Paths) > 0) and (Paths[Length(Paths)] = ';') then
+    Delete(Paths, Length(Paths), 1);
+  RegWriteExpandStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', Paths);
+end;

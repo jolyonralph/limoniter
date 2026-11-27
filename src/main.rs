@@ -91,6 +91,8 @@ mod highlight;
 mod i18n;
 mod history_file;
 mod instance;
+mod open_args;
+mod wsl_command;
 mod large_edits;
 mod legacy_docs;
 mod line_store;
@@ -393,6 +395,14 @@ fn main() -> eframe::Result {
         return Ok(());
     }
     let all: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    // How to open the files: where in them, in which window, and whether to wait for them to be closed.
+    let (open_options, all) = match open_args::extract(all) {
+        Ok(found) => found,
+        Err(problem) => {
+            eprintln!("{problem}\n\n{}", app::usage());
+            std::process::exit(2);
+        }
+    };
     // On Windows, a copy of Limoniter finishing an update once the window has closed: no window of its own.
     if all.first().is_some_and(|arg| arg == self_update::FINISH) {
         std::process::exit(all.get(1).map_or(1, |plan| self_update::finish(std::path::Path::new(plan))));
@@ -402,7 +412,7 @@ fn main() -> eframe::Result {
         std::process::exit(cli_assemble::run(&all));
     }
     if all.iter().any(|arg| arg == "--help" || arg == "-h") {
-        println!("{}", app::USAGE);
+        println!("{}", app::usage());
         return Ok(());
     }
     // The version, and nothing else: no window, as scripts and installers expect.
@@ -412,14 +422,14 @@ fn main() -> eframe::Result {
     }
     // An option Limoniter doesn't know is a mistake to be told, not a file to open in a window.
     if let Some(option) = app::unknown_option(&all) {
-        eprintln!("{}\n\n{}", app::i18n_unknown_option(&option), app::USAGE);
+        eprintln!("{}\n\n{}", app::i18n_unknown_option(&option), app::usage());
         std::process::exit(2);
     }
     // A diff or merge for Git: a window of its own, which Git waits on, rather than a tab in one already open.
     let launch = match app::parse_tool_args(&all) {
         Ok(launch) => launch,
         Err(problem) => {
-            eprintln!("{problem}\n\n{}", app::USAGE);
+            eprintln!("{problem}\n\n{}", app::usage());
             std::process::exit(2);
         }
     };
@@ -449,18 +459,25 @@ fn main() -> eframe::Result {
             files.push(std::path::PathBuf::from(arg));
         }
     }
+    let files: Vec<instance::Opening> = files.iter().map(|file| open_args::split_place(file, open_options.line)).collect();
     // Files opened from Explorer go to the window already open, unless each is to have a window of its own.
     if screenshot.is_none()
         && launch.is_none()
         && !files.is_empty()
         // Started by an update, as the old window closes: the files are this one's to open again.
         && self_update::updated().is_none()
+        && !open_options.new_window
         && !settings::Prefs::from_settings(&app::read_settings_file()).new_window_per_file
         && let Some(folder) = app::settings_folder()
-        && instance::hand_off(&folder, &files)
+        && let Some(taken) = instance::hand_off(&folder, &instance::Request { files: files.clone(), wait: open_options.wait })
     {
+        // For `git commit` and `$EDITOR`: hold on until the files have been closed.
+        if open_options.wait {
+            taken.wait_until_closed();
+        }
         return Ok(());
     }
+    let wait = open_options.wait && !files.is_empty() && screenshot.is_none() && launch.is_none();
     // Files double-clicked in Finder arrive as an Apple event, not on the command line.
     #[cfg(target_os = "macos")]
     mac_open::start();
@@ -480,7 +497,7 @@ fn main() -> eframe::Result {
             .with_active(screenshot.is_none()),
         ..Default::default()
     };
-    let result = eframe::run_native("Limoniter", options, Box::new(move |cc| Ok(Box::new(app::Limoniter::new(cc, files, screenshot, launch)))));
+    let result = eframe::run_native("Limoniter", options, Box::new(move |cc| Ok(Box::new(app::Limoniter::new(cc, files, wait, screenshot, launch)))));
     // For git mergetool: whether the merge was finished, saved with no conflicts left.
     if let Some(code) = app::tool_exit_code() {
         std::process::exit(if result.is_err() { 1 } else { code });

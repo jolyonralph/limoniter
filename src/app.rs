@@ -196,6 +196,7 @@ enum Command {
     StartDebugging,
     /// Waits for Xdebug to connect from a PHP page in the browser, or a script run from the terminal.
     DebugPhpListen,
+    WslCommands,
     /// Debugs with one of the setups in the folder's `.vscode/launch.json`, picked from a list.
     DebugVscodeSetup,
     /// Steps back to the line before in the program being debugged, where the debugger can go backwards
@@ -572,6 +573,7 @@ impl Command {
                 | Command::EditTasks
                 | Command::OutdatedPackages
                 | Command::DebugPhpListen
+                | Command::WslCommands
                 | Command::DebugVscodeSetup
                 | Command::Help
                 | Command::NewInstance
@@ -1967,7 +1969,10 @@ pub struct Limoniter {
     history_job: Option<std::thread::JoinHandle<()>>,
     /// Listening for files opened from Explorer, and any that arrived while a script was running.
     listening: Option<crate::instance::Listening>,
-    handed_over: Vec<PathBuf>,
+    handed_over: Vec<crate::instance::Handed>,
+    /// Programs holding on (`limoniter --wait`) until these tabs are closed.
+    waiting: Vec<(Vec<u64>, crate::instance::Waiter)>,
+    wsl_command: wsl_command_host::WslCommand,
     /// Documents by when they were last in front, latest first, and a Ctrl+Tab switch that's still going.
     used_order: Vec<u64>,
     beside: Option<Beside>,
@@ -2086,7 +2091,7 @@ fn save_png(path: &Path, image: &egui::ColorImage) -> Result<(), String> {
 }
 
 impl Limoniter {
-    pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>, screenshot: Option<PathBuf>, launch: Option<ToolLaunch>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<crate::instance::Opening>, wait: bool, screenshot: Option<PathBuf>, launch: Option<ToolLaunch>) -> Self {
         // System dialogs opened from now on sit over this window, and can't fall behind it.
         crate::sys_dialogs::remember_window(cc);
         let settings = read_settings_file();
@@ -2109,8 +2114,12 @@ impl Limoniter {
         if files.is_empty() && !tool && app.screenshot.is_none() {
             app.reopen_last_project();
         }
-        for file in &files {
-            app.open_path(file);
+        if wait {
+            app.open_and_wait(&files, crate::instance::Waiter::own());
+        } else {
+            for file in &files {
+                app.open_opening(file);
+            }
         }
         if app.docs.is_empty() {
             app.new_document();
@@ -2203,6 +2212,8 @@ impl Limoniter {
             history_job: None,
             listening: None,
             handed_over: Vec::new(),
+            waiting: Vec::new(),
+            wsl_command: Default::default(),
             used_order: Vec::new(),
             beside: None,
             search: Default::default(),
@@ -3562,6 +3573,7 @@ impl Limoniter {
         }
         self.autosave(ctx);
         self.open_handed_over(ctx);
+        self.wsl_command_tick(ctx);
         #[cfg(target_os = "macos")]
         for path in crate::mac_open::take() {
             self.open_path(&path);
@@ -5032,6 +5044,7 @@ impl Limoniter {
             Command::PeekDefinition => self.peek_definition(),
             Command::StartDebugging => self.start_debugging(),
             Command::DebugPhpListen => self.debug_php_listen(),
+            Command::WslCommands => self.wsl_command.window_open = true,
             Command::DebugVscodeSetup => self.choose_vscode_launch(),
             Command::DebugStepBack => self.debug_control("stepBack"),
             Command::ColourAs => self.open_language_picker(),
@@ -10519,6 +10532,9 @@ mod disasm_host;
 
 #[path = "pixel_host.rs"]
 mod pixel_host;
+
+#[path = "wsl_command_host.rs"]
+mod wsl_command_host;
 #[path = "tile_map_host.rs"]
 mod tile_map_host;
 
@@ -10627,7 +10643,7 @@ mod git_wizard;
 
 #[path = "merge_host.rs"]
 mod merge_host;
-pub use merge_host::{ToolLaunch, USAGE, parse_tool_args, tool_exit_code, unknown_option};
+pub use merge_host::{ToolLaunch, usage, parse_tool_args, tool_exit_code, unknown_option};
 
 /// What's said of an option Limoniter doesn't know.
 pub fn i18n_unknown_option(option: &str) -> String {

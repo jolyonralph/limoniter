@@ -870,6 +870,7 @@ pub(super) const VIEW: &[Entry] = &[
     Sub("Panels", PANELS),
     Check("Output", Flag::OutputWindow),
     Keyed("Terminal", Command::ToggleTerminal, "Ctrl+`"),
+    Item("Limoniter command in WSL\u{2026}", Command::WslCommands),
     Check("File tabs", Flag::FileTabs),
     Check("Tabs down the side", Flag::SideTabs),
     Check("Side tabs on the right", Flag::SideTabsRight),
@@ -1538,6 +1539,7 @@ impl Limoniter {
             | Command::OpenUrl
             | Command::UseClipboard(_)
             | Command::Features
+            | Command::WslCommands
             | Command::WhatsNew
             | Command::AgentNew
             | Command::Guide(_)

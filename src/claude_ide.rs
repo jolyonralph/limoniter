@@ -334,8 +334,46 @@ pub enum Event {
     OpenDiff { client: u64, request: DiffRequest, reply: Sender<Vec<String>> },
     CloseTab { client: u64, tab_name: String, reply: Sender<Vec<String>> },
     CloseAllDiffTabs { client: u64, reply: Sender<Vec<String>> },
+    OpenFile { client: u64, request: OpenFileRequest, reply: Sender<Vec<String>> },
     /// `uri` as the client wrote it, or None for every file.
     Diagnostics { client: u64, uri: Option<String>, reply: Sender<Vec<String>> },
+}
+
+/// What `openFile` asks for: a file as a tab, and perhaps part of it selected, found by the text it starts and ends with.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OpenFileRequest {
+    pub file_path: String,
+    pub start_text: Option<String>,
+    pub end_text: Option<String>,
+    pub select_to_end_of_line: bool,
+    /// False when the window shouldn't come to the front.
+    pub make_frontmost: bool,
+}
+
+/// Where `openFile`'s selection goes in a file's lines: from where the start text first appears to the end of the
+/// end text found after it (or of the start text itself, with no end text), as a line and a character along it
+/// for each end. None if there's no start text, or it isn't in the file.
+pub fn selection_for(lines: &[String], start_text: Option<&str>, end_text: Option<&str>, to_end_of_line: bool) -> Option<((usize, usize), (usize, usize))> {
+    let start_text = start_text.filter(|text| !text.is_empty())?;
+    let whole = lines.join("\n");
+    let place = |byte: usize| -> (usize, usize) {
+        let before = &whole[..byte];
+        let line = before.matches('\n').count();
+        let start = before.rfind('\n').map_or(0, |at| at + 1);
+        (line, before[start..].chars().count())
+    };
+    let from = whole.find(start_text)?;
+    let mut to = from + start_text.len();
+    if let Some(end) = end_text.filter(|text| !text.is_empty())
+        && let Some(at) = whole[from..].find(end)
+    {
+        to = from + at + end.len();
+    }
+    let mut end = place(to);
+    if to_end_of_line {
+        end.1 = lines.get(end.0).map_or(end.1, |line| line.chars().count());
+    }
+    Some((place(from), end))
 }
 
 /// What a person's decision on a diff is told to the client as.
@@ -382,6 +420,23 @@ pub fn tools() -> Value {
                 "type": "object",
                 "properties": { "tab_name": { "type": "string" } },
                 "required": ["tab_name"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "openFile",
+            "description": "Open a file in the editor and optionally select a range of text.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "filePath": { "type": "string", "description": "Path to the file to open." },
+                    "preview": { "type": "boolean", "description": "Whether to open the file in preview mode.", "default": false },
+                    "startText": { "type": "string", "description": "Text pattern to find the start of the selection range." },
+                    "endText": { "type": "string", "description": "Text pattern to find the end of the selection range." },
+                    "selectToEndOfLine": { "type": "boolean", "description": "Extend the selection to the end of the line containing the end text.", "default": false },
+                    "makeFrontmost": { "type": "boolean", "description": "Whether to make the file the active editor tab.", "default": true }
+                },
+                "required": ["filePath"],
                 "additionalProperties": false
             }
         },
@@ -870,6 +925,17 @@ fn handle(message: &Value, client: u64, shared: &Shared, style: &AtomicU8) -> Ha
                     Event::CloseTab { client, tab_name, reply }
                 }
                 "closeAllDiffTabs" => Event::CloseAllDiffTabs { client, reply },
+                "openFile" => {
+                    let Some(file_path) = text("filePath") else {
+                        return error(&id, -32602, "openFile needs filePath");
+                    };
+                    if let Some(found) = style_of_path(&file_path) {
+                        style.store(found.to_byte(), Ordering::Relaxed);
+                    }
+                    let flag = |key: &str, otherwise: bool| args.get(key).and_then(Value::as_bool).unwrap_or(otherwise);
+                    let request = OpenFileRequest { file_path, start_text: text("startText"), end_text: text("endText"), select_to_end_of_line: flag("selectToEndOfLine", false), make_frontmost: flag("makeFrontmost", true) };
+                    Event::OpenFile { client, request, reply }
+                }
                 _ => return ok(json!({ "content": [{ "type": "text", "text": format!("Limoniter doesn't have a tool called {name}") }], "isError": true })),
             };
             if shared.events.send(asked).is_err() {
@@ -1041,7 +1107,7 @@ mod tests {
         ask(&mut socket, 8, "tools/list", json!({}));
         let listed = next_message(&mut socket);
         let names: Vec<&str> = listed["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-        assert_eq!(names, ["openDiff", "getDiagnostics", "close_tab", "closeAllDiffTabs"], "executeCode is a Jupyter tool, which Limoniter has no use for");
+        assert_eq!(names, ["openDiff", "getDiagnostics", "close_tab", "openFile", "closeAllDiffTabs"], "executeCode is a Jupyter tool, which Limoniter has no use for");
         for tool in listed["result"]["tools"].as_array().unwrap() {
             assert_eq!(tool["inputSchema"]["type"], "object");
         }
@@ -1092,6 +1158,38 @@ mod tests {
         ask(&mut socket, 26, "tools/call", json!({ "name": "executeCode", "arguments": { "code": "1" } }));
         assert_eq!(next_message(&mut socket)["result"]["isError"], true);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn open_file_asks_the_window_and_selects_by_text() {
+        let (server, dir) = start("openfile");
+        let mut socket = hello(&server);
+        let arguments = json!({ "filePath": "/work/a.rs", "startText": "fn main", "endText": "}", "makeFrontmost": false });
+        ask(&mut socket, 60, "tools/call", json!({ "name": "openFile", "arguments": arguments }));
+        let Event::OpenFile { request, reply, .. } = next_event(&server) else { panic!("not an openFile") };
+        assert_eq!(request, OpenFileRequest { file_path: "/work/a.rs".into(), start_text: Some("fn main".into()), end_text: Some("}".into()), select_to_end_of_line: false, make_frontmost: false });
+        reply.send(vec!["Opened file: /work/a.rs".into()]).unwrap();
+        assert_eq!(next_message(&mut socket)["result"]["content"][0]["text"], "Opened file: /work/a.rs");
+        ask(&mut socket, 61, "tools/call", json!({ "name": "openFile", "arguments": { "filePath": "/work/b.rs" } }));
+        let Event::OpenFile { request, reply, .. } = next_event(&server) else { panic!("not an openFile") };
+        assert!(request.make_frontmost && request.start_text.is_none(), "in front unless it says not");
+        reply.send(vec!["ok".into()]).unwrap();
+        next_message(&mut socket);
+        ask(&mut socket, 62, "tools/call", json!({ "name": "openFile", "arguments": {} }));
+        assert_eq!(next_message(&mut socket)["error"]["code"], -32602);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_selection_is_found_from_its_text() {
+        let lines: Vec<String> = ["use x;", "fn main() {", "    run();", "}", "fn other() {}"].map(String::from).to_vec();
+        assert_eq!(selection_for(&lines, Some("fn main"), Some("}"), false), Some(((1, 0), (3, 1))));
+        assert_eq!(selection_for(&lines, Some("run"), None, false), Some(((2, 4), (2, 7))), "no end text: just the start text");
+        assert_eq!(selection_for(&lines, Some("run"), Some("("), true), Some(((2, 4), (2, 10))), "out to the end of the line");
+        assert_eq!(selection_for(&lines, Some("nothing"), None, false), None);
+        assert_eq!(selection_for(&lines, None, Some("}"), false), None);
+        assert_eq!(selection_for(&lines, Some("fn main"), Some("not there"), false), Some(((1, 0), (1, 7))), "an end that isn't found is ignored");
+        assert_eq!(selection_for(&["héllo wörld".to_string()], Some("wörld"), None, false), Some(((0, 6), (0, 11))), "characters, not bytes");
     }
 
     #[test]

@@ -208,7 +208,13 @@ impl Limoniter {
             .or_else(|| std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from))
             .unwrap_or_else(|| PathBuf::from("."));
         match crate::terminal::Terminal::start_shell(shell, &folder, 12, 80) {
-            Ok(terminal) => self.show_terminal(terminal),
+            Ok(terminal) => {
+                self.show_terminal(terminal);
+                // A WSL shell can be offered the limoniter command, if its distribution hasn't got it.
+                if let crate::terminal::Shell::Wsl(name) = shell {
+                    self.wsl_terminal_started(name);
+                }
+            }
             Err(problem) => self.message("Terminal", problem),
         }
     }
@@ -258,6 +264,8 @@ impl Limoniter {
         let servers = super::ssh_terminal_host::ssh_servers(&self.remote_sites);
         let mut default_shell: Option<String> = None;
         let font_size = self.text_view_options().font_size;
+        let offer = self.wsl_command.offer.clone().map(|name| (self.wsl_on_path(&name), name));
+        let mut wsl_answer = None;
         let Some(terminal) = self.terminal.as_mut() else {
             return;
         };
@@ -321,8 +329,14 @@ impl Limoniter {
                     restart = ui.small_button(crate::i18n::tr("Restart")).on_hover_text(crate::i18n::tr("A fresh shell")).clicked();
                 });
             });
+            if let Some((on_path, name)) = &offer {
+                wsl_answer = Self::wsl_offer_bar(ui, name, *on_path);
+            }
             crate::terminal::draw(ui, terminal, font_size);
         });
+        if let Some(answer) = wsl_answer {
+            self.wsl_answered(answer);
+        }
         if close {
             self.close_terminal();
         } else if restart {

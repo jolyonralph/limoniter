@@ -17,3 +17,6 @@ src/data_testdata/** -text
 
 # The code Limoniter runs on a notebook's kernel to list its variables.
 src/kernel_code/** -text
+
+# Shell scripts put into WSL by Limoniter: sh refuses CR LF, so they keep plain line ends on Windows too.
+data/*.sh text eol=lf

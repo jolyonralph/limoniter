@@ -30,26 +30,36 @@ pub enum ToolLaunch {
     Merge { base: PathBuf, mine: PathBuf, theirs: PathBuf, result: PathBuf },
 }
 
-/// What `--help` says.
-pub const USAGE: &str = "Limoniter, a text and hex editor.
-
-Usage:
-  limoniter [FILE...]                         Opens the files.
-  limoniter --diff LEFT RIGHT                 Compares two files side by side.
-  limoniter --merge BASE MINE THEIRS RESULT   Merges MINE and THEIRS, both changed from BASE, into RESULT.
-                                              The program waits until the merge tab is closed, then exits
-                                              with 0 if RESULT was saved with no conflicts left, 1 if not,
-                                              as git mergetool expects.
-  limoniter --screenshot PICTURE [FILE...]    Saves a picture of the window, then closes.
-  limoniter --assemble SOURCE OUTPUT [NAME=VALUE...]
-                                              Makes 68000 source into an Amiga program, as F9 does, with no
-                                              window. NAME=VALUE gives a setting (NAME equ in the source) a
-                                              value, such as OS_FRIENDLY=1.
-  limoniter --version                         Shows which version this is (also -V).
-  limoniter --help                            Shows this.
-  limoniter -- FILE...                        Opens files even if their names start with -.
-
-Git can use Limoniter for git difftool and git mergetool: Git, Use Limoniter for Git diff and merge.";
+/// What `--help` says, in the person's language.
+pub fn usage() -> String {
+    [
+        crate::i18n::tr("Limoniter, a text and hex editor."),
+        "",
+        crate::i18n::tr("Usage:"),
+        crate::i18n::tr("  limoniter [FILE...]                         Opens the files."),
+        crate::i18n::tr("  limoniter FILE:LINE[:COLUMN]                Opens the file with the cursor there (or --line N)."),
+        crate::i18n::tr("  limoniter --new-window FILE...              Opens the files in a window of their own, not as tabs in one"),
+        crate::i18n::tr("                                              that's already open."),
+        crate::i18n::tr("  limoniter --wait FILE...                    Waits until the files have been closed before it exits, for"),
+        crate::i18n::tr("                                              git commit and $EDITOR."),
+        crate::i18n::tr("  limoniter --diff LEFT RIGHT                 Compares two files side by side."),
+        crate::i18n::tr("  limoniter --merge BASE MINE THEIRS RESULT   Merges MINE and THEIRS, both changed from BASE, into RESULT."),
+        crate::i18n::tr("                                              The program waits until the merge tab is closed, then exits"),
+        crate::i18n::tr("                                              with 0 if RESULT was saved with no conflicts left, 1 if not,"),
+        crate::i18n::tr("                                              as git mergetool expects."),
+        crate::i18n::tr("  limoniter --screenshot PICTURE [FILE...]    Saves a picture of the window, then closes."),
+        crate::i18n::tr("  limoniter --assemble SOURCE OUTPUT [NAME=VALUE...]"),
+        crate::i18n::tr("                                              Makes 68000 source into an Amiga program, as F9 does, with no"),
+        crate::i18n::tr("                                              window. NAME=VALUE gives a setting (NAME equ in the source) a"),
+        crate::i18n::tr("                                              value, such as OS_FRIENDLY=1."),
+        crate::i18n::tr("  limoniter --version                         Shows which version this is (also -V)."),
+        crate::i18n::tr("  limoniter --help                            Shows this."),
+        crate::i18n::tr("  limoniter -- FILE...                        Opens files even if their names start with -."),
+        "",
+        crate::i18n::tr("Git can use Limoniter for git difftool and git mergetool: Git, Use Limoniter for Git diff and merge."),
+    ]
+    .join("\n")
+}
 
 /// The first option on the command line Limoniter doesn't know, if any: something starting with - that isn't one
 /// of its own, so it's refused rather than opened as a file. The files after --diff, --merge and --screenshot are
@@ -761,8 +771,9 @@ mod tests {
         );
         assert!(parse_tool_args(&args(&["--merge", "b", "m", "t"])).is_err());
         assert!(parse_tool_args(&args(&["--diff", "l"])).is_err());
-        assert!(USAGE.contains("--diff LEFT RIGHT") && USAGE.contains("--merge BASE MINE THEIRS RESULT"));
-        assert!(USAGE.contains("--version"));
+        let usage = usage();
+        assert!(usage.contains("--diff LEFT RIGHT") && usage.contains("--merge BASE MINE THEIRS RESULT"));
+        assert!(usage.contains("--version") && usage.contains("--wait") && usage.contains("--new-window") && usage.contains("FILE:LINE"));
     }
 
     #[test]

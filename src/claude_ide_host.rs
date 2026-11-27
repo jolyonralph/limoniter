@@ -207,12 +207,42 @@ impl Limoniter {
                 }
                 let _ = reply.send(vec![format!("CLOSED_{count}_DIFF_TABS")]);
             }
+            Event::OpenFile { client, request, reply } => {
+                let style = self.claude_ide.server.as_ref().map_or(PathStyle::Native, |server| server.style(client));
+                let path = self.claude_host_path(&request.file_path, style);
+                let answer = self.claude_open_file(&path, &request);
+                let _ = reply.send(vec![answer]);
+            }
             Event::Diagnostics { client, uri, reply } => {
                 let style = self.claude_ide.server.as_ref().map_or(PathStyle::Native, |server| server.style(client));
                 let json = self.claude_diagnostics(uri.as_deref(), style);
                 let _ = reply.send(vec![json.to_string()]);
             }
         }
+    }
+
+    /// What `openFile` does: opens the file as a tab, selects what was asked for, and, unless it said not to, brings
+    /// the window forward. The answer is what's told to Claude Code.
+    fn claude_open_file(&mut self, path: &Path, request: &claude_ide::OpenFileRequest) -> String {
+        if !path.is_file() {
+            return crate::i18n::tf!("There's no file {}.", path.display());
+        }
+        if !self.open_path(path) {
+            return crate::i18n::tf!("Couldn't open {}.", path.display());
+        }
+        if let Some(doc) = self.docs.get_mut(self.active).filter(|doc| !doc.hex_mode) {
+            let lines: Vec<String> = (0..doc.text.line_count()).map(|i| doc.text.line(i).to_string()).collect();
+            if let Some((from, to)) = claude_ide::selection_for(&lines, request.start_text.as_deref(), request.end_text.as_deref(), request.select_to_end_of_line) {
+                doc.text.select_chars(from, to);
+            }
+        }
+        if request.make_frontmost
+            && let Some(ctx) = &self.waker
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
+        format!("Opened file: {}", request.file_path)
     }
 
     /// What `getDiagnostics` answers: the language servers' problems for one file, or every file.
@@ -322,7 +352,7 @@ impl Limoniter {
 }
 
 /// The address Windows gives WSL's network, if there is one: what a `claude` in WSL finds this server by.
-fn wsl_gateway() -> Vec<std::net::IpAddr> {
+pub(crate) fn wsl_gateway() -> Vec<std::net::IpAddr> {
     let Ok(output) = crate::platform::command("ipconfig").output() else {
         return Vec::new();
     };
