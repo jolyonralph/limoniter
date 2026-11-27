@@ -762,6 +762,62 @@ impl Engine {
         }
         found
     }
+
+    /// The file's functions with the classes they're in, whether each is private and how its signature reads, for
+    /// the Functions panel (see `function_classes`).
+    pub fn outline_functions(&self, syntax: usize, lines: &[std::sync::Arc<str>], stop: &std::sync::atomic::AtomicBool) -> Vec<crate::function_classes::Outlined> {
+        const MOST_LISTED: usize = 20_000;
+        let Some(reference) = self.syntaxes.syntaxes().get(syntax) else {
+            return Vec::new();
+        };
+        let scope = |name: &str| Scope::new(name).expect("a valid scope");
+        let functions = [scope("entity.name.function"), scope("entity.name.label")];
+        let classes = [scope("entity.name.class"), scope("entity.name.type.class"), scope("entity.name.impl"), scope("entity.name.trait"), scope("entity.name.interface"), scope("entity.name.type.interface"), scope("entity.name.type.trait")];
+        let not_code = [scope("string"), scope("comment")];
+        let mut state = ParseState::new(reference);
+        let mut path = syntect::parsing::ScopeStack::new();
+        let mut found = Vec::new();
+        let mut code = Vec::with_capacity(lines.len());
+        let mut texts: Vec<&str> = Vec::with_capacity(lines.len());
+        for (number, line) in lines.iter().enumerate() {
+            if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                return Vec::new();
+            }
+            texts.push(line);
+            code.push(!path.as_slice().iter().any(|s| not_code.iter().any(|one| one.is_prefix_of(*s))));
+            if line.len() > MAX_LINE_BYTES || found.len() >= MOST_LISTED {
+                continue;
+            }
+            let text = format!("{line}\n");
+            let Ok(ops) = state.parse_line(&text, &self.syntaxes) else {
+                continue;
+            };
+            let (mut name, mut is_class, mut done) = (String::new(), false, false);
+            for (piece, op) in ScopeRegionIterator::new(&ops, &text) {
+                if path.apply(op).is_err() {
+                    break;
+                }
+                if done {
+                    continue;
+                }
+                let here = path.as_slice();
+                let class = here.iter().any(|s| classes.iter().any(|one| one.is_prefix_of(*s)));
+                let function = !class && here.iter().any(|s| functions.iter().any(|one| one.is_prefix_of(*s)));
+                if (class || function) && (name.trim().is_empty() || class == is_class) {
+                    is_class = class;
+                    name.push_str(piece);
+                } else if !name.trim().is_empty() {
+                    // The rest of the line is still read, so the scopes are right for the next.
+                    done = true;
+                }
+            }
+            let name = name.trim();
+            if !name.is_empty() {
+                found.push(crate::function_classes::Found { line: number, name: name.to_string(), is_class });
+            }
+        }
+        crate::function_classes::arrange(&reference.name, &texts, &code, &found)
+    }
 }
 
 /// How one line is coloured.
@@ -1185,6 +1241,27 @@ mod tests {
         assert_eq!(found, [(1, "first".to_string()), (4, "second".to_string())]);
         let python = functions_in("Python", &["def one():", "    pass", "x = 'def nope():'", "def two(a):", "    return a"]);
         assert_eq!(python, [(0, "one".to_string()), (3, "two".to_string())]);
+    }
+
+    fn outline_in(language: &str, text: &[&str]) -> Vec<(String, bool, Option<usize>, bool)> {
+        let engine = Engine::load();
+        let (_, syntax) = engine.names.iter().find(|(name, _)| name == language).unwrap_or_else(|| panic!("no {language}"));
+        let lines: Vec<std::sync::Arc<str>> = text.iter().map(|line| std::sync::Arc::from(*line)).collect();
+        engine.outline_functions(*syntax, &lines, &std::sync::atomic::AtomicBool::new(false)).into_iter().map(|e| (e.name, e.is_class, e.class, e.private)).collect()
+    }
+
+    #[test]
+    fn functions_are_listed_under_their_classes_from_the_grammar() {
+        let own = |name: &str, class: Option<usize>, private: bool| (name.to_string(), false, class, private);
+        let class = |name: &str| (name.to_string(), true, None, false);
+        let rust = outline_in("Rust", &["struct Point;", "impl Point {", "    pub fn new() -> Self { Point }", "    fn hidden(&self) {}", "}", "pub fn free() {}"]);
+        assert_eq!(rust, [class("Point"), own("new", Some(0), false), own("hidden", Some(0), true), own("free", None, false)]);
+        let python = outline_in("Python", &["class Shape:", "    def area(self):", "        return 0", "    def _scale(self):", "        pass", "def helper():", "    pass"]);
+        assert_eq!(python, [class("Shape"), own("area", Some(0), false), own("_scale", Some(0), true), own("helper", None, false)]);
+        let java = outline_in("Java", &["public class Hello {", "    public void greet() {", "    }", "    private int count() { return 0; }", "}"]);
+        assert_eq!(java, [class("Hello"), own("greet", Some(0), false), own("count", Some(0), true)]);
+        let js = outline_in("JavaScript", &["class App {", "  render() {", "    return 1;", "  }", "}", "function main() {}"]);
+        assert_eq!(js, [class("App"), own("render", Some(0), false), own("main", None, false)]);
     }
 
     #[test]

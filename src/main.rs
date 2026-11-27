@@ -72,6 +72,7 @@ mod encoding_ui;
 mod fold_multi_tests;
 mod find_files;
 mod fit;
+mod function_classes;
 mod ext_formatters;
 mod file_colours;
 mod file_icons;

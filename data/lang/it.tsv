@@ -11041,3 +11041,10 @@ Always shown	Mostrati sempre
 Shown whatever the Newest slider says, without taking a place among the newest. Kept with the project, in Project settings, Files	Mostrato qualunque cosa dica il cursore Più recenti, senza occupare un posto tra i più recenti. Conservato con il progetto, in Impostazioni del progetto, File
 Files, folders and patterns the slider never hides, one to a line, written as in a .gitignore file: README.md, src/main.rs, docs/, *.toml. They're shown, and counted as shown, without taking a place among the newest. A right-click on a file or folder in the Explorer or the Project panel, Always show, adds it or takes it off.	I file, le cartelle e i criteri che il cursore non nasconde mai, uno per riga, scritti come in un file .gitignore: README.md, src/main.rs, docs/, *.toml. Sono mostrati, e contati come mostrati, senza occupare un posto tra i più recenti. Un clic destro su un file o una cartella in Esplora risorse o nel pannello Progetto, Mostra sempre, lo aggiunge o lo toglie.
 reopen_project	reopen_project
+As in the file	Come nel file
+Not in a class	Fuori da ogni classe
+Order	Ordine
+Private A to Z, then public	Private dalla A alla Z, poi pubbliche
+Within each class, and among the functions outside them	Dentro ogni classe, e tra le funzioni fuori dalle classi
+{}\nLine {}	{}\nRiga {}
+{}\nPrivate. Line {}	{}\nPrivata. Riga {}

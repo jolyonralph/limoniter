@@ -253,7 +253,7 @@ struct TagsPanel {
 struct FunctionJob {
     key: (u64, u64),
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    result: std::sync::Arc<std::sync::Mutex<Option<Vec<(usize, String)>>>>,
+    result: std::sync::Arc<std::sync::Mutex<Option<Vec<crate::function_classes::Outlined>>>>,
 }
 
 /// The Functions panel's state.
@@ -261,10 +261,14 @@ struct FunctionJob {
 struct FunctionsPanel {
     /// The document and version these came from.
     key: Option<(u64, u64)>,
-    items: Vec<(usize, String)>,
+    items: Vec<crate::function_classes::Outlined>,
     job: Option<FunctionJob>,
     started: f64,
     filter: String,
+    /// How the functions are ordered within each class and outside them, kept with the settings.
+    order: crate::function_classes::Order,
+    /// The classes folded up, by name.
+    folded: std::collections::HashSet<String>,
 }
 
 #[derive(Default)]
@@ -333,7 +337,7 @@ impl Panels {
     pub fn to_settings(&self) -> String {
         let flags: String = self.flags().iter().map(|(name, value)| format!("{name}={value}\n")).collect();
         let tags: String = self.custom_tags.iter().map(|tag| format!("custom_tag={}\u{1}{}\u{1}{}\n", tag.name, tag.before.replace('\n', "\u{2}"), tag.after.replace('\n', "\u{2}"))).collect();
-        flags + tags.as_str() + self.project_panel.explorer.order.to_settings().as_str()
+        flags + tags.as_str() + self.project_panel.explorer.order.to_settings().as_str() + format!("functions_order={}\n", self.functions_panel.order.id()).as_str()
     }
 
     fn flags(&self) -> [(&'static str, bool); 27] {
@@ -379,6 +383,10 @@ impl Panels {
                 continue;
             };
             self.project_panel.explorer.order.read_setting(name.trim(), value.trim());
+            if name.trim() == "functions_order" {
+                self.functions_panel.order = crate::function_classes::Order::from_id(value.trim()).unwrap_or_default();
+                continue;
+            }
             if name.trim() == "custom_tag" {
                 let parts: Vec<&str> = value.split('\u{1}').collect();
                 if let [tag_name, before, after] = parts[..] {
@@ -1628,7 +1636,7 @@ fn functions_panel(ui: &mut Ui, panel: &mut FunctionsPanel, doc: &DocView<'_>, a
             let result = std::sync::Arc::new(std::sync::Mutex::new(None));
             let (lines, worker_stop, worker_result) = (doc.text.all_lines(), stop.clone(), result.clone());
             std::thread::spawn(move || {
-                let found = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| engine.list_functions(syntax, &lines, &worker_stop))).unwrap_or_default();
+                let found = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| engine.outline_functions(syntax, &lines, &worker_stop))).unwrap_or_default();
                 *worker_result.lock().unwrap() = Some(found);
             });
             panel.job = Some(FunctionJob { key, stop, result });
@@ -1636,22 +1644,66 @@ fn functions_panel(ui: &mut Ui, panel: &mut FunctionsPanel, doc: &DocView<'_>, a
         }
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
     }
-    ui.add(egui::TextEdit::singleline(&mut panel.filter).hint_text(crate::i18n::tr("Filter")).desired_width(f32::INFINITY));
+    ui.horizontal(|ui| {
+        let order = crate::fit::menu_button(ui, crate::i18n::tr("Order"), |ui| {
+            for choice in crate::function_classes::Order::ALL {
+                if ui.radio(panel.order == choice, crate::i18n::tr(choice.label())).clicked() {
+                    panel.order = choice;
+                    ui.close();
+                }
+            }
+        });
+        order.response.on_hover_text(crate::i18n::tr("Within each class, and among the functions outside them"));
+        ui.add(egui::TextEdit::singleline(&mut panel.filter).hint_text(crate::i18n::tr("Filter")).desired_width(f32::INFINITY));
+    });
     ui.add_space(2.0);
     if panel.items.is_empty() {
         return say(ui, if panel.key == Some(key) { "No functions found." } else { "Looking..." });
     }
-    let filter = panel.filter.to_lowercase();
-    let shown: Vec<&(usize, String)> = panel.items.iter().filter(|(_, name)| filter.is_empty() || name.to_lowercase().contains(&filter)).collect();
+    let shown = crate::function_classes::rows(&panel.items, panel.order, &panel.filter, &panel.folded);
     let row = ui.text_style_height(&egui::TextStyle::Body) + 3.0;
+    let mut fold = None;
     egui::ScrollArea::vertical().id_salt("functions-scroll").auto_shrink([false, false]).show_rows(ui, row, shown.len(), |ui, range| {
-        for (line, name) in &shown[range] {
-            let button = egui::Button::new(RichText::new(name).size(12.5)).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Truncate).min_size(vec2(ui.available_width(), 0.0));
-            if ui.add(button).on_hover_text(crate::i18n::tf!("Line {}", line + 1)).clicked() {
-                actions.push(Action::GoToLine(*line));
+        for place in &shown[range] {
+            let Some(entry) = place.map(|place| &panel.items[place]) else {
+                ui.label(RichText::new(crate::i18n::tr("Not in a class")).size(12.0).color(theme::text_faint()));
+                continue;
+            };
+            let hover = crate::i18n::tf!("{}\nLine {}", entry.signature, entry.line + 1);
+            if entry.is_class {
+                ui.horizontal(|ui| {
+                    let folded = panel.folded.contains(&entry.name);
+                    let arrow = ui.add(egui::Button::new(RichText::new(if folded { "\u{25B8}" } else { "\u{25BE}" }).size(12.0)).frame_when_inactive(false));
+                    if crate::access::called(arrow, if folded { "Unfold" } else { "Fold" }).clicked() {
+                        fold = Some(entry.name.clone());
+                    }
+                    let button = egui::Button::new(RichText::new(&entry.name).size(12.5).strong()).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Truncate).min_size(vec2(ui.available_width(), 0.0));
+                    // In a column of its own, so the name sits at the left as the other rows' do.
+                    if ui.vertical(|ui| ui.add(button)).inner.on_hover_text(&hover).clicked() {
+                        actions.push(Action::GoToLine(entry.line));
+                    }
+                });
+                continue;
             }
+            ui.horizontal(|ui| {
+                if entry.class.is_some() {
+                    ui.add_space(30.0);
+                }
+                let colour = if entry.private { theme::text_dim() } else { theme::text() };
+                let words = if entry.private { format!("\u{2212} {}", entry.name) } else { entry.name.clone() };
+                let button = egui::Button::new(RichText::new(words).size(12.5).color(colour)).frame_when_inactive(false).wrap_mode(egui::TextWrapMode::Truncate).min_size(vec2(ui.available_width(), 0.0));
+                let hover = if entry.private { crate::i18n::tf!("{}\nPrivate. Line {}", entry.signature, entry.line + 1) } else { hover };
+                if ui.vertical(|ui| ui.add(button)).inner.on_hover_text(hover).clicked() {
+                    actions.push(Action::GoToLine(entry.line));
+                }
+            });
         }
     });
+    if let Some(name) = fold
+        && !panel.folded.remove(&name)
+    {
+        panel.folded.insert(name);
+    }
 }
 
 // ---------- Tags ----------
