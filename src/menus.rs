@@ -75,6 +75,7 @@ pub(super) enum PanelFlag {
     Scripts,
     History,
     Todos,
+    FilesChanging,
     FileProperties,
     Json,
     Xml,
@@ -97,6 +98,7 @@ pub(super) enum PanelFlag {
 /// Lists that change, drawn as they are now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Live {
+    ClaudeCode,
     WindowThemes,
     DocumentThemes,
     ThisDocumentTheme,
@@ -340,6 +342,7 @@ pub(super) const PANELS: &[Entry] = &[
             Check("Instruction reference", Flag::Panel(PanelFlag::Instructions)),
             Check("Bookmarks", Flag::Panel(PanelFlag::Bookmarks)),
             Check("TODO notes", Flag::Panel(PanelFlag::Todos)),
+            Check("Files changing", Flag::Panel(PanelFlag::FilesChanging)),
             Check("Tags", Flag::Panel(PanelFlag::Tags)),
             Check("Edit history", Flag::Panel(PanelFlag::History)),
             Check("Macros", Flag::Panel(PanelFlag::Macros)),
@@ -699,6 +702,7 @@ pub(super) const PROJECT: &[Entry] = &[
             Item("Back up", Command::ProjectBackup),
             Item("Restore from a backup\u{2026}", Command::ProjectRestore),
             Check("Project panel", Flag::Panel(PanelFlag::Project)),
+            Check("Files changing", Flag::Panel(PanelFlag::FilesChanging)),
         ];
 
 pub(super) const RUN_ON: &[Entry] = &[
@@ -808,6 +812,7 @@ pub(super) const EDIT: &[Entry] = &[
     Sub("Colour tag", COLOUR_TAG),
     Line,
     Check("Read-only", Flag::ReadOnly),
+    Entry::Live("Claude Code", Live::ClaudeCode),
 ];
 
 pub(super) const SEARCH: &[Entry] = &[
@@ -1140,6 +1145,7 @@ impl Limoniter {
             PanelFlag::Scripts => p.scripts,
             PanelFlag::History => p.history,
             PanelFlag::Todos => p.todos,
+            PanelFlag::FilesChanging => p.files_changing,
             PanelFlag::FileProperties => p.file_properties,
             PanelFlag::Json => p.json_manager,
             PanelFlag::Xml => p.xml_manager,
@@ -1176,6 +1182,7 @@ impl Limoniter {
             PanelFlag::Scripts => &mut p.scripts,
             PanelFlag::History => &mut p.history,
             PanelFlag::Todos => &mut p.todos,
+            PanelFlag::FilesChanging => &mut p.files_changing,
             PanelFlag::FileProperties => &mut p.file_properties,
             PanelFlag::Json => &mut p.json_manager,
             PanelFlag::Xml => &mut p.xml_manager,
@@ -1761,6 +1768,16 @@ impl Limoniter {
                 for (choice, label) in choices {
                     if ui.add_enabled(self.project.is_some(), Button::selectable(chosen == choice, crate::i18n::tr(label))).clicked() {
                         picks.push(Pick::Command(Command::ProjectAutosave(choice)));
+                        ui.close();
+                    }
+                }
+            }
+            Live::ClaudeCode => {
+                // Only there when a Claude Code in the terminal is connected to be told.
+                if self.claude_connected() {
+                    ui.separator();
+                    if ui.add_enabled(!self.no_file(), Button::new(crate::i18n::tr("Mention in Claude Code"))).on_hover_text(crate::i18n::tr("Puts this file, and the lines selected, into Claude Code's prompt")).clicked() {
+                        picks.push(Pick::Command(Command::MentionInClaude));
                         ui.close();
                     }
                 }

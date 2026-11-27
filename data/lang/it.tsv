@@ -11149,3 +11149,45 @@ F9 asks the first time, and remembers if you tick Always run programs there.	F9 
 {} (no longer set up)	{} (non più configurato)
 Nothing set up runs these programs.	Nulla di quanto configurato esegue questi programmi.
 F9 asks where to run these programs next time	F9 chiederà la prossima volta dove eseguire questi programmi
+1 minute ago	1 minuto fa
+A change to look over: {}	Una modifica da esaminare: {}
+Accept	Accetta
+Claude Code connected	Claude Code connesso
+Claude Code in the terminal sees what you select here, and its changes to files are shown here for you to accept or reject	Claude Code nel terminale vede ciò che selezioni qui, e le sue modifiche ai file sono mostrate qui perché tu le accetti o le rifiuti
+Claude Code proposes a change to {file}	Claude Code propone una modifica a {file}
+Copy path	Copia percorso
+Elsewhere	Altrove
+Empties the list; it fills again as files change	Svuota l'elenco; si riempie di nuovo quando i file cambiano
+Files changing	File che cambiano
+Leave the file as it is (Alt+R)	Lascia il file com'è (Alt+R)
+Let Claude Code in the terminal work with Limoniter	Lascia che Claude Code nel terminale lavori con Limoniter
+Looking every few seconds	Controllo ogni pochi secondi
+Mention in Claude Code	Menziona in Claude Code
+Nothing has changed yet. Files changed by Limoniter, an agent or another program appear here as it happens.	Non è ancora cambiato nulla. I file modificati da Limoniter, da un agente o da un altro programma compaiono qui nel momento in cui accade.
+Open a file with text in it to mention it to Claude Code.	Apri un file con del testo per menzionarlo a Claude Code.
+Open a folder, a project or a file to watch its folder.	Apri una cartella, un progetto o un file per osservarne la cartella.
+Puts this file, and the lines selected, into Claude Code's prompt	Inserisce questo file, e le righe selezionate, nel prompt di Claude Code
+Reject	Rifiuta
+Some folders couldn't be watched: {why}	Alcune cartelle non hanno potuto essere osservate: {why}
+The right side can be edited before you accept.	Il lato destro può essere modificato prima di accettare.
+This project is on a server, so its files aren't watched here. Open the project's folder on this computer to see its changes.	Questo progetto è su un server, quindi i suoi file non sono osservati qui. Apri la cartella del progetto su questo computer per vederne le modifiche.
+Use the text on the right, as it is now (Alt+A)	Usa il testo a destra, così com'è ora (Alt+A)
+Watching live	Osservazione in tempo reale
+When you run claude in Limoniter's terminal, it shows its proposed changes here to accept, reject or edit, sees what you've selected and the problems the language servers found, and can be told about a file with Mention in Claude Code. Limoniter listens only on this computer, and only for a program that has the key it keeps in Claude Code's ide folder	Quando esegui claude nel terminale di Limoniter, mostra qui le modifiche proposte da accettare, rifiutare o modificare, vede ciò che hai selezionato e i problemi trovati dai server di linguaggio, e gli si può indicare un file con Menziona in Claude Code. Limoniter ascolta solo su questo computer, e solo un programma che ha la chiave che tiene nella cartella ide di Claude Code
+You	Tu
+at {time}	alle {time}
+changed {when}	modificato {when}
+claude_ide	claude_ide
+deleted {when}	eliminato {when}
+just now	proprio ora
+new, {when}	nuovo, {when}
+on {date}	il {date}
+renamed, {when}	rinominato, {when}
+theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\nreopen_project={}\nclaude_ide={}\n	theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\nreopen_project={}\nclaude_ide={}\n
+yesterday	ieri
+{minutes} minutes ago	{minutes} minuti fa
+{seconds} seconds ago	{seconds} secondi fa
+{} (as it is now)	{} (com'è ora)
+{} (proposed)	{} (proposto)
+{} is too large to review here.	{} è troppo grande per essere esaminato qui.
+{} isn't a text file, so a change to it can't be reviewed as text.	{} non è un file di testo, quindi una sua modifica non può essere esaminata come testo.

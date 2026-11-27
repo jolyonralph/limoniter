@@ -146,7 +146,7 @@ impl Setup {
 }
 
 /// Whether a program can be found on the PATH, as the Command Prompt would find it.
-fn installed(program: &str) -> bool {
+pub(super) fn installed(program: &str) -> bool {
     let Some(path) = std::env::var_os("PATH") else {
         return false;
     };

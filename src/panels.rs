@@ -295,6 +295,8 @@ pub struct Panels {
     pub history: bool,
     /// TODO, FIXME and the like, in the file in front or across the project.
     pub todos: bool,
+    /// The files changing in the project, as they change.
+    pub files_changing: bool,
     pub strings: bool,
     /// The value inspector: the bytes at the hex cursor as numbers.
     pub inspector: bool,
@@ -344,7 +346,7 @@ impl Panels {
         flags + tags.as_str() + self.project_panel.explorer.order.to_settings().as_str() + format!("functions_order={}\n", self.functions_panel.order.id()).as_str() + format!("stack_panels={}\nstack_share={}\n", self.stacked, self.stack_share()).as_str()
     }
 
-    fn flags(&self) -> [(&'static str, bool); 27] {
+    fn flags(&self) -> [(&'static str, bool); 28] {
         [
             ("file_properties", self.file_properties),
             ("json_manager", self.json_manager),
@@ -373,6 +375,7 @@ impl Panels {
             ("database_panel", self.database),
             ("tests_panel", self.tests),
             ("containers_panel", self.containers),
+            ("files_changing_panel", self.files_changing),
         ]
     }
 
@@ -426,6 +429,7 @@ impl Panels {
                 "database_panel" => self.database = flag,
                 "tests_panel" => self.tests = flag,
                 "containers_panel" => self.containers = flag,
+                "files_changing_panel" => self.files_changing = flag,
                 "file_explorer" => self.file_explorer = flag,
                 "open_files" => self.open_files = flag,
                 "bookmarks" => self.bookmarks = flag,
@@ -471,6 +475,7 @@ impl Panels {
         self.database = false;
         self.tests = false;
         self.containers = false;
+        self.files_changing = false;
     }
 
     fn right_count(&self) -> usize {

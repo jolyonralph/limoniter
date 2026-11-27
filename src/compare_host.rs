@@ -35,6 +35,8 @@ impl CompareTab {
     /// Whether a side has edits not yet saved, that only this tab holds.
     pub fn unsaved(&self) -> bool {
         match self {
+            // A review's right side is edited to be given back, not to be saved, so closing it isn't asked about.
+            CompareTab::Files(files) if files.review.is_some() => false,
             CompareTab::Files(files) => files.sources.iter().any(|source| matches!(source, Source2::Own(doc) if doc.is_modified())),
             _ => false,
         }
@@ -43,6 +45,7 @@ impl CompareTab {
     /// What the status bar says about it.
     pub fn status_words(&self) -> String {
         match self {
+            CompareTab::Files(files) if files.review.is_some() => crate::i18n::tf!("A change to look over: {}", files.diff.summary().to_lowercase()),
             CompareTab::Files(files) => crate::i18n::tf!("Comparing two files: {}", files.diff.summary().to_lowercase()),
             CompareTab::Folders(folders) => match (&folders.job, &folders.result) {
                 (Some(_), _) => crate::i18n::tr("Comparing folders\u{2026}").to_string(),
@@ -72,6 +75,8 @@ pub(super) struct FileCompare {
     /// Each side's file, or what it is, in full.
     pub names: [String; 2],
     pub diff: DiffView,
+    /// Set when this is a proposed change to a file, to be accepted or rejected (see review_host.rs).
+    pub review: Option<crate::review::Review>,
 }
 
 /// What a file comparison shows of its two sides, and how they differ.
@@ -98,6 +103,8 @@ pub(super) struct DiffView {
 
 /// What the file comparison asks the window to do.
 enum FileAct {
+    Accept,
+    Reject,
     Save(usize),
     OpenInTab(usize),
     ExportPatch,
@@ -251,6 +258,7 @@ fn draw_file_compare(ui: &mut Ui, fc: &mut FileCompare, docs: &mut [Document], c
     let mut acts = Vec::new();
     let own = [matches!(fc.sources[0], Source2::Own(_)), matches!(fc.sources[1], Source2::Own(_))];
     let full_names = fc.names.clone();
+    let reviewing = fc.review.as_ref().map(|review| review.label.clone());
     let dv = &mut fc.diff;
     let Some(mut pair) = two_docs(docs, &mut fc.sources) else {
         ui.label(crate::i18n::tr("One of the files has been closed."));
@@ -260,12 +268,39 @@ fn draw_file_compare(ui: &mut Ui, fc: &mut FileCompare, docs: &mut [Document], c
         doc.update_syntax();
     }
     let syntax = [pair[0].resolved_syntax.flatten(), pair[1].resolved_syntax.flatten()];
-    let names = [pair[0].name(), pair[1].name()];
+    let mut names = [pair[0].name(), pair[1].name()];
+    if reviewing.is_some() {
+        names = [crate::i18n::tf!("{} (as it is now)", names[0]), crate::i18n::tf!("{} (proposed)", names[1])];
+    }
     let modified = [pair[0].is_modified(), pair[1].is_modified()];
     let locked = [pair[0].text.read_only, pair[1].text.read_only];
     let savable = [pair[0].path.is_some() && !locked[0], pair[1].path.is_some() && !locked[1]];
     dv.refresh([&*pair[0], &*pair[1]]);
     let (mut step, mut copy) = (None, None);
+    if let Some(label) = &reviewing {
+        // The decision, over everything else: what's proposed is on the right, and can be changed before it's accepted.
+        let (accept, reject) = if input_on {
+            ui.input_mut(|i| (i.consume_key(egui::Modifiers::ALT, egui::Key::A), i.consume_key(egui::Modifiers::ALT, egui::Key::R)))
+        } else {
+            (false, false)
+        };
+        egui::Frame::new().fill(theme::gutter_back()).inner_margin(egui::Margin { left: 10, right: 10, top: 6, bottom: 6 }).show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                let file = Path::new(&full_names[0]).file_name().map_or_else(|| full_names[0].clone(), |name| name.to_string_lossy().into_owned());
+                ui.label(RichText::new(crate::i18n::tf!("Claude Code proposes a change to {file}")).strong()).on_hover_text(label);
+                if ui.add(Button::new(RichText::new(crate::i18n::tr("Accept")).strong())).on_hover_text(crate::i18n::tr("Use the text on the right, as it is now (Alt+A)")).clicked() || accept {
+                    acts.push(FileAct::Accept);
+                }
+                if ui.button(crate::i18n::tr("Reject")).on_hover_text(crate::i18n::tr("Leave the file as it is (Alt+R)")).clicked() || reject {
+                    acts.push(FileAct::Reject);
+                }
+                ui.label(RichText::new(crate::i18n::tr("The right side can be edited before you accept.")).color(theme::text_dim()).size(12.5));
+            });
+        });
+        if !acts.is_empty() {
+            return acts;
+        }
+    }
     egui::Frame::new().inner_margin(egui::Margin { left: 10, right: 10, top: 6, bottom: 2 }).show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(dv.summary()).strong());
@@ -323,7 +358,7 @@ fn draw_file_compare(ui: &mut Ui, fc: &mut FileCompare, docs: &mut [Document], c
             if ui.add_enabled(savable[n] && modified[n], Button::new(crate::i18n::tr("Save")).small()).clicked() {
                 acts.push(FileAct::Save(n));
             }
-            if own[n] && ui.small_button(crate::i18n::tr("Open in a tab")).on_hover_text(crate::i18n::tr("Open this side in a tab of its own too")).clicked() {
+            if own[n] && reviewing.is_none() && ui.small_button(crate::i18n::tr("Open in a tab")).on_hover_text(crate::i18n::tr("Open this side in a tab of its own too")).clicked() {
                 acts.push(FileAct::OpenInTab(n));
             }
         });
@@ -1439,7 +1474,7 @@ impl Limoniter {
             let pair = [bytes(self, &a), bytes(self, &b)];
             return Ok(Some((title, CompareTab::Bytes(Box::new(ByteCompare::new(names, pair))))));
         }
-        let mut files = FileCompare { sources: [a, b], names: [a_name, b_name], diff: DiffView::new() };
+        let mut files = FileCompare { sources: [a, b], names: [a_name, b_name], diff: DiffView::new(), review: None };
         if let Some(pair) = two_docs(&mut self.docs, &mut files.sources) {
             files.diff.refresh([&*pair[0], &*pair[1]]);
             if files.diff.difference_count() > 0 {
@@ -1592,6 +1627,8 @@ impl Limoniter {
 
     fn file_compare_act(&mut self, doc_id: u64, act: FileAct) {
         match act {
+            FileAct::Accept => self.decide_review(doc_id, true),
+            FileAct::Reject => self.decide_review(doc_id, false),
             FileAct::Save(side) => {
                 self.save_compare_side(doc_id, side);
             }
@@ -2046,6 +2083,9 @@ fn file_patch(names: &[String; 2], docs: [&Document; 2], options: &TextOptions) 
 
 #[path = "sync_host.rs"]
 pub(super) mod sync_host;
+
+#[path = "review_host.rs"]
+mod review_host;
 
 #[cfg(test)]
 #[path = "compare_host_tests.rs"]

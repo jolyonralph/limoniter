@@ -532,6 +532,7 @@ pub enum ContextCommand {
     Tag(u8),
     Untag,
     Assist,
+    MentionInClaude,
     /// Opens the AutoDoc reader at a function's page.
     Explain(String),
     /// A misspelt word, added to the project's own list.
@@ -1783,6 +1784,10 @@ fn context_menu(ui: &mut Ui, text: bool, explain: Option<&str>, misspelt: Option
         });
         if ui.button(crate::i18n::tr("Ask the assistant\u{2026}")).clicked() {
             command = Some(ContextCommand::Assist);
+        }
+        // Only when a Claude Code in the terminal is there to be told.
+        if crate::claude_ide::connected() && ui.button(crate::i18n::tr("Mention in Claude Code")).on_hover_text(crate::i18n::tr("Puts this file, and the lines selected, into Claude Code's prompt")).clicked() {
+            command = Some(ContextCommand::MentionInClaude);
         }
     }
     command

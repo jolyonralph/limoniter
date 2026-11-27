@@ -497,6 +497,8 @@ enum Command {
     PreviousTag,
     /// Asks Claude Code or Codex to work on the selection, or the function the cursor is in.
     Assist(assistant::Task),
+    /// Puts the file and the lines selected into the prompt of a Claude Code connected to Limoniter.
+    MentionInClaude,
 }
 
 thread_local! {
@@ -1790,6 +1792,8 @@ pub struct Limoniter {
     test_panel: Option<tasks_host::TestPanel>,
     /// Docker Compose: the Containers panel and the logs being followed.
     compose: compose_host::ComposeState,
+    /// The Files changing panel and what watches for it.
+    files_changing: crate::files_changing::Panel,
     tests_ui: tests_host::Explorer,
     outdated_ui: outdated_host::State,
     http_ui: http_host::State,
@@ -2037,6 +2041,8 @@ pub struct Limoniter {
     /// The Assistant panel, and the history it shows.
     assist_panel: assistant::AssistPanel,
     assist_log: assistant_log::Log,
+    /// Being Claude Code's IDE: its server, and the diffs it has asked to be shown.
+    claude_ide: claude_ide_host::State,
 }
 
 /// A run started with --screenshot: draw for a while, save the window as a picture, and exit.
@@ -2280,6 +2286,7 @@ impl Limoniter {
             update_started: false,
             layouts: crate::layouts::from_settings(&settings),
             last_watch: None,
+            claude_ide: claude_ide_host::State::default(),
             update_waiting: None,
             update_download: None,
             opticos_started: false,
@@ -2325,6 +2332,7 @@ impl Limoniter {
             task_run: None,
             test_panel: None,
             compose: compose_host::ComposeState::default(),
+            files_changing: crate::files_changing::Panel::default(),
             tests_ui: Default::default(),
             outdated_ui: Default::default(),
             http_ui: http_host::State::from_settings(&settings),
@@ -3517,6 +3525,7 @@ impl Limoniter {
     fn check_background_work(&mut self, ctx: &Context) {
         self.send_saved_remotes();
         self.watch_remote_files(ctx);
+        self.claude_ide_tick(ctx);
         let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends() | self.check_sessions();
         busy |= self.remote_project_tick(ctx);
         busy |= self.git_tick(ctx);
@@ -5235,6 +5244,7 @@ impl Limoniter {
             Command::Untag => self.untag_here(),
             Command::NextTag | Command::PreviousTag => self.go_to_tag(command == Command::NextTag),
             Command::Assist(task) => self.begin_assist(task),
+            Command::MentionInClaude => self.claude_mention(),
             Command::NextMistake => self.next_mistake(),
             Command::ConvertTo => self.begin_pick(Purpose::Convert),
             Command::Comment | Command::Uncomment => {
@@ -5973,6 +5983,7 @@ impl Limoniter {
         let todo_acts = self.panels.show_todos(ui, &todo_view, self.project.as_ref());
         self.database_panel(ui);
         self.containers_panel(ui);
+        self.files_changing_panel(ui);
         self.http_panel(ui);
         let mut explorer_acts = Vec::new();
         for action in project_actions {
@@ -7428,6 +7439,9 @@ impl Limoniter {
             }
             self.database_status(ui);
             self.http_status(ui);
+            if let Some((words, tip)) = self.claude_ide_status() {
+                ui.colored_label(theme::accent(), words).on_hover_text(tip);
+            }
             if let Some(status) = self.run_status() {
                 ui.colored_label(theme::accent(), status);
                 if !self.running.sessions.is_empty() && ui.small_button(crate::i18n::tr("Stop")).on_hover_text(crate::i18n::tr("Stops the program running, closing the emulator")).clicked() {
@@ -8506,6 +8520,8 @@ impl Limoniter {
                 "tests" => self.tests_screenshot_step(value),
                 // The Containers panel, for the compose file in front.
                 "containers" => self.panels.containers = true,
+                // The Files changing panel, with files made and changed in the project's folder first: "make".
+                "files-changing" => self.files_changing_screenshot_step(value),
                 "stacked" => {
                     self.panels.project = true;
                     self.panels.functions = true;
@@ -8529,6 +8545,13 @@ impl Limoniter {
                     self.toolbar.on = true;
                     if value == "box" {
                         self.open_toolbar_box();
+                    }
+                }
+                // A change proposed to the file in front (the text after the colon, with \n for line ends), shown for review.
+                "review" => {
+                    if let Some(path) = self.docs[self.active].path.clone() {
+                        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                        let _ = self.open_review(&path, &value.replace("\\n", "\n"), &format!("\u{273B} [Claude Code] {name} (a1b2c3) \u{29C9}"));
                     }
                 }
                 "colour-as" => {
@@ -9172,7 +9195,7 @@ impl Limoniter {
             // Asking once per change, whatever the answer, so that it doesn't keep coming back.
             doc.disk_stamp = now;
             let modified = doc.is_modified();
-            if !(self.prefs.reload_quietly && !modified) {
+            if !((self.prefs.reload_quietly || self.claude_connected()) && !modified) {
                 let question = crate::i18n::tf!("{} has been changed by another application.\n\nDo you want to reload it?\n", path.display());
                 if !ask_yes_no("File Changed", &question) {
                     continue;
@@ -9208,12 +9231,14 @@ impl Limoniter {
         // A script is working on the file in front, which has to stay the file in front until it's finished.
         if self.script.is_none() {
             let focused_again = ctx.input(|i| i.raw.events.iter().any(|e| matches!(e, egui::Event::WindowFocused(true))));
-            let due = self.prefs.watch_often && self.last_watch.is_none_or(|last| last.elapsed() >= WATCH_EVERY);
+            // With Claude Code connected, its edits are looked for as they're made, as there's no switching windows to notice them.
+            let watching = self.prefs.watch_often || self.claude_connected();
+            let due = watching && self.last_watch.is_none_or(|last| last.elapsed() >= WATCH_EVERY);
             if self.prefs.watch_files && (focused_again || due) && matches!(self.dialog, Dialog::None) {
                 self.last_watch = Some(std::time::Instant::now());
                 self.check_for_changed_files();
             }
-            if self.prefs.watch_files && self.prefs.watch_often {
+            if self.prefs.watch_files && watching {
                 ctx.request_repaint_after(WATCH_EVERY);
             }
             let dropped: Vec<PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
@@ -9286,6 +9311,8 @@ impl eframe::App for Limoniter {
         self.php_stop_serving();
         self.stop_split();
         self.stop_assistant();
+        // Its lock file goes, so that no `claude` looks for a Limoniter that's gone.
+        self.claude_ide_stop();
         if self.allow_close {
             self.close_project();
         }
@@ -9525,6 +9552,7 @@ impl Limoniter {
                     ContextCommand::Tag(colour) => Command::Tag(colour),
                     ContextCommand::Untag => Command::Untag,
                     ContextCommand::Assist => Command::Assist(assistant::Task::Fix),
+                    ContextCommand::MentionInClaude => Command::MentionInClaude,
                     ContextCommand::Explain(_) | ContextCommand::DebugScript(_) | ContextCommand::AddProjectWord(_) => Command::AutoDocs,
                     ContextCommand::RunCell(line) => Command::PyR(python_host::PyAction::RunCellAt(line)),
                     ContextCommand::SendRequest(number) => Command::SendRequestNumber(number),
@@ -9805,6 +9833,8 @@ fn autosave_not_now(doc: &Document, skip_errors: bool) -> Option<&'static str> {
 }
 
 fn note_saved_to(doc: &mut Document, path: &Path) {
+    // So the Files changing panel says the change that follows is the person's.
+    crate::files_changing::note_own_write(path);
     match &doc.remote {
         Some(link) if same_path(&link.local, path) => doc.upload_wanted = true,
         Some(_) => doc.remote = None,
@@ -10499,6 +10529,8 @@ mod lsp_host;
 mod tasks_host;
 #[path = "compose_host.rs"]
 mod compose_host;
+#[path = "files_changing_host.rs"]
+mod files_changing_host;
 
 #[path = "tests_host.rs"]
 mod tests_host;
@@ -10523,6 +10555,9 @@ mod live_host;
 
 #[path = "git_host.rs"]
 mod git_host;
+
+#[path = "claude_ide_host.rs"]
+mod claude_ide_host;
 
 #[path = "compare_host.rs"]
 pub(crate) mod compare_host;

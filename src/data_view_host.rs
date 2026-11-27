@@ -112,6 +112,7 @@ impl Limoniter {
         let text = crate::data_view::to_csv(&sheet.table, &sheet.rows);
         match std::fs::write(&path, text) {
             Ok(()) => {
+                crate::files_changing::note_own_write(&path);
                 self.print_status = crate::i18n::tf!("Saved {} as CSV.", path.display());
                 true
             }

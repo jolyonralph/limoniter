@@ -179,6 +179,8 @@ M medium, L large. **From** says where the idea came from.
 
 | Idea | Version |
 |---|---|
+| Claude Code in Limoniter's terminal works with Limoniter as it does with VS Code: its edits open as a review (Accept, Reject, or edit first), the selection and the language servers' problems are sent, and Edit, Mention in Claude Code adds a file and lines to its prompt; also from Windows into WSL | Next |
+| Files changing panel: the project's files as they change, newest first, You or an agent or Elsewhere | Next |
 | Installing limoniter-retro and a core from F9's box; changing or forgetting where F9 runs a machine (Devices and emulators); New Amiga C project in File, New as, Amiga | 0.17.1 |
 | Emulators embedded in Limoniter's window: libretro cores (Fuse, VICE, PUAE, Genesis Plus GX, PicoDrive, Stella and more) run by the separate GPL helper limoniter-retro, drawn in a docked panel with keys, joypad and mouse, Reset, Save and Load state and a memory view; cores and the helper from Get an emulator; F9's Run on offers each machine in Limoniter's window | 0.17 |
 | Project and Functions stacked in one strip: View, Panels, Stack Project and Functions (and a right-click on either panel's title), with a divider to drag, its place kept | 0.17 |

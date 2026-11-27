@@ -176,7 +176,17 @@ fn shell() -> CommandBuilder {
 impl Terminal {
     /// Starts a shell of the kind chosen, in a folder, on a screen of so many rows and columns.
     pub fn start_shell(shell: &Shell, folder: &Path, rows: u16, cols: u16) -> Result<Terminal, String> {
-        let mut terminal = Self::start_with(shell.command(folder), folder, rows, cols)?;
+        let mut command = shell.command(folder);
+        let wsl = match shell {
+            Shell::Wsl(name) => Some(name.as_str()),
+            _ => None,
+        };
+        crate::claude_ide::note_terminal(wsl);
+        // A `claude` run in it finds Limoniter by itself.
+        for (name, value) in crate::claude_ide::terminal_env(wsl.is_some(), std::env::var("WSLENV").ok().as_deref()) {
+            command.env(name, value);
+        }
+        let mut terminal = Self::start_with(command, folder, rows, cols)?;
         terminal.shell = shell.clone();
         Ok(terminal)
     }

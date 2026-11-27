@@ -74,6 +74,8 @@ ureq = "3"
 iced-x86 = { version = "1.22.0", default-features = false, features = ["std", "decoder", "nasm", "instr_info", "encoder", "op_code_info"] }
 yaxpeax-arm = { version = "0.5.0", default-features = false, features = ["std", "fmt"] }
 yaxpeax-arch = { version = "0.3.3", default-features = false, features = ["std"] }
+tungstenite = "0.30.0"
+notify = "9.0.0"
 
 [profile.dev.package."*"]
 opt-level = 2
