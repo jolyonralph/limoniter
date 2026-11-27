@@ -96,6 +96,8 @@ pub(super) struct Running {
     pub compiled: super::compile_host::Compiling,
     /// The Atari ST's side: a profile asked for, profiled runs going on, and the last profile (see `st_host`).
     pub st: super::st_host::StRuns,
+    /// The helper and core being installed from the Where box, and what's said about it.
+    pub install: super::retro_host::Install,
 }
 
 impl Running {
@@ -111,14 +113,32 @@ impl Running {
         runs + assemblers.as_str()
     }
 
-    fn default_for(&self, machine: Machine) -> Option<&str> {
+    pub(super) fn default_for(&self, machine: Machine) -> Option<&str> {
         self.defaults.iter().find(|(id, _)| id == machine.id()).map(|(_, target)| target.as_str())
     }
 
-    fn set_default(&mut self, machine: Machine, target: &str) {
+    pub(super) fn set_default(&mut self, machine: Machine, target: &str) {
         self.defaults.retain(|(id, _)| id != machine.id());
         self.defaults.push((machine.id().to_string(), target.to_string()));
     }
+
+    /// Lets go of where a machine's programs were remembered to run, so F9 asks again. By the machine's id,
+    /// since a machine from an older settings file may no longer be known.
+    pub(super) fn forget_default(&mut self, machine_id: &str) {
+        self.defaults.retain(|(id, _)| id != machine_id);
+    }
+}
+
+/// A machine whose place F9 runs its programs is remembered, as Devices and emulators lists it.
+pub(super) struct DefaultRow {
+    /// The machine's id in the settings file.
+    pub id: String,
+    pub machine_name: String,
+    /// The remembered place's name, and whether it's still there.
+    pub target: String,
+    pub exists: bool,
+    /// The names of the places that could take its programs instead.
+    pub options: Vec<String>,
 }
 
 /// The box asking where to run something, or which machine's BASIC a text is.
@@ -319,6 +339,57 @@ impl Limoniter {
         }
         all.extend((0..self.sends.devices.len()).map(|n| (Target::Device(n), self.sends.devices[n].name.clone(), self.suits(Target::Device(n), run))));
         all
+    }
+
+    /// The places that suit a kind of machine's programs, whatever the file: for changing what F9 remembers, where
+    /// there's no file to ask `suits` about. Each is a target and its name.
+    pub(super) fn targets_for_machine(&self, machine: Machine) -> Vec<(Target, String)> {
+        let mut all: Vec<(Target, bool)> = vec![
+            (Target::BuiltIn, matches!(machine, Machine::Spectrum48 | Machine::Spectrum128 | Machine::OpticOs)),
+            (Target::BuiltIn2600, machine == Machine::Atari2600),
+            (Target::BuiltInVectrex, machine == Machine::Vectrex),
+            (Target::Zx80, machine == Machine::Zx80),
+            (Target::Zx81, machine == Machine::Zx81),
+            (Target::Ace, machine == Machine::JupiterAce),
+        ];
+        all.extend(super::teaching_host::MACHINES.iter().map(|(m, _)| (Target::Teaching(*m), *m == machine)));
+        all.push((Target::Retro(machine), crate::retro::core_for(machine).is_some()));
+        for (n, device) in self.sends.devices.iter().enumerate() {
+            let suits = match &device.place {
+                Place::Emulator { emulator, .. } => emulators::by_id(emulator).is_some_and(|known| known.machines.contains(&machine)),
+                Place::NextSync { .. } | Place::NextCable { .. } => machine == Machine::Next || machine.is_classic_spectrum(),
+                Place::Ultimate { .. } => machine == Machine::C64,
+                _ => false,
+            };
+            all.push((Target::Device(n), suits));
+        }
+        all.into_iter().filter(|(_, suits)| *suits).map(|(target, _)| (target, self.target_name(target))).collect()
+    }
+
+    /// What F9 remembers, a row for each machine, for Devices and emulators to list.
+    pub(super) fn default_rows(&self) -> Vec<DefaultRow> {
+        self.running
+            .defaults
+            .iter()
+            .map(|(id, target)| {
+                let machine = Machine::from_id(id);
+                DefaultRow { id: id.clone(), machine_name: machine.map_or_else(|| id.clone(), |m| m.name().to_string()), target: target.clone(), exists: self.target_named(target).is_some(), options: machine.map(|m| self.targets_for_machine(m).into_iter().map(|(_, name)| name).collect()).unwrap_or_default() }
+            })
+            .collect()
+    }
+
+    /// Changes where F9 runs a kind of machine's programs, to a target by name, and keeps the choice.
+    pub(super) fn change_default(&mut self, machine_id: &str, target: &str) {
+        if let Some(machine) = Machine::from_id(machine_id) {
+            self.running.set_default(machine, target);
+            self.save_settings_if_changed();
+        }
+    }
+
+    /// Lets F9 forget where a kind of machine's programs run, so it asks next time.
+    pub(super) fn forget_default(&mut self, machine_id: &str) {
+        self.running.forget_default(machine_id);
+        self.save_settings_if_changed();
     }
 
     /// Run on machine (F9): runs the file in front where its kind of program runs, asking the first time.
@@ -1228,12 +1299,18 @@ impl Limoniter {
 
     /// The box asking where to run something, or which machine's BASIC a text is.
     pub(super) fn run_dialog(&mut self, ctx: &Context) -> bool {
+        if !matches!(self.dialog, Dialog::Run(_)) {
+            return false;
+        }
+        if self.running.install.poll() {
+            ctx.request_repaint_after(Duration::from_millis(250));
+        }
         let Dialog::Run(state) = &self.dialog else {
             return false;
         };
         // What's shown, read first, so the box can be drawn and then acted on.
         let shown = match state.as_ref() {
-            RunBox::Where { runnable, remember, .. } => Some((runnable.name.clone(), runnable.machine, self.targets_for(runnable), *remember)),
+            RunBox::Where { runnable, remember, .. } => Some((runnable.name.clone(), runnable.machine, self.targets_for(runnable), *remember, crate::retro::missing(runnable.machine, runnable))),
             RunBox::Which { .. } | RunBox::Which6502 { .. } => None,
         };
         let which_6502 = matches!(state.as_ref(), RunBox::Which6502 { .. });
@@ -1242,9 +1319,12 @@ impl Limoniter {
         let mut go: Option<Target> = None;
         let mut as_listing: Option<basic::Machine> = None;
         let mut manage = false;
-        let mut keep = shown.as_ref().is_some_and(|(.., remember)| *remember);
+        let mut keep = shown.as_ref().is_some_and(|(_, _, _, remember, _)| *remember);
+        let installing = self.running.install.busy();
+        let install_note = self.running.install.note.clone();
+        let mut install: Option<crate::retro::Missing> = None;
         crate::fit::Dialog::new(crate::i18n::tr("Run on machine")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| match &shown {
-            Some((file, machine, targets, _)) => {
+            Some((file, machine, targets, _, missing)) => {
                 ui.label(crate::i18n::tf!("Where should {file} run? It's a {} program.", machine.name()));
                 ui.add_space(6.0);
                 let mut any = false;
@@ -1257,9 +1337,30 @@ impl Limoniter {
                             }
                         }
                         Err(why) => {
-                            ui.add_enabled(false, egui::Button::new(name.as_str())).on_disabled_hover_text(why.as_str());
+                            // A machine in Limoniter's window that only lacks a download gets a button for it.
+                            let button = match (target, missing) {
+                                (Target::Retro(_), Some(missing)) => missing.button().map(|words| (*missing, words)),
+                                _ => None,
+                            };
+                            ui.horizontal(|ui| {
+                                ui.add_enabled(false, egui::Button::new(name.as_str())).on_disabled_hover_text(why.as_str());
+                                if let Some((missing, words)) = button
+                                    && ui.add_enabled(!installing, egui::Button::new(words)).on_hover_text(crate::i18n::tr("Downloads it, as Get an emulator does, under Devices and emulators")).clicked()
+                                {
+                                    install = Some(missing);
+                                }
+                            });
                         }
                     }
+                }
+                if installing {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(crate::i18n::tr("Downloading\u{2026}"));
+                    });
+                }
+                if !install_note.is_empty() {
+                    ui.add(egui::Label::new(RichText::new(install_note.as_str()).color(theme::text_dim())).wrap());
                 }
                 if !any {
                     let suggestions: Vec<String> = emulators::KNOWN.iter().filter(|e| e.machines.contains(machine)).map(|e| format!("{} ({})", e.name, e.website)).collect();
@@ -1320,6 +1421,9 @@ impl Limoniter {
         let Dialog::Run(state) = std::mem::replace(&mut self.dialog, Dialog::None) else {
             return true;
         };
+        if let Some(missing) = install {
+            self.running.install.start(missing);
+        }
         match *state {
             _ if manage => self.open_devices_box(),
             RunBox::Which { doc_id } if as_listing.is_some() => {

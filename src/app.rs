@@ -8677,6 +8677,13 @@ impl Limoniter {
                     self.run_on_target(run_host::Target::BuiltIn);
                     self.run_until_stopped_for_screenshot();
                 }
+                // The Where box for a Spectrum program, whose machine in Limoniter's window lacks its downloads.
+                "run-where" => {
+                    self.new_document();
+                    self.doc().text.set_content(vec!["10 PRINT \"HI\"".to_string()]);
+                    self.doc().listing_of = Some((basic::Machine::Spectrum, String::new()));
+                    self.run_on_machine();
+                }
                 // A cartridge, or source that builds one, run on the built-in 2600 for a number of frames.
                 "run-2600" => {
                     highlight::load_now();
@@ -9009,7 +9016,7 @@ impl Limoniter {
                         }
                     }
                 }
-                "devices" | "devices-xroar" | "send" => {
+                "devices" | "devices-xroar" | "devices-f9" | "send" => {
                     use crate::deploy::{Device, Place};
                     self.sends.devices = vec![
                         Device { name: "Gotek".into(), place: Place::Card { label: "GOTEK".into(), folder: "GAMES/WIP".into() }, preset: None, eject: true },
@@ -9018,13 +9025,16 @@ impl Limoniter {
                         Device { name: "MiSTer".into(), place: Place::Sftp { address: "sftp://root@mister/media/fat/games/C64".into(), key_file: String::new() }, preset: None, eject: false },
                         Device { name: "VICE".into(), place: Place::Command { line: "x64sc -autostart {file}".into() }, preset: Some("commodore".into()), eject: false },
                     ];
+                    if step == "devices-f9" {
+                        self.running.defaults = vec![("spectrum48".into(), run_host::BUILT_IN_NAME.into()), ("c64".into(), "VICE".into()), ("amiga".into(), "FS-UAE".into())];
+                    }
                     if step == "devices-xroar" {
                         self.sends.devices.push(Device { name: "XRoar".into(), place: Place::Emulator { emulator: "xroar".into(), program: "/usr/bin/xroar".into(), options: String::new() }, preset: None, eject: false });
                     }
                     if step != "send" {
                         self.open_devices_box();
                         if let Dialog::Devices(state) = &mut self.dialog {
-                            state.selected = if step == "devices" { 1 } else { 5 };
+                            state.selected = if step == "devices" || step == "devices-f9" { 1 } else { 5 };
                         }
                     } else {
                         self.open_send_box(2);

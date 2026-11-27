@@ -320,6 +320,65 @@ pub fn prepared(run: &Runnable) -> Runnable {
     run.clone()
 }
 
+/// What stops a machine's programs running in Limoniter's window only because it hasn't been downloaded yet.
+#[derive(Clone, Copy)]
+pub struct Missing {
+    /// The helper, limoniter-retro, isn't here.
+    pub helper: bool,
+    /// The core that takes the program isn't here.
+    pub core: Option<&'static Core>,
+}
+
+impl Missing {
+    /// The words on the button that downloads it, or none where this computer has no download for it.
+    pub fn button(&self) -> Option<String> {
+        self.button_for(std::env::consts::OS, std::env::consts::ARCH)
+    }
+
+    #[cfg(test)]
+    pub fn button_for_tests(&self, os: &str, arch: &str) -> Option<String> {
+        self.button_for(os, arch)
+    }
+
+    fn button_for(&self, os: &str, arch: &str) -> Option<String> {
+        if self.helper && helper_asset(os, arch).is_none() {
+            return None;
+        }
+        if let Some(core) = self.core
+            && core_address(core.core, os, arch).is_none()
+        {
+            return None;
+        }
+        match (self.helper, self.core) {
+            (true, Some(core)) => Some(crate::i18n::tf!("Install limoniter-retro and the {} core", core.name)),
+            (false, Some(core)) => Some(crate::i18n::tf!("Install the {} core", core.name)),
+            (true, None) => Some(crate::i18n::tr("Install limoniter-retro").into()),
+            (false, None) => None,
+        }
+    }
+}
+
+/// What's missing for a program to run in Limoniter's window, when that's all that stops it.
+pub fn missing(machine: Machine, run: &Runnable) -> Option<Missing> {
+    missing_with(machine, run, find_helper().is_some(), |core| installed_core(core).is_some())
+}
+
+#[cfg(test)]
+pub fn missing_with_for_tests(machine: Machine, run: &Runnable, helper_here: bool, core_here: impl Fn(&str) -> bool) -> Option<Missing> {
+    missing_with(machine, run, helper_here, core_here)
+}
+
+fn missing_with(machine: Machine, run: &Runnable, helper_here: bool, core_here: impl Fn(&str) -> bool) -> Option<Missing> {
+    let run = &prepared(run);
+    if run.machine != machine {
+        return None;
+    }
+    let first = cores_for(machine).find(|c| c.formats.contains(&run.format))?;
+    let core = if cores_for(machine).any(|c| c.formats.contains(&run.format) && core_here(c.core)) { None } else { Some(first) };
+    let missing = Missing { helper: !helper_here, core };
+    (missing.helper || missing.core.is_some()).then_some(missing)
+}
+
 /// Whether a machine's programs can be run in Limoniter's window; if not, why not, in words that say what to do.
 pub fn takes(machine: Machine, run: &Runnable) -> Result<&'static Core, String> {
     let run = &prepared(run);

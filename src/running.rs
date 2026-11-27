@@ -184,6 +184,14 @@ impl Machine {
         }
     }
 
+    /// Every machine, for finding one by the name it's kept under in the settings file.
+    pub const ALL: [Machine; 46] = [Machine::Spectrum48, Machine::Spectrum128, Machine::SpectrumPlus3, Machine::Pentagon, Machine::Next, Machine::C64, Machine::C128, Machine::Vic20, Machine::Plus4, Machine::Pet, Machine::Bbc, Machine::Msx, Machine::Cpc, Machine::AtariSt, Machine::CoCo, Machine::OpticOs, Machine::Amiga, Machine::Atari2600, Machine::Pc, Machine::Dragon32, Machine::Dragon64, Machine::Vectrex, Machine::MegaDrive, Machine::MasterSystem, Machine::GameGear, Machine::Sg1000, Machine::ColecoVision, Machine::Pico8, Machine::Tic80, Machine::RgcBasic, Machine::GameBoy, Machine::Nes, Machine::Zx80, Machine::Zx81, Machine::JupiterAce, Machine::Ssem, Machine::Edsac, Machine::Pdp8, Machine::Ql, Machine::Apple2, Machine::Atari8, Machine::Atari7800, Machine::Snes, Machine::Cpm, Machine::Agon, Machine::Neo6502];
+
+    /// The machine kept in the settings file under this name, if there still is one.
+    pub fn from_id(id: &str) -> Option<Machine> {
+        Machine::ALL.into_iter().find(|machine| machine.id() == id)
+    }
+
     /// A Spectrum of the kind the built-in machine, and any Spectrum emulator, runs.
     pub fn is_classic_spectrum(self) -> bool {
         matches!(self, Machine::Spectrum48 | Machine::Spectrum128 | Machine::SpectrumPlus3 | Machine::Pentagon)
@@ -841,6 +849,19 @@ fn bbc_booting(name: &str, program: &[u8], load: u32, exec: u32, boot: &str) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_machine_is_found_again_by_its_id() {
+        for machine in Machine::ALL {
+            assert_eq!(Machine::from_id(machine.id()), Some(machine));
+        }
+        assert_eq!(Machine::from_id("no such machine"), None);
+        // An id of one machine is never another's.
+        let mut ids: Vec<&str> = Machine::ALL.iter().map(|m| m.id()).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), Machine::ALL.len());
+    }
 
     #[test]
     fn files_say_which_machine_they_are_for() {

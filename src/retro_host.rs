@@ -518,6 +518,70 @@ pub(super) struct Getting {
     pub note: String,
 }
 
+/// Installing what's missing from Run on machine's box, off the UI thread, and what's said about it.
+#[derive(Default)]
+pub(super) struct Install {
+    going: Option<std::sync::mpsc::Receiver<Result<(), String>>>,
+    pub note: String,
+}
+
+/// Downloads the helper if it's missing, then the core if that is, stopping at the first thing that goes wrong.
+/// The two downloads are given in, so that a test can stand in for them.
+fn install_job(missing: retro::Missing, helper: impl FnOnce() -> Result<PathBuf, String>, core: impl FnOnce(&str) -> Result<PathBuf, String>) -> Result<(), String> {
+    if missing.helper {
+        helper()?;
+    }
+    if let Some(wanted) = missing.core {
+        core(wanted.core)?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+pub(super) fn install_job_for_tests(missing: retro::Missing, helper: impl FnOnce() -> Result<PathBuf, String>, core: impl FnOnce(&str) -> Result<PathBuf, String>) -> Result<(), String> {
+    install_job(missing, helper, core)
+}
+
+impl Install {
+    #[cfg(test)]
+    pub fn start_for_tests(&mut self, job: impl FnOnce() -> Result<(), String> + Send + 'static) {
+        self.start_with(job);
+    }
+
+    pub fn busy(&self) -> bool {
+        self.going.is_some()
+    }
+
+    /// Starts downloading what's missing, using the same downloads as Get an emulator.
+    pub fn start(&mut self, missing: retro::Missing) {
+        self.start_with(move || install_job(missing, retro::download_helper, retro::download_core));
+    }
+
+    fn start_with(&mut self, job: impl FnOnce() -> Result<(), String> + Send + 'static) {
+        if self.busy() {
+            return;
+        }
+        let (send, receive) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = send.send(job());
+        });
+        self.going = Some(receive);
+        self.note.clear();
+    }
+
+    /// Takes in a download that has finished, if one has. Whether one is still going.
+    pub fn poll(&mut self) -> bool {
+        if let Some(result) = self.going.as_ref().and_then(|r| r.try_recv().ok()) {
+            self.going = None;
+            self.note = match result {
+                Ok(()) => crate::i18n::tr("It's installed. Its choice can be used now.").to_string(),
+                Err(problem) => problem,
+            };
+        }
+        self.busy()
+    }
+}
+
 /// What the person asked for in Get an emulator's cores.
 pub(super) enum GetAsk {
     ChooseHelper,

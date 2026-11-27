@@ -51,6 +51,7 @@
       </div>
       <nav class="contents" aria-label="Releases">
         <ul>
+<li><a href="#v0-17-1">0.17.1</a></li>
 <li><a href="#v0-17-0">0.17.0</a></li>
 <li><a href="#v0-16-4">0.16.4</a></li>
 <li><a href="#v0-16-3">0.16.3</a></li>
@@ -75,6 +76,15 @@
 <li><a href="#v0-5-0">0.5.0</a></li>
         </ul>
       </nav>
+<h2 id="v0-17-1">0.17.1</h2>
+<p class="released">Released 27 November 2026.</p>
+<p>Limoniter 0.17.1 lets you install an emulator for Limoniter's window straight from F9, lets you change what F9 remembers, and offers a new Amiga C project from File, New as.</p>
+<h3>Emulators in Limoniter's window</h3>
+<ul><li><strong>Install from F9</strong>: when a machine's "in Limoniter's window" choice is greyed out because limoniter-retro or its core isn't downloaded, the <strong>Run on machine</strong> box has a button that downloads what's missing in one go ("Install limoniter-retro and the PUAE core").</li></ul>
+<h3>F9</h3>
+<ul><li><strong>Where F9 runs programs</strong>, in Devices and emulators: each machine F9 remembers, with <strong>Change</strong> and <strong>Forget</strong>. Before, undoing "Always run there" meant editing the settings file.</li></ul>
+<h3>And</h3>
+<ul><li><strong>File, New as, Amiga</strong> offers <strong>New Amiga C project…</strong> beside the single files.</li></ul>
 <h2 id="v0-17-0">0.17.0</h2>
 <p class="released">Released 27 November 2026.</p>
 <p>Limoniter 0.17.0 runs emulators inside its own window, adds an SSH terminal, groups the Functions panel by class, and gives F9 three more machines: CP/M, the Agon Light and the Neo6502.</p>
@@ -116,12 +126,7 @@
 <h2 id="v0-16-1">0.16.1</h2>
 <p class="released">Released 22 November 2026.</p>
 <p>Limoniter 0.16.1 gives projects a settings window of their own, reads VS Code's project settings, colours CSV columns and queries their rows, checks the spelling in code, and can put the tabs down the side, with a toolbar of your own buttons.</p>
-<h3>Projects</h3>
-<ul><li><strong>Project settings</strong>: one window, from the gear on the Project panel or File, Project, Project settings, for everything a project keeps:<ul><li>files and folders to hide, or to leave out of search and Go to file;</li><li>the indent, line endings, encoding and formatter;</li><li>autosave;</li><li>the <code>.env</code> file, the Python environment and the working folder;</li><li>which language servers run;</li><li>file colours and templates;</li><li>only what you change is written, in the <code>.limproj</code> or in <code>.limoniter/project.json</code>, so it can go into Git.</li></ul></li><li><strong>VS Code's project settings</strong>: a folder's <code>.vscode</code> is read as VS Code reads it:<ul><li><code>settings.json</code> gives the project its exclusions, indent, formatters, autosave and the rest;</li><li><code>tasks.json</code> adds its tasks, and <code>launch.json</code> its debug setups;</li><li>the extensions it recommends are offered;</li><li><code>.code-workspace</code> files open as projects;</li><li>Import into Limoniter makes them the project's own.</li></ul></li><li><strong>The recency slider</strong> now hides git-ignored files too, and counts a new file as the newest at once.</li></ul>
-<h3>Editing</h3>
-<ul><li><strong>Rainbow CSV</strong>: each column of a CSV or TSV file in its own colour in the text view. <strong>Query the rows</strong> asks for some of them in SQL's words (<code>SELECT</code>, <code>WHERE</code>, <code>GROUP BY</code>, <code>ORDER BY</code>, <code>COUNT</code>, <code>SUM</code>…), and the answer opens in the data viewer, worked out in the background.</li><li><strong>Spell checking for code</strong>: only comments and strings, and if you like the words in names (<code>getHTTPResponse</code> is get, HTTP, Response), with a word list kept per project and the words programmers use already known.</li><li><strong>Tabs down the side</strong>, grouped by folder, and a <strong>toolbar</strong> under the menus with the buttons you choose.</li></ul>
-<h3>Web</h3>
-<ul><li><strong>ESLint</strong> runs beside the TypeScript server in projects that use it, with its fixes in Quick fix.</li><li><strong>Debug an npm script</strong> from Tools, Tasks or the Debug link beside each script in <code>package.json</code>.</li><li>Autosave's "when another tab or panel is chosen" now notices the Explorer, Search, Output and the terminal too.</li></ul>
+<p><a href="https://github.com/jolyonralph/limoniter/releases/tag/v0.16.1">All that was new in 0.16.1</a></p>
 <h2 id="v0-16-0">0.16.0</h2>
 <p class="released">Released 22 November 2026.</p>
 <p>Limoniter 0.16 is a release for modern coding: Jupyter notebooks, Python and R as their users expect them, Node and React, PHP's own tools, a data viewer, a database browser, one Tests panel, <code>.http</code> request files and Docker Compose, each built on the language servers, debugger and tasks Limoniter already has.</p>

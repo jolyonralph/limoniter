@@ -11138,3 +11138,14 @@ protocol	protocollo
 {} needs {needs}, in {system}.	{} ha bisogno di {needs}, in {system}.
 {}, in Limoniter's window	{}, nella finestra di Limoniter
 {}. It needs {needs}, in the system folder: {}	{}. Ha bisogno di {needs}, nella cartella di sistema: {}
+Install limoniter-retro and the {} core	Installa limoniter-retro e il core {}
+Install the {} core	Installa il core {}
+Install limoniter-retro	Installa limoniter-retro
+Downloads it, as Get an emulator does, under Devices and emulators	Lo scarica, come Ottieni un emulatore, in Dispositivi ed emulatori
+It's installed. Its choice can be used now.	È installato. Ora si può usare questa scelta.
+{why} F9's Run on machine box can install it.	{why} La finestra Esegui sulla macchina (F9) può installarlo.
+Where F9 runs programs	Dove F9 esegue i programmi
+F9 asks the first time, and remembers if you tick Always run programs there.	F9 chiede la prima volta, e lo ricorda se spunti Esegui sempre lì i programmi.
+{} (no longer set up)	{} (non più configurato)
+Nothing set up runs these programs.	Nulla di quanto configurato esegue questi programmi.
+F9 asks where to run these programs next time	F9 chiederà la prossima volta dove eseguire questi programmi

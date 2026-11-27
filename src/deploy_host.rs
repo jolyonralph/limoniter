@@ -590,6 +590,9 @@ impl Limoniter {
             return false;
         }
         let drives: Vec<deploy::Drive> = self.sends.drives().unwrap_or_default();
+        let remembered = self.default_rows();
+        let mut f9_change: Option<(String, String)> = None;
+        let mut f9_forget: Option<String> = None;
         let Dialog::Devices(state) = &mut self.dialog else {
             return false;
         };
@@ -625,6 +628,35 @@ impl Limoniter {
         crate::fit::Dialog::new(crate::i18n::tr("Devices")).collapsible(false).resizable(false).default_width(640.0).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show_with_buttons(ctx, |ui, part| match part {
             crate::fit::Part::Body => {
                 ui.label(crate::i18n::tr("Places File, Send to device sends a copy of a file to, and the emulators and machines Run on machine (F9) runs programs on. The file goes on saving where it always does."));
+                ui.separator();
+                ui.label(RichText::new(crate::i18n::tr("Where F9 runs programs")).strong());
+                if remembered.is_empty() {
+                    ui.label(RichText::new(crate::i18n::tr("F9 asks the first time, and remembers if you tick Always run programs there.")).color(theme::text_faint()));
+                }
+                for row in &remembered {
+                    ui.horizontal(|ui| {
+                        ui.label(row.machine_name.as_str());
+                        if row.exists {
+                            ui.label(RichText::new(row.target.as_str()).color(theme::text_dim()));
+                        } else {
+                            ui.label(RichText::new(crate::i18n::tf!("{} (no longer set up)", row.target)).color(theme::rainbow_mistake()));
+                        }
+                        crate::fit::menu_button(ui, crate::i18n::tr("Change"), |ui| {
+                            if row.options.is_empty() {
+                                ui.label(crate::i18n::tr("Nothing set up runs these programs."));
+                            }
+                            for option in &row.options {
+                                if ui.selectable_label(*option == row.target, option.as_str()).clicked() {
+                                    f9_change = Some((row.id.clone(), option.clone()));
+                                    ui.close();
+                                }
+                            }
+                        });
+                        if ui.button(crate::i18n::tr("Forget")).on_hover_text(crate::i18n::tr("F9 asks where to run these programs next time")).clicked() {
+                            f9_forget = Some(row.id.clone());
+                        }
+                    });
+                }
                 ui.separator();
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
@@ -754,6 +786,12 @@ impl Limoniter {
                 });
             }
         });
+        if let Some((machine, target)) = f9_change {
+            self.change_default(&machine, &target);
+        }
+        if let Some(machine) = f9_forget {
+            self.forget_default(&machine);
+        }
         if choose_helper
             && let Some(said) = self.choose_retro_helper()
             && let Dialog::Devices(state) = &mut self.dialog

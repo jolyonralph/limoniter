@@ -1842,6 +1842,8 @@ impl Limoniter {
                     let suits = runnable.as_ref().map(|run| self.suits(target, run));
                     let button = ui.add_enabled(!matches!(suits, Some(Err(_))), Button::new(name));
                     let button = match &suits {
+                        // A machine in Limoniter's window that lacks only a download can be installed from F9's box.
+                        Some(Err(why)) if matches!(target, super::run_host::Target::Retro(_)) && runnable.as_ref().and_then(|run| crate::retro::missing(run.machine, run)).is_some_and(|missing| missing.button().is_some()) => button.on_disabled_hover_text(crate::i18n::tf!("{why} F9's Run on machine box can install it.")),
                         Some(Err(why)) => button.on_disabled_hover_text(why.as_str()),
                         _ => button,
                     };

@@ -1316,3 +1316,124 @@ fn cpm_source_runs_in_runcpm_from_a_drive_folder() {
     assert!(app.terminal.is_some(), "in the Terminal panel");
     let _ = std::fs::remove_dir_all(&folder);
 }
+
+// F9's remembered places: forgetting, changing, and the install button in the Where box.
+
+/// A Spectrum BASIC listing run with F9, with whatever is remembered for it already set.
+fn spectrum_f9(settings: &str) -> Limoniter {
+    let (mut app, _ctx) = app_with(settings);
+    listing(&mut app, &["10 PRINT \"HI\""], basic::Machine::Spectrum);
+    app
+}
+
+#[test]
+fn forgetting_a_remembered_place_makes_f9_ask_again() {
+    let mut app = spectrum_f9("run_on=spectrum48\u{1}Built-in Spectrum\n");
+    app.run_on_machine();
+    assert!(matches!(app.dialog, Dialog::None), "it's remembered, so it doesn't ask");
+    app.stop_all_sessions();
+    app.forget_default("spectrum48");
+    assert!(app.running.defaults.is_empty());
+    app.run_on_machine();
+    assert!(matches!(&app.dialog, Dialog::Run(b) if matches!(b.as_ref(), run_host::RunBox::Where { .. })), "it asks where");
+    assert!(app.running.sessions.is_empty());
+}
+
+#[test]
+fn changing_a_remembered_place_makes_f9_use_the_new_one() {
+    // The place remembered is one that's gone, so F9 asks until it's changed.
+    let mut app = spectrum_f9("run_on=spectrum48\u{1}Somewhere that's gone\n");
+    let rows = app.default_rows();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].machine_name, "ZX Spectrum 48K");
+    assert!(!rows[0].exists, "it says the place no longer exists");
+    assert!(rows[0].options.iter().any(|name| name == run_host::BUILT_IN_NAME), "{:?}", rows[0].options);
+    app.run_on_machine();
+    assert!(matches!(app.dialog, Dialog::Run(_)));
+    app.close_dialog();
+    app.change_default("spectrum48", run_host::BUILT_IN_NAME);
+    assert_eq!(app.running.defaults, vec![("spectrum48".to_string(), run_host::BUILT_IN_NAME.to_string())]);
+    app.run_on_machine();
+    assert!(matches!(app.dialog, Dialog::None));
+    assert!(app.running.sessions.iter().any(|s| s.target == run_host::BUILT_IN_NAME));
+    app.stop_all_sessions();
+}
+
+#[test]
+fn the_places_offered_for_a_machine_are_those_that_suit_it() {
+    let (mut app, _ctx) = app_with("");
+    app.sends.devices = vec![
+        Device { name: "Fuse".into(), place: Place::Emulator { emulator: "fuse".into(), program: "/usr/bin/fuse".into(), options: String::new() }, preset: None, eject: false },
+        Device { name: "FS-UAE".into(), place: Place::Emulator { emulator: "fs-uae".into(), program: "/usr/bin/fs-uae".into(), options: String::new() }, preset: None, eject: false },
+        Device { name: "A card".into(), place: Place::Card { label: "X".into(), folder: String::new() }, preset: None, eject: false },
+    ];
+    let names = |machine| app.targets_for_machine(machine).into_iter().map(|(_, name)| name).collect::<Vec<_>>();
+    let amiga = names(crate::running::Machine::Amiga);
+    assert!(amiga.contains(&"FS-UAE".to_string()) && !amiga.contains(&"Fuse".to_string()) && !amiga.contains(&"A card".to_string()), "{amiga:?}");
+    assert!(amiga.contains(&crate::retro::target_name(crate::running::Machine::Amiga)));
+    let spectrum = names(crate::running::Machine::Spectrum48);
+    assert!(spectrum.contains(&"Fuse".to_string()) && spectrum.contains(&run_host::BUILT_IN_NAME.to_string()));
+}
+
+#[test]
+fn the_settings_are_kept_without_a_forgotten_place() {
+    let mut app = spectrum_f9("run_on=spectrum48\u{1}Built-in Spectrum\nrun_on=amiga\u{1}FS-UAE\n");
+    app.forget_default("amiga");
+    let saved = app.running.to_settings();
+    assert!(saved.contains("run_on=spectrum48\u{1}Built-in Spectrum"));
+    assert!(!saved.contains("amiga"));
+    let again = run_host::Running::from_settings(&saved);
+    assert_eq!(again.defaults, vec![("spectrum48".to_string(), run_host::BUILT_IN_NAME.to_string())]);
+}
+
+#[test]
+fn the_install_button_is_named_for_what_it_gets() {
+    use crate::retro;
+    use crate::running::Runnable;
+    use crate::running::Machine;
+    let amiga = Runnable { machine: Machine::Amiga, format: crate::running::Format::Adf, name: "game.adf".into(), bytes: std::sync::Arc::new(vec![0; 16]) };
+    let puae = retro::core_for(Machine::Amiga).unwrap();
+    // Neither here, only the core missing, only the helper missing, nothing missing.
+    let both = retro::missing_with_for_tests(Machine::Amiga, &amiga, false, |_| false).unwrap();
+    assert!(both.helper && both.core.is_some_and(|c| c.core == puae.core));
+    assert_eq!(both.button_for_tests("linux", "x86_64").unwrap(), "Install limoniter-retro and the PUAE core");
+    let core = retro::missing_with_for_tests(Machine::Amiga, &amiga, true, |_| false).unwrap();
+    assert!(!core.helper);
+    assert_eq!(core.button_for_tests("windows", "x86_64").unwrap(), "Install the PUAE core");
+    let helper = retro::missing_with_for_tests(Machine::Amiga, &amiga, false, |c| c == "puae").unwrap();
+    assert!(helper.core.is_none());
+    assert_eq!(helper.button_for_tests("linux", "x86_64").unwrap(), "Install limoniter-retro");
+    assert!(retro::missing_with_for_tests(Machine::Amiga, &amiga, true, |c| c == "puae").is_none());
+    // Not for another kind of file, or where this computer has no download.
+    let wrong = Runnable { format: crate::running::Format::Tap, ..amiga.clone() };
+    assert!(retro::missing_with_for_tests(Machine::Amiga, &wrong, false, |_| false).is_none());
+    assert!(both.button_for_tests("freebsd", "x86_64").is_none());
+}
+
+#[test]
+fn installing_downloads_what_is_missing_in_one_go_and_says_how_it_went() {
+    use crate::retro::Missing;
+    use std::cell::RefCell;
+    let core = crate::retro::core_for(crate::running::Machine::Amiga);
+    let seen = RefCell::new(Vec::new());
+    let both = Missing { helper: true, core };
+    let done = retro_host::install_job_for_tests(both, || { seen.borrow_mut().push("helper".to_string()); Ok("h".into()) }, |c| { seen.borrow_mut().push(c.to_string()); Ok("c".into()) });
+    assert!(done.is_ok());
+    assert_eq!(*seen.borrow(), ["helper", "puae"]);
+    // A helper that fails stops the core being fetched, and says why.
+    seen.borrow_mut().clear();
+    let failed = retro_host::install_job_for_tests(both, || Err("No network.".to_string()), |c| { seen.borrow_mut().push(c.to_string()); Ok("c".into()) });
+    assert_eq!(failed, Err("No network.".to_string()));
+    assert!(seen.borrow().is_empty());
+    // On the UI side: busy while it goes, then the result is the note.
+    let mut install = retro_host::Install::default();
+    install.start_for_tests(|| Err("The buildbot said no.".to_string()));
+    for _ in 0..200 {
+        if !install.poll() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(!install.busy());
+    assert_eq!(install.note, "The buildbot said no.");
+}

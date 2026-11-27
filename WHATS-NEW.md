@@ -2,6 +2,21 @@
 
 Every release since 0.5.0, newest first. The latest five are described in full; older ones in short, each with a link to its full notes.
 
+## 0.17.1
+
+Released 27 November 2026.
+
+Limoniter 0.17.1 lets you install an emulator for Limoniter's window straight from F9, lets you change what F9 remembers, and offers a new Amiga C project from File, New as.
+
+**Emulators in Limoniter's window**
+- **Install from F9**: when a machine's "in Limoniter's window" choice is greyed out because limoniter-retro or its core isn't downloaded, the **Run on machine** box has a button that downloads what's missing in one go ("Install limoniter-retro and the PUAE core").
+
+**F9**
+- **Where F9 runs programs**, in Devices and emulators: each machine F9 remembers, with **Change** and **Forget**. Before, undoing "Always run there" meant editing the settings file.
+
+**And**
+- **File, New as, Amiga** offers **New Amiga C project…** beside the single files.
+
 ## 0.17.0
 
 Released 27 November 2026.
