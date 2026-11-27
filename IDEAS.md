@@ -23,7 +23,6 @@ M medium, L large. **From** says where the idea came from.
 
 | Idea | What's needed from you | 0.11 | Size | From |
 |---|---|---|---|---|
-| **Publish limoniter-retro, the embedded emulators' helper** | Agree to its first push to github.com/jolyonralph/limoniter-retro and a tag; its workflow then builds the Windows, macOS and Linux programs Limoniter downloads (the workflow hasn't run yet) | | S | 0.17 |
 | **Test the universal Mac app on an Intel Mac** | Run 0.9.1 on the 2018 MacBook Pro and say what goes wrong | ✓ | S | 0.9.1 |
 | **Greaseweazle testing**: flux images read from real disks | A Greaseweazle and disks of each kind, read and sent back as `.scp` or `.hfe` files | ✓ | M | FEATURES (Floppy archivists) |
 | **Sign and notarise the Mac app** | An Apple Developer account (99 USD a year), its certificate and an app-specific password as repository secrets | ✓ | M | README, release notes |
