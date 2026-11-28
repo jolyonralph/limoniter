@@ -2314,7 +2314,7 @@ impl Limoniter {
             });
             #[cfg(test)]
             {
-                state.scrolled = _list.state.offset().y;
+                state.scrolled = _list.state.clamped_offset().y;
             }
             ui.add_space(4.0);
             ui.label(RichText::new(crate::i18n::tr("\u{2191} \u{2193} to choose, Enter to do it, Esc to close")).color(theme::text_faint()).size(11.5));
