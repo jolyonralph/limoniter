@@ -557,10 +557,15 @@ impl Explorer {
             self.revealed = Some(active.to_path_buf());
             self.reveal(root, active);
         }
-        ui.horizontal(|ui| {
-            let name = root.file_name().map_or_else(|| root.display().to_string(), |n| n.to_string_lossy().into_owned());
-            ui.label(RichText::new(name.to_uppercase()).strong().size(12.0)).on_hover_text(root.display().to_string());
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        // The buttons keep their room at the right; the folder's name gets what is left, cut short with dots when it
+        // is too long, so the two never draw over each other.
+        egui::containers::Sides::new().shrink_left().truncate().show(
+            ui,
+            |ui| {
+                let name = root.file_name().map_or_else(|| root.display().to_string(), |n| n.to_string_lossy().into_owned());
+                ui.label(RichText::new(name.to_uppercase()).strong().size(12.0)).on_hover_text(root.display().to_string());
+            },
+            |ui| {
                 if ui.small_button(crate::i18n::tr("\u{229F}")).on_hover_text(crate::i18n::tr("Collapse every folder")).clicked() {
                     self.expanded.clear();
                     self.expanded.insert(root.to_path_buf());
@@ -614,8 +619,8 @@ impl Explorer {
                 if ui.small_button(crate::i18n::tr("+\u{1F4C4}")).on_hover_text(crate::i18n::tr("New file")).clicked() {
                     self.start_new(target, false);
                 }
-            });
-        });
+            },
+        );
         self.offer_bar(ui, root, &mut acts);
         // The slider at the bottom takes its room first.
         let slider_room = if self.recency.tall(kept) { 52.0 } else { 30.0 };
@@ -1173,4 +1178,52 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+
+    /// The y-independent facts about every piece of text drawn: what it says, where it starts and where it ends.
+    fn texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<(String, egui::Rect)> {
+        fn walk(shape: &egui::Shape, out: &mut Vec<(String, egui::Rect)>) {
+            match shape {
+                egui::Shape::Text(text) => out.push((text.galley.text().to_string(), egui::Rect::from_min_size(text.pos, text.galley.size()))),
+                egui::Shape::Vec(inner) => inner.iter().for_each(|s| walk(s, out)),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        shapes.iter().for_each(|clipped| walk(&clipped.shape, &mut out));
+        out
+    }
+
+    #[test]
+    fn a_long_folder_name_never_draws_over_the_new_file_and_folder_buttons() {
+        let root = std::env::temp_dir().join(format!("limoniter-explorer-header-{}", std::process::id())).join("a-folder-with-a-very-long-name-indeed-for-a-narrow-panel");
+        std::fs::create_dir_all(&root).unwrap();
+        for size in [14.0, 22.0] {
+            for width in [300.0, 420.0] {
+                let ctx = egui::Context::default();
+                let mut style = (*ctx.global_style()).clone();
+                style.text_styles.iter_mut().for_each(|(_, font)| font.size = size);
+                ctx.set_global_style(style);
+                let mut explorer = Explorer::default();
+                let (kept, colours) = (Kept::default(), Colours::default());
+                let mut last = None;
+                for _ in 0..3 {
+                    let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(width, 400.0))), ..Default::default() };
+                    last = Some(ctx.run_ui(input, |ui| {
+                        explorer.draw(ui, &root, None, &kept, &colours);
+                    }));
+                }
+                let texts = texts(&last.unwrap().shapes);
+                let title = texts.iter().find(|(text, _)| text.starts_with("A-FOLDER")).expect("the folder's name is drawn");
+                let buttons: Vec<_> = texts.iter().filter(|(text, _)| text.starts_with('+')).collect();
+                assert_eq!(buttons.len(), 2, "both buttons are drawn");
+                for (_, button) in buttons {
+                    assert!(title.1.max.x <= button.min.x + 0.5, "at {width} wide and font {size} the name ends at {} but a button starts at {}", title.1.max.x, button.min.x);
+                }
+                if width < 400.0 {
+                    assert!(title.1.width() < width * 0.6, "a name that doesn't fit is cut short, not left at its full width: {}", title.1.width());
+                }
+            }
+        }
+        let _ = std::fs::remove_dir_all(root.parent().unwrap());
+    }
 }

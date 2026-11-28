@@ -1,0 +1,22 @@
+{
+ "tag_name": "v1.23",
+ "name": "Greaseweazle Tools 1.23",
+ "prerelease": false,
+ "assets": [
+  {
+   "name": "greaseweazle-1.23-win32.zip",
+   "size": 6799005,
+   "browser_download_url": "https://github.com/keirf/greaseweazle/releases/download/v1.23/greaseweazle-1.23-win32.zip"
+  },
+  {
+   "name": "greaseweazle-1.23-win64.zip",
+   "size": 10762543,
+   "browser_download_url": "https://github.com/keirf/greaseweazle/releases/download/v1.23/greaseweazle-1.23-win64.zip"
+  },
+  {
+   "name": "greaseweazle-1.23.zip",
+   "size": 199962,
+   "browser_download_url": "https://github.com/keirf/greaseweazle/releases/download/v1.23/greaseweazle-1.23.zip"
+  }
+ ]
+}

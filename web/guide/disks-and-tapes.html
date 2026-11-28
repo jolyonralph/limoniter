@@ -75,6 +75,7 @@
 <li><a href="#changing-an-image">Changing an image</a></li>
 <li><a href="#making-a-new-image">Making a new image</a></li>
 <li><a href="#images-from-disk-archivists">Images from disk archivists</a></li>
+<li><a href="#real-floppy-disks-with-a-greaseweazle">Real floppy disks with a Greaseweazle</a></li>
 </ul>
 </nav>
 <h2 id="opening-an-image">Opening an image</h2>
@@ -138,6 +139,10 @@
 <p>It opens in the browser, ready for files to be added.</p>
 <h2 id="images-from-disk-archivists">Images from disk archivists</h2>
 <p>Limoniter also reads the images people make when they save old floppies: ImageDisk, Teledisk, DMK, JV3 and JV1 images, and flux images from a Greaseweazle, SuperCard Pro or KryoFlux. It decodes them, opens the file system inside, and lists any sectors that never read cleanly. A decoded flux image can be saved as a plain disk image.</p>
+<h2 id="real-floppy-disks-with-a-greaseweazle">Real floppy disks with a Greaseweazle</h2>
+<p>If you have a Greaseweazle (a small USB floppy disk controller) and a floppy drive, Limoniter can read real disks into images and write images back to disks. It does this by running the Greaseweazle's own program, <code>gw</code>.</p>
+<ol class="steps"><li>Choose <strong>Retro › Greaseweazle › Set up Greaseweazle…</strong>. If <code>gw</code> isn't there, click <strong>Install</strong>: on Windows it downloads the latest release, and on Linux and a Mac it installs it into a Python environment of Limoniter's own (this needs Python 3 and Git, and the box says so if they're missing). Then click <strong>Test the connection</strong>, which shows your Greaseweazle's model and firmware, and offers to update the firmware if there's a newer one.</li><li>Plug in the Greaseweazle and choose the drive (A or B on a PC cable, 0 to 3 on a Shugart one). On Linux, if the USB port is refused, add yourself to the <code>dialout</code> group (<code>uucp</code> on Arch) and log in again, or install Greaseweazle's udev rule; the box says which when it happens.</li><li><strong>File › Open from a floppy disk (Greaseweazle)…</strong> (also under <strong>Retro › Greaseweazle › Read a disk…</strong>) asks what kind of disk it is (Amiga DD, PC 1.44 MB, Atari ST, Commodore 1541 and the others, or any of <code>gw</code>'s formats under <strong>More formats…</strong>), what to save (the disk's sectors, raw flux as <code>.scp</code>, or an <code>.hfe</code>), and where. A bar follows it track by track, with a count of reads it had to repeat and of tracks with sectors it couldn't read. When it's done, the image opens in the disk browser.</li><li><strong>File › Write to a floppy disk (Greaseweazle)…</strong> writes the image in front (or one you choose) to the disk, after asking you to confirm, as everything on the disk is replaced. Each track is read back to check it unless you turn that off.</li><li><strong>Retro › Greaseweazle</strong> also has <strong>Drive info</strong>, <strong>Clean the heads</strong> (with a cleaning disk in the drive), <strong>Measure the drive's speed</strong> and <strong>Erase a disk</strong>.</li></ol>
+<p>These items are greyed out, with the reason when you hover over them, until <code>gw</code> is installed.</p>
         <nav class="pager" aria-label="Back and next">
 <a class="pager-back" href="character-sets.html"><span>Back</span>Character sets and old machines&#x27; text</a>
 <a class="pager-next" href="basic.html"><span>Next</span>BASIC listings</a>

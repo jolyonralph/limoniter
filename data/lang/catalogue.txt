@@ -71,6 +71,7 @@
  (chip)
  (lea {}(sp),sp)
  (only on {})
+ (version {v})
  BRIGHT
  Emulators that run them: {}.
  FLASH
@@ -87,7 +88,9 @@
  or 
  or less
  words.
+ {count} track(s) have sectors that couldn't be read.
  {extra} more lines weren't kept.
+ {retries} read(s) were retried.
  · locked
  — not the screen RAM's bank
  — working…
@@ -764,6 +767,7 @@ A new task
 A new {} file, with a starter to change
 A new {} session
 A newer Limoniter
+A newer version is out: {latest}.
 A normal C64 cartridge (type 0) from an 8K or 16K binary, or from a program that loads at $8000: 8K is ROML at $8000 with EXROM active; 16K adds ROMH at $A000, with GAME active too. The binary starts with the cartridge's cold and warm start addresses and CBM80.
 A normal cartridge is 8,192 or 16,384 bytes; this is {n}.
 A note
@@ -1029,6 +1033,8 @@ All eight sprites at an empty sprite.
 All files
 All of video memory cleared, then the colours, and the vertical scroll.
 All the conflicts here are settled.
+All the disk has, such as c=0-79:h=0-1
+All the image has, such as c=0-79:h=0-1
 All {} rows of {table}.
 AllocMem, MUIA_, exec
 Allocation block
@@ -1417,7 +1423,6 @@ Back a byte
 Back a row
 Back a screenful
 Back to the list
-Back to the text, to edit it
 Back to the usual buttons
 Back up
 Background
@@ -1754,6 +1759,7 @@ Check every few seconds too
 Check for a newer Limoniter
 Check for a newer OpticOS ROM
 Check for changes by other programs
+Check it
 Check the catalog's translations
 Check the catalogs
 Check this file (php -l)
@@ -1788,6 +1794,7 @@ Choose a template first.
 Choose a {} to change it.
 Choose an encoding that can hold everything
 Choose another file
+Choose gw…
 Choose helper…
 Choose or make one…
 Choose some columns after SELECT, or * for all of them
@@ -1795,10 +1802,13 @@ Choose the BIOS file…
 Choose the ROM file…
 Choose the database to run this file's SQL on: click “No database” in the status bar.
 Choose the database's file.
+Choose the disk image to write
 Choose the emulator's program: where it's installed.
 Choose the folder
 Choose the folder.
+Choose the gw program
 Choose the helper, limoniter-retro
+Choose the kind of disk to write: a sector image doesn't say how the disk is laid out.
 Choose the machine and starting character set in the Character table.
 Choose the schema…
 Choose what to compare on both sides.
@@ -1837,6 +1847,8 @@ Claude Code's settings folder wasn't found, so there was nowhere to put the stat
 Claude only says in a session of its own, here or in a terminal with the switch below on.
 Claude's limits for sessions in a terminal need a status line command in its settings.
 Claude's status line
+Clean the heads
+Clean the heads…
 Clean up
 Clean up…
 Clear
@@ -2570,7 +2582,9 @@ Draws a mark at the end of each line
 Draws a mark for each one
 Draws it on a low resolution screen: a0 the screen, d0 x, d1 y. Uses d0-d3/a0-a1.
 Draws the listing's UDGs with these, A from the first
+Drive
 Drive DF{unit}:
+Drive info
 Drop DTR for a moment, which resets an Arduino
 Drop to open
 Duplicate
@@ -2682,6 +2696,8 @@ Empty
 Empty Markdown cell: double-click to write in it
 Empty it
 Empty the list
+Empty: gw chooses (more for flux)
+Empty: gw looks for it (COM3, /dev/ttyACM0)
 Empty: what's copied or cut now goes here.
 EmuTOS couldn't be downloaded: {e}
 EmuTOS couldn't be put in place: {e}
@@ -2712,8 +2728,11 @@ Envelope periods (buzzer)
 Environment: {name}
 Equals
 Erase
+Erase a disk…
+Erase the disk
 Erase to the end of the display
 Erase to the end of the line
+Erased {} tracks.
 Erased.
 Error
 Errors: {errors}. Warnings: {warnings}. Translations checked: {}.
@@ -2757,6 +2776,8 @@ Everything here, the header and the table included, has to fit in 1024 bytes: Li
 Everything in short, a section for each kind of work
 Everything is up to date, or the package managers couldn't say (see the Output panel).
 Everything it needs is defined here, so no include files are needed.
+Everything on the disk in drive {drive} will be erased. It can't be undone.
+Everything on the disk in drive {drive} will be replaced by this image. It can't be undone.
 Exact prefetch
 Exactly this byte. It may mean something else in this document's encoding
 Examine
@@ -2923,6 +2944,7 @@ Find…
 Fingerprint (SHA-256)
 Finished with exit code {}.
 Finished, with exit code {code}.
+Firmware {newer} is available.
 First is
 First line
 First line indent:
@@ -3009,6 +3031,7 @@ Forget it
 Forget the history
 Forget the kept password
 Forget the old key
+Forget the one chosen
 Forget this history...
 Forgets the saved comparison. No files are touched
 Form
@@ -3019,6 +3042,7 @@ Format files as they're saved
 Format files as they're saved, where the server can
 Format for new files
 Format:
+Formatted
 Formatters
 Formatters…
 Formatting is done by a language server for the file's language (Settings, Editing, Language servers), or by a formatter such as Prettier, Black or clang-format when one is installed (Format, Formatters).
@@ -3123,6 +3147,7 @@ Git is set to use another tool:\n\n{}\n\nUse Limoniter instead? What's set now i
 Git is still busy with the last thing asked.
 Git isn't installed on this computer yet. It's free, and the wizard shows how to get it.
 Git isn't installed, so the repository was downloaded as a ZIP ({zip}) and unpacked; it isn't a clone.
+Git isn't installed, which pip needs to fetch the tools from GitHub (sudo apt install git, or brew install git).
 Git isn't set to use Limoniter, so there's nothing to put back.
 Git keeps every version you choose to, so you can always go back or compare. It's free, it stays on your computer unless you put it online, and the wizard explains each step.
 Git now uses Limoniter for git difftool and git mergetool, for every repository on this computer.
@@ -3180,6 +3205,11 @@ Go to where a function or label is defined.
 Got: {actual}
 Gradient
 Graphics
+Greaseweazle
+Greaseweazle is a USB floppy disk controller (keirf's, on GitHub). Limoniter drives it through its own gw program.
+Greaseweazle was unpacked into {}, but gw.exe wasn't found in it.
+Greaseweazle {version} is installed: {}
+Greaseweazle's gw program isn't installed. Set up Greaseweazle installs it.
 Greek and Coptic
 Green
 Grid
@@ -3316,6 +3346,7 @@ How {} is debugged, with {}:
 HuC6280
 HuC6280 (PC Engine)
 HxC (HFE) bit cells
+HxC image (.hfe)
 Hz
 Hz to start
 I don't know what {other} means here
@@ -3372,6 +3403,7 @@ Ignore spaces
 Ignore spaces and tabs
 Ignore the Insert key
 Ignore the chip's ID
+Image to write
 Imago Orpheus
 Imploder
 Imploder (its decruncher in explode.library)
@@ -3447,11 +3479,13 @@ Install a VS Code extension
 Install a kernel
 Install a kernel for {language}…
 Install again
+Install downloads the latest release (a zip with gw.exe in it) from GitHub into Limoniter's own folder.
 Install from a file…
 Install it in a terminal
 Install it into this kernel, then run the cell again
 Install limoniter-retro
 Install limoniter-retro and the {} core
+Install makes a Python environment of Limoniter's own and installs the tools into it from GitHub, as Greaseweazle's README says. It needs Python 3 and Git (and, to build one of its parts, a C compiler); if they're missing, it says so.
 Install now
 Install packages
 Install packages from requirements-dev.txt
@@ -3473,6 +3507,7 @@ Installing {names}…
 Installing {program} in the terminal. When it's finished:
 Installing {}…
 Installing…
+Installing… this can take a minute.
 Installs one that isn't here: downloaded, or with this computer's own installer, or from its page
 Installs the extension with this id from Open VSX
 Installs the tools, asks for a Kickstart or uses AROS, and sets F9 to run Amiga programs here
@@ -3581,6 +3616,7 @@ It needs a password.
 It needs the helper, limoniter-retro: Get an emulator, under Devices and emulators, gets it, or choose it by hand.
 It needs the original file, which can't be read.
 It needs the {} core: Get an emulator, under Devices and emulators, downloads it.
+It opens in Limoniter when it's done.
 It plays until a run doesn't move the cursor down a line, and doesn't remove any lines
 It reads {}.
 It runs {} programs.
@@ -3785,6 +3821,7 @@ Kickstart:
 Kilburn's highest factor routine (amended), as Geoff Tootill wrote it out in his
 Kind
 Kind of computer for new files…
+Kind of disk
 Kind:
 Kinds of new file
 Kinds of new file (File, New as)
@@ -4098,6 +4135,7 @@ Longest line:
 Look
 Look again
 Look for Python environments again
+Look for a newer version
 Look for environments again
 Look for kernels again
 Look for them on Open VSX…
@@ -4272,6 +4310,7 @@ Mathematical Operators
 Maths coprocessor
 Me
 Mean
+Measure the drive's speed
 Mega Drive
 Mega Drive / Genesis
 Mega ST
@@ -4328,6 +4367,7 @@ Modern macOS
 Monitor:
 Monochrome (SM124)
 More
+More formats…
 More than one piece is marked to start: mark only one.
 More than the eight sprites there are: narrow it, or reuse sprites further down.
 More {what}
@@ -4405,6 +4445,7 @@ Nearest plain letters where there are any, otherwise ?
 Needs 2MB
 Needs LightSpeedPlayer.asm and LightSpeedPlayer_cia.asm from github.com/arnaud-carre/LSPlayer,
 Needs P6108-Play.S and P6108-StandardOptions.S from Aminet (mus/misc/P6108), and the P61 file,
+Needs a disk in the drive: a good drive turns at 300 rpm (360 for some)
 Needs and uses
 Needs core
 Negating
@@ -4482,6 +4523,8 @@ Next: line {next}, {}   {}
 No
 No C compiler for the {} was found on this computer. Install one of {}: Limoniter looks on the PATH{also} and where each usually goes, or in a folder named for it in Program Files, Downloads or on the Desktop.
 No CP/M directory was found on this disk in any format Limoniter knows.
+No Greaseweazle found
+No Greaseweazle was found. Is it plugged in? A port can be given in Set up Greaseweazle if it's not found by itself.
 No Jupyter kernels were found on this computer.
 No KERNAL files were found on the tape.
 No Kickstarts were found. Choose one, or leave it to the emulator.
@@ -4733,6 +4776,7 @@ Offset {at} (0x{at:X}) is past the end of the file.
 Old Latin-1 and Windows-1252 files made UTF-8…
 Old NTSC (6567R56A)
 Old files made UTF-8
+Older Greaseweazles need their update jumper fitted first: gw's words below say.
 Older version
 Omit
 On
@@ -4889,6 +4933,7 @@ Open files
 Open files containing zero bytes in hex mode
 Open folder
 Open folder…
+Open from a floppy disk (Greaseweazle)…
 Open from an image
 Open from the web…
 Open in a tab
@@ -5307,6 +5352,7 @@ Push
 Put 6809 source in front first.
 Put Sublime Text grammars (.sublime-syntax files) here, and Limoniter reads them when it next starts. For a file ending both know, yours is used
 Put a call in at the cursor
+Put a head-cleaning disk in drive {drive} first: the heads are moved across it a few times, and a disk with data on it would be scratched.
 Put a line ending at the end of the file as it's saved, as .editorconfig's insert_final_newline does
 Put a line in after the cursor's
 Put a note at the cursor
@@ -5368,8 +5414,10 @@ Puts these changes, and the message, into the last commit instead of a new one. 
 Puts this file, and the lines selected, into Claude Code's prompt
 Python
 Python ({})
+Python 3 isn't installed, which the Greaseweazle tools are written in. On Debian and Ubuntu: sudo apt install python3 python3-venv python3-pip git gcc python3-dev; on a Mac: brew install python git.
 Python and R
 Python and R console
+Python couldn't make an environment (on Debian and Ubuntu: sudo apt install python3-venv). {e}
 Python couldn't make an environment, as its venv module isn't installed. On Debian or Ubuntu, install it with: sudo apt install python3-venv
 Python environment
 Python environment:
@@ -5445,6 +5493,7 @@ Rather than the folder used last
 Rather than to the first text, and then the start
 Raw
 Raw data…
+Raw flux (.scp)
 Raw planes
 Raw planes to picture
 Raw rows of 40 cells with no line endings, English national set. Choose the national set in the Character table.
@@ -5454,20 +5503,25 @@ Raw screen…
 Raw sprites…
 Raw words…
 Read
+Read a disk
+Read a disk…
 Read a paper tape
 Read a paper tape…
 Read as Latin-1 (ISO-8859-1)
 Read as Windows-1252
 Read as {} source: Limoniter's assembler knows its everyday forms; for the rest, choose {} in File, Run on, Assemblers.
+Read each track back after writing it
 Read from disk as needed
 Read in the Atari ST's character set, which its accented letters suggest.
 Read into a new tab
 Read only: {why}
 Read or write
+Read the disk
 Read the folder again
 Read the lines of the selection (or the paragraph) again
 Read the selection
 Read {}
+Read {} tracks.
 Read, it's the status:
 Read-only
 Read. The chip's contents are open in a new tab.
@@ -5595,6 +5649,7 @@ Retro
 Returns to ${:04X}; the address is on the stack at ${:04X}
 Review and merge
 Review by {name}
+Revolutions
 Revolutions a track
 Revolutions read
 Rhymes
@@ -5872,6 +5927,7 @@ Save the decrunched file…
 Save the decrunched program
 Save the decrunched program…
 Save the differences as a unified diff, as patch and git apply read
+Save the disk image
 Save the disk…
 Save the document as
 Save the example's source beside the plan and open it, to change as you like: it's used from then on
@@ -5926,6 +5982,7 @@ Save this file first: the merge starts again from Git's copies of each side.
 Save this layout
 Save this layout…
 Save this {} as a PNG, pixel for pixel
+Save to
 Save to a file…
 Save to a server (SFTP or FTP)…
 Save what it holds, unpacked
@@ -6122,6 +6179,7 @@ Set every bit (D = 1)
 Set or clear
 Set up
 Set up Git…
+Set up Greaseweazle…
 Set up for: {}.
 Set up the Amiga
 Set up the Amiga…
@@ -6175,6 +6233,7 @@ Show Claude's limits for terminal sessions too
 Show again
 Show as hex
 Show as text
+Show as:
 Show control characters as tokens
 Show everything the image says about itself, and about the chosen file, in File properties
 Show hidden items
@@ -6189,6 +6248,8 @@ Show rows containing…
 Show spaces and tabs
 Show the change
 Show the cursor
+Show the file as plain text, to edit it
+Show the file as the formatted page it makes
 Show the first {} rows
 Show the image in hex
 Show the keys for commands chosen from a menu
@@ -6331,7 +6392,6 @@ Spelling mistakes
 Split
 Split into parts
 Split into parts…
-Split screen
 Split this cell at the cursor
 Splitting failed unexpectedly.
 Sprite
@@ -6637,6 +6697,7 @@ Take theirs
 Take these
 Take trailing spaces off
 Take {old} off the image?
+Takes a little longer; a track that fails is written again
 Takes a picture of the whole screen to pick a colour from, wherever it is
 Takes a snapshot of the machine's memory, with every address a candidate
 Takes away everything Limoniter registered
@@ -6663,6 +6724,7 @@ Test          gone negative?
 Test          remainder above 0?
 Test disc
 Test the assembly routines (Z80, 6502)
+Test the connection
 TestDisc
 Tests
 Text
@@ -6671,7 +6733,6 @@ Text and hex editing, from today's code to yesterday's computers. Version {}.
 Text before
 Text before decrunching (-t):
 Text objects
-Text only
 Text placed outside the lines, such as formulas, is given line by line.
 Text size
 Text to put on every line, starting at this line and column:
@@ -6830,6 +6891,7 @@ The FAT boot sector's sizes don't add up.
 The FPU's control registers are moved as .L, and {upper} isn't
 The German translation: each string's name, then its translation, then the English as a comment.
 The Git wizard: setting up, and what it all means
+The Greaseweazle's firmware needs updating: Set up Greaseweazle has the button.
 The HFS wrapper doesn't say sensibly where its HFS+ volume is, so the disk is damaged.
 The HFS+ volume inside the HFS wrapper runs past the end of the image.
 The ImageDisk file ends partway through a track.
@@ -6898,6 +6960,7 @@ The TV type switch: colour, or black and white
 The Tab key makes
 The Teledisk file ends partway through a track.
 The Teletype: click its paper to type on its keyboard
+The USB serial port was refused. Your account probably isn't allowed to use it. Add yourself to the group that owns it (dialout on Debian and Ubuntu, uucp on Arch: sudo usermod -aG dialout $USER, then log out and in again), or install Greaseweazle's udev rule, scripts/49-greaseweazle.rules from its release download, into /etc/udev/rules.d and plug the Greaseweazle in again.
 The Ultimate 64 and Ultimate II+ take connections on the network: its modem (as a C64 terminal program sees it) on the port set in its Modem settings, 6400 unless changed; and its own menu over telnet, on port 23, once Telnet is turned on in its network settings.
 The Ultimate plays it as soon as it arrives
 The Unicode Standard
@@ -7126,6 +7189,7 @@ The disk is full.
 The disk is full: this needs {} K, and {} K is free.
 The disk is full: this needs {} KB, and {} KB are free.
 The disk is full: this needs {} blocks, and {} are free.
+The disk is write protected: slide its tab to make it writable.
 The disk ran out of sectors.
 The disk to write over is {} bytes, but a {} disk is {size}.
 The disk's GUID partition table can't be read.
@@ -7138,6 +7202,7 @@ The disk's first sector can't be read.
 The disk's header isn't a DOS this writes for, so it isn't changed here.
 The disk's name can't be read: {problem}.
 The disk's root folder is full; put the file in a folder.
+The disk's sectors (.adf, .img, .st, .d64…)
 The disk's specification gives sectors other than 512 bytes.
 The disk's type, &{other:02X}, isn't one TR-DOS has, so it isn't changed.
 The display list list: twenty zones of sixteen lines, enough for PAL's picture too, each with a display
@@ -7156,6 +7221,9 @@ The download was stopped.
 The download was unpacked, but phpDebug.js wasn't in it.
 The download was unpacked, but zxbc wasn't in it.
 The download was unpacked, but {SERVER} wasn't in it.
+The drive gave no index pulses, so it isn't turning a disk. Is a disk in it, and the drive's cable and power connected?
+The drive is A or B for a PC cable, 0 to 3 for a Shugart one.
+The drive's head didn't find track 0. Is the right drive chosen, and the cable on the right way round?
 The effect goes on for more than 10,000 frames without ending.
 The effect stops before its end ($D0 $20).
 The effect stops partway through a frame.
@@ -7254,6 +7322,7 @@ The file's web address (http or https):
 The files stop making sense at byte &{at:X}, so the list stops there.
 The files you have open come back after it restarts. The version you have now is kept, so you can go back to it from the Help menu.
 The fill value has to be one byte in hex, such as 00 or 20.
+The firmware was updated.
 The first character's code: 32 is the space
 The first colour kept black, for the border and what's cleared
 The first rule that fits a document chooses its theme. Endings, languages and character sets can be listed with commas; a character set matches by the start of its name, so “teletext” matches every teletext set.
@@ -7311,6 +7380,7 @@ The header stops at byte {at}, at a tag Limoniter doesn't know ("{shown}").
 The header's checksum has been put right. Save the file to keep it.
 The header, at $100. F9 fills in its checksum and ROM end.
 The header: the copyright line the BIOS looks for, the tune played at the start, and the title.
+The heads were cleaned.
 The helper
 The helper (limoniter-retro)
 The helper ({}) couldn't be started: {e}
@@ -7447,12 +7517,15 @@ The name of a field was wanted here.
 The names of 1.3's flags: 2.0 renamed them (IDCMP_CLOSEWINDOW, WFLG_CLOSEGADGET), keeping these.
 The nearest the machine can show
 The new Limoniter couldn't be started: {e}
+The newest version is {latest}.
 The next tank
 The number grew too large.
 The number of bytes has to be a whole number above 0. Use 0x for hex.
+The number of revolutions must be 1 or more, or empty to let gw choose.
 The number of tunes, "{digits}", isn't a number.
 The one plugged in
 The only row of {table}.
+The open image would be offered here.
 The other counts would need the whole file to be read.
 The other end closed the connection.
 The other side cancelled the transfer.
@@ -7512,6 +7585,7 @@ The planes are interleaved: for each 16 pixels, a word of each plane.
 The plot after
 The plot before
 The pointers are its last 8 bytes
+The port was refused: another program (a terminal, or another copy of gw) may be using it.
 The port's name, typed: a pseudo-terminal or a port not listed
 The previous version couldn't be put back: {e}
 The printer system said: {}
@@ -7723,7 +7797,7 @@ The task board the agents share: tasks, notes, and builds waiting their turn
 The teleprinter
 The template went round its lists too many times; it may never stop.
 The templates folder:
-The text and the preview side by side
+The text and the formatted page side by side
 The text has no character {i}.
 The text runs to the end of the file without LIF's end mark.
 The text starting here never ends: it needs a closing '
@@ -7735,10 +7809,12 @@ The title's colours go round, a step every 4 frames.
 The title's colours, going round.
 The tool that made this image didn't record its sectors' checksums, so damage to them can't be found.
 The toolbar has no buttons. Right-click it to choose some.
+The tools were installed into {}, but gw wasn't found in it.
 The top four bits of voice {v}'s pulse width.
 The top left corner's colour
 The top left pixel's colour
 The top of the frame: everything as it is above the first change.
+The tracks aren't in a form gw knows. It takes things like c=0-79:h=0-1 (cylinders 0 to 79, both sides), or leave it empty.
 The transfer was stopped.
 The translation: named after its language, such as deutsch.ct
 The tune has no play routine to call: its init sets up its own interrupt, which plays it.
@@ -8158,6 +8234,7 @@ This file's {} fork is damaged: its BinHex CRC doesn't match.
 This folder can't be read.
 This folder is empty.
 This frame makes no sound
+This gw was installed outside Limoniter: update it the way it was installed.
 This hard link's file isn't in the volume's hidden folder of linked files, so the disk is damaged.
 This icon has no picture.
 This instruction needs an address.
@@ -8429,6 +8506,7 @@ Track {} side {} has more flux than any disk holds, so the image is damaged.
 Track {} side {}'s flux runs past the end of the image, so it's damaged.
 Track {} side {}'s header is missing, so the image is damaged.
 Track {} side {}: {trouble}.
+Tracks
 Tracks in the image
 Trailing spaces are trimmed on the lines changed since the file was opened, so the rest of its history isn't touched
 Trainer
@@ -8489,6 +8567,7 @@ Type each as $hex, %binary or decimal, up to $FFFF.
 Type how many lines go in each part, as a whole number.
 Type its new name, then press Enter
 Type part of its name: 27C256, AT28C64
+Type part of its name: amiga, ibm, 1541
 Type something to find first.
 Type the names of the packages to install.
 Type the new name.
@@ -8562,6 +8641,7 @@ Up, unhealthy
 Update
 Update all outdated {} packages
 Update the conda environment from environment.yml
+Update the firmware
 Update {} ({})
 Updated the to-do list
 Upper case and graphics
@@ -8582,6 +8662,7 @@ Use for new files, and leave this document alone
 Use for the window
 Use in Find
 Use it
+Use the open file: {name}
 Use the text on the right, as it is now (Alt+A)
 Use the usual list
 Use the usual words
@@ -8841,6 +8922,8 @@ Would reduce be faster here?
 Wrap to line ends
 Wrap with an abbreviation
 Write
+Write a disk
+Write a disk…
 Write a header with the sizes (-w)
 Write and verify
 Write as
@@ -8852,13 +8935,16 @@ Write it for me
 Write over a disk image…
 Write over the colour
 Write text as:
+Write the disk
 Write the disk…
 Write the file out of the image, exactly as it is
+Write to a floppy disk (Greaseweazle)…
 Write what it does first
 Write {}
 Writes the body, exactly as it came, to a file
 Writes the file as several, beside it, named name.part-001 and so on. The file itself isn't changed.
 Writes these bytes into the Amiga's memory
+Writing replaces everything on the disk.
 Written as #rrggbb, rgb(), hsl(), or the Amiga's $0RGB beside COLOR registers, with a picker at the cursor to change one
 Written as {}
 Written as {} files beside it, from {} to {}, as the file is now, with any unsaved changes.
@@ -8870,6 +8956,7 @@ Written, and verified: the chip matches the file.
 Written.
 Written: {}. Limoniter keeps their lists of files up to date.
 Wrote {} ({} bytes).
+Wrote {} tracks.
 Wrote {}: the boot block uses {} of its 1024 bytes, and {used} sectors hold something.
 XBIOS
 XCHG swaps a register with a register or memory
@@ -9498,6 +9585,12 @@ gpt-5.5
 graphics.library, any version
 graphics.library, takes the blitter, empties the display with LoadView(0), stops multitasking with Forbid, and
 green
+gw couldn't be started: {e}
+gw doesn't know that format. Another can be chosen under More.
+gw failed: {last}
+gw is found: {}{version}
+gw isn't installed.
+gw stopped before it was done.
 hard link to a folder
 header only: no data in the KERNAL's format
 hebrevc
@@ -10750,6 +10843,7 @@ zx_notation
 {label} is defined twice
 {language} files can have a language server, {program}, which isn't installed. Install it?
 {language}: {} ({held} translated strings in it)
+{latest} is the newest version, so this one is up to date.
 {light} change(s) to light (grey) text are shown plain.
 {machine} tape (TAP version {version}) · 1 file
 {machine} tape (TAP version {version}) · {count} files
@@ -10772,6 +10866,8 @@ zx_notation
 {mnemonic} isn't a 6809 instruction
 {mnemonic} isn't an SM83 instruction
 {mnemonic} isn't an SPC700 instruction
+{model}, firmware {firmware}
+{model}, firmware {firmware}, on {port}
 {mode}; ST colours from bank {}{}{}
 {mw}×{mh} tiles · painting with {brush}
 {named} isn't a SWI Limoniter knows: give its number
@@ -10988,6 +11084,8 @@ zx_notation
 {problem} The disk's sectors are offered as a plain image to look at in hex or save.
 {problem} The entries before it are listed.
 {problem}. It's in Settings, Editing, Language servers.
+{program} couldn't be started: {e}
+{program} failed:\n{tail}
 {program} is installed, and looks after {language} files now.
 {program}, a language server for {language}, is installed. Use it?
 {purged} purged file(s) are in the directory but not listed; their records may since have been reused.
@@ -11005,6 +11103,7 @@ zx_notation
 {remote} is a folder.
 {remote} isn't there after sending it.
 {rest} bytes after the banks, for the program to read
+{retries} read(s) retried; {bad} track(s) with sectors missing
 {reviewer} reviewed your changes and says:\n\n{review}\n\nPlease go through it, and change what needs changing.
 {revision} isn't a revision of this repository.
 {right_aligned} right-aligned paragraph format(s) are left-aligned here.
@@ -11037,6 +11136,7 @@ zx_notation
 {stem}.prg is the tune's code and data at its load address, as a C64 program. Tools, General, Disassemble… turns it into 6502 source, starting from its init and play routines; File, Save as keeps it.
 {stem}_insane.asm (written by LSPConvert -insane, for this module only)
 {syllables} syllables
+{s} Saved as {}.
 {table} couldn't be opened.\n\n{}
 {target} couldn't be replaced: {e}
 {target} is too far away for {bare}
@@ -11134,6 +11234,7 @@ zx_notation
 {v} doesn't fit in .{letter}
 {waiting} files to sync with {host}
 {wanted} isn't one of the picture's files
+{what} Then try again, or follow {HOME}/wiki/Software-Installation.
 {what} first: a file this large switches between text and hex by reading it again from disk.
 {what} is a NEX V1.3 feature, and OPEN asked for V1.2
 {what} is always .X
@@ -11474,6 +11575,7 @@ zx_notation
 {} of {} rows
 {} of {} slots used, {} bytes
 {} of {} tokens of context used
+{} of {} tracks ({})
 {} on {}
 {} only on the left
 {} only on the right

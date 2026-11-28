@@ -471,6 +471,19 @@ pub(super) const HARDWARE: &[Entry] = &[
             Item("EPROM programmer: TL866 and T48 (minipro)\u{2026}", Command::EpromProgrammer),
         ];
 
+/// Real floppy disks through a Greaseweazle (see `greaseweazle_host`); the File menu has Read and Write too.
+pub(super) const GREASEWEAZLE: &[Entry] = &[
+            Item("Read a disk\u{2026}", Command::GwRead),
+            Item("Write a disk\u{2026}", Command::GwWrite),
+            Line,
+            Item("Drive info", Command::GwInfo),
+            Item("Clean the heads\u{2026}", Command::GwClean),
+            Item("Measure the drive's speed", Command::GwRpm),
+            Item("Erase a disk\u{2026}", Command::GwErase),
+            Line,
+            Item("Set up Greaseweazle\u{2026}", Command::GwSetup),
+        ];
+
 pub(super) const AMIGA: &[Entry] = &[
             Item("Hardware registers and copper lists", Command::AmigaHardware),
             Item("Bitplane, sprite and bob converter", Command::AmigaBitplanes),
@@ -764,6 +777,7 @@ pub(super) const FILE: &[Entry] = &[
     Entry::Live("Open recent", Live::RecentFiles),
     Item("Open a file from the web (http/https)\u{2026}", Command::OpenUrl),
     Item("Open a remote file (SFTP or FTP)\u{2026}", Command::OpenRemote),
+    Item("Open from a floppy disk (Greaseweazle)\u{2026}", Command::GwRead),
     Item("Open a remote folder as a project (SFTP or FTP)\u{2026}", Command::OpenRemoteFolder),
     Item("Open a terminal on a server (SSH)\u{2026}", Command::OpenSshTerminal),
     Item("Open a ZIP as a project\u{2026}", Command::OpenZipProject),
@@ -774,6 +788,7 @@ pub(super) const FILE: &[Entry] = &[
     Item("Save the selection as\u{2026}", Command::SaveSelection),
     Item("Save a copy in another encoding\u{2026}", Command::SaveCopyAs),
     Item("Save to a server (SFTP or FTP)\u{2026}", Command::SaveRemote),
+    Item("Write to a floppy disk (Greaseweazle)\u{2026}", Command::GwWrite),
     Sub("Export", EXPORT),
     Sub("Send to device", SEND_TO),
     Keyed("Run on machine", Command::RunOnMachine, "F9"),
@@ -934,6 +949,7 @@ pub(super) const CODE: &[Entry] = &[
 pub(super) const RETRO: &[Entry] = &[
     Sub("General", GENERAL),
     Sub("Hardware", HARDWARE),
+    Sub("Greaseweazle", GREASEWEAZLE),
     Sub("Amiga", AMIGA),
     Sub("Atari 2600", ATARI_2600),
     Sub("PICO-8 and TIC-80", FANTASY),
@@ -1093,11 +1109,14 @@ pub(super) struct PaletteState {
     query: String,
     selected: usize,
     focus: bool,
+    /// Whether the list should scroll to the chosen row this frame: only after the choice moved, never while the
+    /// person is scrolling the list themselves.
+    follow: bool,
 }
 
 impl PaletteState {
     pub(super) fn new() -> Self {
-        Self { focus: true, ..Self::default() }
+        Self { focus: true, follow: true, ..Self::default() }
     }
 
     pub(super) fn query_for_picture(&mut self, words: &str) {
@@ -1375,6 +1394,10 @@ impl Limoniter {
         if no_file && !command.works_without_file() {
             return false;
         }
+        // Reading and writing disks need Greaseweazle's gw program, which Set up Greaseweazle installs.
+        if command.needs_gw() {
+            return crate::greaseweazle::found_cached(&self.gw_prefs).is_some();
+        }
         let hex = doc.hex_mode;
         let text = !hex && !no_file;
         let t = &doc.text;
@@ -1558,6 +1581,7 @@ impl Limoniter {
             | Command::FlashSettings
             | Command::SerialTerminal
             | Command::EpromProgrammer
+            | Command::GwSetup
             | Command::Formatters
             | Command::ServeFolder
             | Command::TimeSpent
@@ -1603,7 +1627,10 @@ impl Limoniter {
         #[cfg(test)]
         super::ribbon_bar::note_drawn(ui.ctx(), false, command, self.can(command), None);
         let button = Button::new(crate::i18n::tr(label)).shortcut_text(RichText::new(shown_shortcut(shortcut)).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0));
-        if ui.add_enabled(self.can(command), button).clicked() {
+        let enabled = self.can(command);
+        let response = ui.add_enabled(enabled, button);
+        let response = if !enabled && command.needs_gw() { response.on_disabled_hover_text(crate::greaseweazle::missing_reason()) } else { response };
+        if response.clicked() {
             *chosen = Some(command);
             ui.close();
         }
@@ -2179,6 +2206,7 @@ impl Limoniter {
             return false;
         };
         let (up, down, enter, escape) = ctx.input(|i| (i.key_pressed(Key::ArrowUp), i.key_pressed(Key::ArrowDown), i.key_pressed(Key::Enter), i.key_pressed(Key::Escape)));
+        let (page_up, page_down) = ctx.input(|i| (i.key_pressed(Key::PageUp), i.key_pressed(Key::PageDown)));
         let query = state.query.clone();
         let mut all = every_command();
         self.addons.refresh_if_stale();
@@ -2201,7 +2229,15 @@ impl Limoniter {
         if up {
             state.selected = state.selected.saturating_sub(1);
         }
+        if page_down {
+            state.selected += PALETTE_PAGE;
+        }
+        if page_up {
+            state.selected = state.selected.saturating_sub(PALETTE_PAGE);
+        }
         state.selected = state.selected.min(found.len().saturating_sub(1));
+        // The list follows the chosen row only when the choice has just moved (or the box has just opened).
+        let mut follow = std::mem::take(&mut state.follow) || up || down || page_up || page_down;
         let mut run = None;
         let mut closed = false;
         // As wide as it was last left: its right and left edges drag to widen it.
@@ -2222,6 +2258,7 @@ impl Limoniter {
             }
             if field.changed() {
                 state.selected = 0;
+                follow = true;
             }
             let field_id = field.id;
             ui.add_space(6.0);
@@ -2235,7 +2272,7 @@ impl Limoniter {
                     if here || response.hovered() {
                         ui.painter().rect_filled(rect, 6.0, if here { theme::selected() } else { theme::hover() });
                     }
-                    if here {
+                    if here && follow {
                         response.scroll_to_me(None);
                     }
                     let (place, name) = each.path.rsplit_once(" \u{203A} ").unwrap_or(("", each.path.as_str()));
@@ -2316,6 +2353,8 @@ fn command_box(ui: &mut Ui) -> egui::Response {
 }
 
 /// The command box's narrowest and widest.
+/// How far PageUp and PageDown move the choice in the command box.
+const PALETTE_PAGE: usize = 10;
 const MIN_PALETTE_WIDTH: f32 = 420.0;
 const MAX_PALETTE_WIDTH: f32 = 1400.0;
 

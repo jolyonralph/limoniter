@@ -6,7 +6,7 @@ Every release since 0.5.0, newest first. The latest five are described in full; 
 
 Released 28 November 2026.
 
-Limoniter 0.18.0 makes Limoniter the place where Claude Code and Codex work. Both run in a panel beside your files, and both work with `claude` and `codex` in the terminal. Each edit is a diff to accept or change. Both can work on one project at once, with Limoniter as referee. 0.18.0 also adds tools for writers: rhymes, a thesaurus, metre, and song lyrics for Suno. Colour tags can now be named, and a colour picker writes colours the way an Amiga, a Spectrum or a web page expects them.
+Limoniter 0.18.0 makes Limoniter the place where Claude Code and Codex work. Both run in a panel beside your files, and both work with `claude` and `codex` in the terminal. Each edit is a diff to accept or change. Both can work on one project at once, with Limoniter as referee. 0.18.0 also adds tools for writers: rhymes, a thesaurus, metre, and song lyrics for Suno. Colour tags can now be named, a colour picker writes colours the way an Amiga, a Spectrum or a web page expects them, and a Greaseweazle reads and writes real floppy disks.
 
 **AI agents**
 - **The AI agents panel** (View, Panels; Tools, New AI agent session): Claude Code or Codex working on the project from a side panel, as in VS Code. Choose the permission mode, the model and the effort, and change them as it works. The transcript shows its answers as Markdown, its thinking and each tool it uses, folded. `@` mentions a file, a message typed while it works waits its turn, and Stop interrupts. Sessions run side by side as tabs, and past ones can be carried on.
@@ -31,6 +31,9 @@ Limoniter 0.18.0 makes Limoniter the place where Claude Code and Codex work. Bot
 **Colours**
 - **Colour tags of your own**: tags with a name, a colour and a key of your own ("To check", "Slow"), kept in your settings or with the project. The six can be renamed, and the tag menu is now in View.
 - **A colour picker** (Tools, Ctrl+Alt+K, or More… on the swatch beside a colour) that writes the colour in the file's own form: hex, rgb(), hsl() or oklch() for the web, `$0RGB` and AGA's halves on the Amiga, INK and BRIGHT on the Spectrum, and the palettes of the C64, CPC, Next, Atari ST and others, each machine's nearest colour shown. It has a contrast checker and an eyedropper for anywhere on the screen.
+
+**Floppy disks**
+- **Greaseweazle**: read and write real floppy disks through a Greaseweazle USB controller. **File, Open from a floppy disk** reads an Amiga, PC, Atari ST, Commodore 1541, Apple II or BBC disk (or any of the 159 kinds its `gw` program knows, or raw flux) and opens the image in the disk browser, with a progress bar by track and the sectors that couldn't be read. **File, Write to a floppy disk** writes an image back, read back to check. **Retro, Greaseweazle** also cleans the heads, measures the drive's speed and erases a disk, and **Set up Greaseweazle** installs the tools, tests the connection and updates the firmware.
 
 **Retro**
 - **Set up the Amiga** (File, Run on): downloads the emulator, finds your Kickstarts (Amiga Forever's too) or uses the free AROS, and sets F9. Amiga programs then run in Limoniter's window, booted straight into them.

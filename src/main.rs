@@ -260,6 +260,7 @@ mod terminal;
 mod serial_link;
 mod xmodem;
 mod eprom;
+mod greaseweazle;
 mod tasks;
 mod vscode_project;
 mod compose;

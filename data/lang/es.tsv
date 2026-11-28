@@ -11854,3 +11854,109 @@ Claim for	Reservar para
 Take the claim back	Retirar la reserva
 Claimed by {holder}	Reservado por {holder}
 claimed by {holder}	reservado por {holder}
+ (version {v})	 (versión {v})
+ {count} track(s) have sectors that couldn't be read.	 {count} pista(s) tienen sectores que no se pudieron leer.
+ {retries} read(s) were retried.	 Se reintentaron {retries} lectura(s).
+A newer version is out: {latest}.	Hay una versión más reciente: {latest}.
+All the disk has, such as c=0-79:h=0-1	Todo lo que tiene el disco, por ejemplo c=0-79:h=0-1
+All the image has, such as c=0-79:h=0-1	Todo lo que tiene la imagen, por ejemplo c=0-79:h=0-1
+Check it	Comprobar
+Choose gw…	Elegir gw…
+Choose the disk image to write	Elegir la imagen de disco que escribir
+Choose the gw program	Elegir el programa gw
+Choose the kind of disk to write: a sector image doesn't say how the disk is laid out.	Elija el tipo de disco que escribir: una imagen de sectores no indica cómo está organizado el disco.
+Clean the heads	Limpiar los cabezales
+Clean the heads…	Limpiar los cabezales…
+Drive	Unidad
+Drive info	Información de la unidad
+Empty: gw chooses (more for flux)	Vacío: gw elige (más para flux)
+Empty: gw looks for it (COM3, /dev/ttyACM0)	Vacío: gw lo busca (COM3, /dev/ttyACM0)
+Erase a disk…	Borrar un disco…
+Erase the disk	Borrar el disco
+Erased {} tracks.	{} pistas borradas.
+Everything on the disk in drive {drive} will be erased. It can't be undone.	Todo lo que hay en el disco de la unidad {drive} se borrará. No se puede deshacer.
+Everything on the disk in drive {drive} will be replaced by this image. It can't be undone.	Todo lo que hay en el disco de la unidad {drive} se reemplazará por esta imagen. No se puede deshacer.
+Firmware {newer} is available.	Hay disponible el firmware {newer}.
+Forget the one chosen	Olvidar el elegido
+Git isn't installed, which pip needs to fetch the tools from GitHub (sudo apt install git, or brew install git).	Git no está instalado, y pip lo necesita para obtener las herramientas de GitHub (sudo apt install git, o brew install git).
+Greaseweazle	Greaseweazle
+Greaseweazle is a USB floppy disk controller (keirf's, on GitHub). Limoniter drives it through its own gw program.	Greaseweazle es una controladora USB de disquetes (la de keirf, en GitHub). Limoniter la maneja con su propio programa gw.
+Greaseweazle was unpacked into {}, but gw.exe wasn't found in it.	Greaseweazle se descomprimió en {}, pero no se encontró gw.exe dentro.
+Greaseweazle {version} is installed: {}	Greaseweazle {version} está instalado: {}
+Greaseweazle's gw program isn't installed. Set up Greaseweazle installs it.	El programa gw de Greaseweazle no está instalado. Configurar Greaseweazle lo instala.
+HxC image (.hfe)	Imagen HxC (.hfe)
+Image to write	Imagen que escribir
+Install downloads the latest release (a zip with gw.exe in it) from GitHub into Limoniter's own folder.	Instalar descarga la última versión (un zip con gw.exe) de GitHub en la carpeta propia de Limoniter.
+Install makes a Python environment of Limoniter's own and installs the tools into it from GitHub, as Greaseweazle's README says. It needs Python 3 and Git (and, to build one of its parts, a C compiler); if they're missing, it says so.	Instalar crea un entorno de Python propio de Limoniter e instala en él las herramientas desde GitHub, como indica el README de Greaseweazle. Necesita Python 3 y Git (y, para compilar una de sus partes, un compilador de C); si faltan, lo avisa.
+Installing… this can take a minute.	Instalando… puede tardar un minuto.
+It opens in Limoniter when it's done.	Se abre en Limoniter cuando termina.
+Kind of disk	Tipo de disco
+Look for a newer version	Buscar una versión más reciente
+Measure the drive's speed	Medir la velocidad de la unidad
+More formats…	Más formatos…
+Needs a disk in the drive: a good drive turns at 300 rpm (360 for some)	Necesita un disco en la unidad: una unidad en buen estado gira a 300 rpm (360 en algunas)
+No Greaseweazle found	No se encontró ningún Greaseweazle
+No Greaseweazle was found. Is it plugged in? A port can be given in Set up Greaseweazle if it's not found by itself.	No se encontró ningún Greaseweazle. ¿Está conectado? Se puede indicar un puerto en Configurar Greaseweazle si no se encuentra solo.
+Older Greaseweazles need their update jumper fitted first: gw's words below say.	Los Greaseweazle antiguos necesitan primero el puente de actualización colocado: las palabras de gw de abajo lo explican.
+Open from a floppy disk (Greaseweazle)…	Abrir desde un disquete (Greaseweazle)…
+Put a head-cleaning disk in drive {drive} first: the heads are moved across it a few times, and a disk with data on it would be scratched.	Ponga primero un disco limpiacabezales en la unidad {drive}: los cabezales se mueven por él varias veces, y un disco con datos quedaría rayado.
+Python 3 isn't installed, which the Greaseweazle tools are written in. On Debian and Ubuntu: sudo apt install python3 python3-venv python3-pip git gcc python3-dev; on a Mac: brew install python git.	Python 3, en el que están escritas las herramientas de Greaseweazle, no está instalado. En Debian y Ubuntu: sudo apt install python3 python3-venv python3-pip git gcc python3-dev; en un Mac: brew install python git.
+Python couldn't make an environment (on Debian and Ubuntu: sudo apt install python3-venv). {e}	Python no pudo crear un entorno (en Debian y Ubuntu: sudo apt install python3-venv). {e}
+Raw flux (.scp)	Flux en bruto (.scp)
+Read a disk	Leer un disco
+Read a disk…	Leer un disco…
+Read each track back after writing it	Releer cada pista después de escribirla
+Read the disk	Leer el disco
+Read {} tracks.	{} pistas leídas.
+Revolutions	Vueltas
+Save the disk image	Guardar la imagen de disco
+Save to	Guardar en
+Set up Greaseweazle…	Configurar Greaseweazle…
+Takes a little longer; a track that fails is written again	Tarda un poco más; una pista que falla se vuelve a escribir
+Test the connection	Probar la conexión
+The Greaseweazle's firmware needs updating: Set up Greaseweazle has the button.	Hay que actualizar el firmware del Greaseweazle: Configurar Greaseweazle tiene el botón.
+The USB serial port was refused. Your account probably isn't allowed to use it. Add yourself to the group that owns it (dialout on Debian and Ubuntu, uucp on Arch: sudo usermod -aG dialout $USER, then log out and in again), or install Greaseweazle's udev rule, scripts/49-greaseweazle.rules from its release download, into /etc/udev/rules.d and plug the Greaseweazle in again.	Se rechazó el puerto serie USB. Probablemente tu cuenta no tiene permiso para usarlo. Añádete al grupo que lo posee (dialout en Debian y Ubuntu, uucp en Arch: sudo usermod -aG dialout $USER, y luego cierra la sesión y vuelve a entrar), o instala la regla udev de Greaseweazle, scripts/49-greaseweazle.rules de la descarga de la versión, en /etc/udev/rules.d y vuelve a conectar el Greaseweazle.
+The disk is write protected: slide its tab to make it writable.	El disco está protegido contra escritura: desliza su pestaña para que sea escribible.
+The disk's sectors (.adf, .img, .st, .d64…)	Los sectores del disco (.adf, .img, .st, .d64…)
+The drive gave no index pulses, so it isn't turning a disk. Is a disk in it, and the drive's cable and power connected?	La unidad no dio pulsos de índice, así que no está girando un disco. ¿Hay un disco dentro, y el cable y la alimentación de la unidad están conectados?
+The drive is A or B for a PC cable, 0 to 3 for a Shugart one.	La unidad es A o B para un cable de PC, de 0 a 3 para uno Shugart.
+The drive's head didn't find track 0. Is the right drive chosen, and the cable on the right way round?	El cabezal de la unidad no encontró la pista 0. ¿Está elegida la unidad correcta, y el cable puesto en el sentido correcto?
+The firmware was updated.	Se actualizó el firmware.
+The heads were cleaned.	Se limpiaron los cabezales.
+The newest version is {latest}.	La versión más reciente es {latest}.
+The number of revolutions must be 1 or more, or empty to let gw choose.	El número de vueltas debe ser 1 o más, o vacío para que gw elija.
+The open image would be offered here.	Aquí se ofrecería la imagen abierta.
+The port was refused: another program (a terminal, or another copy of gw) may be using it.	Se rechazó el puerto: puede que lo esté usando otro programa (un terminal, u otra copia de gw).
+The tools were installed into {}, but gw wasn't found in it.	Las herramientas se instalaron en {}, pero no se encontró gw dentro.
+The tracks aren't in a form gw knows. It takes things like c=0-79:h=0-1 (cylinders 0 to 79, both sides), or leave it empty.	Las pistas no tienen una forma que gw conozca. Acepta cosas como c=0-79:h=0-1 (cilindros de 0 a 79, ambas caras), o déjalo vacío.
+This gw was installed outside Limoniter: update it the way it was installed.	Este gw se instaló fuera de Limoniter: actualízalo de la forma en que se instaló.
+Tracks	Pistas
+Type part of its name: amiga, ibm, 1541	Escribe parte de su nombre: amiga, ibm, 1541
+Update the firmware	Actualizar el firmware
+Use the open file: {name}	Usar el archivo abierto: {name}
+Write a disk	Escribir un disco
+Write a disk…	Escribir un disco…
+Write the disk	Escribir el disco
+Write to a floppy disk (Greaseweazle)…	Escribir en un disquete (Greaseweazle)…
+Writing replaces everything on the disk.	Al escribir se reemplaza todo lo que hay en el disco.
+Wrote {} tracks.	{} pistas escritas.
+gw couldn't be started: {e}	No se pudo iniciar gw: {e}
+gw doesn't know that format. Another can be chosen under More.	gw no conoce ese formato. Se puede elegir otro en Más.
+gw failed: {last}	gw falló: {last}
+gw is found: {}{version}	gw encontrado: {}{version}
+gw isn't installed.	gw no está instalado.
+gw stopped before it was done.	gw se detuvo antes de terminar.
+{latest} is the newest version, so this one is up to date.	{latest} es la versión más reciente, así que esta está al día.
+{model}, firmware {firmware}	{model}, firmware {firmware}
+{model}, firmware {firmware}, on {port}	{model}, firmware {firmware}, en {port}
+{program} couldn't be started: {e}	No se pudo iniciar {program}: {e}
+{program} failed:\n{tail}	{program} falló:\n{tail}
+{retries} read(s) retried; {bad} track(s) with sectors missing	{retries} lectura(s) reintentada(s); {bad} pista(s) con sectores que faltan
+{s} Saved as {}.	{s} Guardado como {}.
+{what} Then try again, or follow {HOME}/wiki/Software-Installation.	{what} Luego inténtalo de nuevo, o sigue {HOME}/wiki/Software-Installation.
+{} of {} tracks ({})	{} de {} pistas ({})
+Formatted	Con formato
+Show as:	Mostrar como:
+Show the file as plain text, to edit it	Mostrar el archivo como texto sin formato, para editarlo
+Show the file as the formatted page it makes	Mostrar el archivo como la página con formato que genera
+The text and the formatted page side by side	El texto y la página con formato en paralelo

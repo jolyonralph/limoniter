@@ -82,3 +82,15 @@ It opens in the browser, ready for files to be added.
 ## Images from disk archivists
 
 Limoniter also reads the images people make when they save old floppies: ImageDisk, Teledisk, DMK, JV3 and JV1 images, and flux images from a Greaseweazle, SuperCard Pro or KryoFlux. It decodes them, opens the file system inside, and lists any sectors that never read cleanly. A decoded flux image can be saved as a plain disk image.
+
+## Real floppy disks with a Greaseweazle
+
+If you have a Greaseweazle (a small USB floppy disk controller) and a floppy drive, Limoniter can read real disks into images and write images back to disks. It does this by running the Greaseweazle's own program, `gw`.
+
+1. Choose **Retro › Greaseweazle › Set up Greaseweazle…**. If `gw` isn't there, click **Install**: on Windows it downloads the latest release, and on Linux and a Mac it installs it into a Python environment of Limoniter's own (this needs Python 3 and Git, and the box says so if they're missing). Then click **Test the connection**, which shows your Greaseweazle's model and firmware, and offers to update the firmware if there's a newer one.
+2. Plug in the Greaseweazle and choose the drive (A or B on a PC cable, 0 to 3 on a Shugart one). On Linux, if the USB port is refused, add yourself to the `dialout` group (`uucp` on Arch) and log in again, or install Greaseweazle's udev rule; the box says which when it happens.
+3. **File › Open from a floppy disk (Greaseweazle)…** (also under **Retro › Greaseweazle › Read a disk…**) asks what kind of disk it is (Amiga DD, PC 1.44 MB, Atari ST, Commodore 1541 and the others, or any of `gw`'s formats under **More formats…**), what to save (the disk's sectors, raw flux as `.scp`, or an `.hfe`), and where. A bar follows it track by track, with a count of reads it had to repeat and of tracks with sectors it couldn't read. When it's done, the image opens in the disk browser.
+4. **File › Write to a floppy disk (Greaseweazle)…** writes the image in front (or one you choose) to the disk, after asking you to confirm, as everything on the disk is replaced. Each track is read back to check it unless you turn that off.
+5. **Retro › Greaseweazle** also has **Drive info**, **Clean the heads** (with a cleaning disk in the drive), **Measure the drive's speed** and **Erase a disk**.
+
+These items are greyed out, with the reason when you hover over them, until `gw` is installed.

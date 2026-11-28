@@ -75,6 +75,14 @@ enum Command {
     FlashSettings,
     SerialTerminal,
     EpromProgrammer,
+    /// Greaseweazle: read a disk, write one, and the drive's own jobs.
+    GwRead,
+    GwWrite,
+    GwInfo,
+    GwClean,
+    GwRpm,
+    GwErase,
+    GwSetup,
     CodePicture,
     DocComment,
     MarkdownToc,
@@ -523,6 +531,11 @@ thread_local! {
 }
 
 impl Command {
+    /// Whether this needs Greaseweazle's gw program to be there: all of them but Set up Greaseweazle.
+    pub(super) fn needs_gw(self) -> bool {
+        matches!(self, Command::GwRead | Command::GwWrite | Command::GwInfo | Command::GwClean | Command::GwRpm | Command::GwErase)
+    }
+
     /// Whether it still means something with no file open.
     fn works_without_file(self) -> bool {
         // The PHP tools that work on a whole project.
@@ -568,6 +581,13 @@ impl Command {
                 | Command::FlashSettings
                 | Command::SerialTerminal
                 | Command::EpromProgrammer
+                | Command::GwRead
+                | Command::GwWrite
+                | Command::GwInfo
+                | Command::GwClean
+                | Command::GwRpm
+                | Command::GwErase
+                | Command::GwSetup
                 | Command::Formatters
                 | Command::ServeFolder
                 | Command::TimeSpent
@@ -2023,6 +2043,9 @@ pub struct Limoniter {
     /// The EPROM programmer's choices, and its window while it's open.
     eprom_prefs: crate::eprom::Prefs,
     eprom: Option<Box<eprom_host::EpromWindow>>,
+    /// The Greaseweazle's choices, and its window while it's open.
+    gw_prefs: crate::greaseweazle::Prefs,
+    gw: Option<Box<greaseweazle_host::GwWindow>>,
     /// The formatter chosen for each language, and whether that box is open.
     formatter_choices: std::collections::HashMap<String, String>,
     formatters_open: bool,
@@ -2281,6 +2304,16 @@ impl Limoniter {
                 prefs
             },
             eprom: None,
+            gw_prefs: {
+                let mut prefs = crate::greaseweazle::Prefs::default();
+                for line in settings.lines() {
+                    if let Some((name, value)) = line.split_once('=') {
+                        prefs.read_setting(name.trim(), value);
+                    }
+                }
+                prefs
+            },
+            gw: None,
             formatter_choices: {
                 let mut choices = std::collections::HashMap::new();
                 for value in list_setting(&settings, "formatter") {
@@ -4989,6 +5022,13 @@ impl Limoniter {
             Command::FlashSettings => self.flashing_open = true,
             Command::SerialTerminal => self.open_serial_terminal(),
             Command::EpromProgrammer => self.open_eprom(),
+            Command::GwRead => self.open_greaseweazle(greaseweazle_host::Tab::Read, None),
+            Command::GwWrite => self.open_greaseweazle(greaseweazle_host::Tab::Write, None),
+            Command::GwInfo => self.open_greaseweazle(greaseweazle_host::Tab::Tools, Some(crate::greaseweazle::Action::Info)),
+            Command::GwRpm => self.open_greaseweazle(greaseweazle_host::Tab::Tools, Some(crate::greaseweazle::Action::Rpm)),
+            Command::GwClean => self.open_greaseweazle_asking(crate::greaseweazle::Action::Clean),
+            Command::GwErase => self.open_greaseweazle_asking(crate::greaseweazle::Action::Erase),
+            Command::GwSetup => self.open_greaseweazle(greaseweazle_host::Tab::Setup, None),
             Command::CodePicture => self.open_code_picture(),
             Command::DocComment => self.write_doc_comment(),
             Command::MarkdownToc => self.markdown_toc(),
@@ -5872,7 +5912,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + self.recent_new_kinds.iter().map(|name| format!("recent_new_kind={name}\n")).collect::<String>().as_str() + format!("terminal_shell={}\n", self.terminal_shell).as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str() + self.http_ui.to_settings().as_str() + self.side_tabs.to_settings().as_str() + self.toolbar.to_settings().as_str() + crate::own_tags::to_settings(&crate::own_tags::user()).as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + self.recent_new_kinds.iter().map(|name| format!("recent_new_kind={name}\n")).collect::<String>().as_str() + format!("terminal_shell={}\n", self.terminal_shell).as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + self.gw_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str() + self.http_ui.to_settings().as_str() + self.side_tabs.to_settings().as_str() + self.toolbar.to_settings().as_str() + crate::own_tags::to_settings(&crate::own_tags::user()).as_str()
         )
     }
 
@@ -6463,6 +6503,9 @@ impl Limoniter {
         }
         // Where the file is and what the cursor's in, above the text; and what's kept at the top as it scrolls.
         let plain_text = !self.docs[index].placeholder && !self.docs[index].hex_mode && self.docs[index].table.is_none();
+        if plain_text {
+            self.preview_strip(ui, index);
+        }
         if plain_text && self.view.breadcrumbs {
             self.breadcrumbs(ui, index);
         }
@@ -6495,6 +6538,45 @@ impl Limoniter {
         }
     }
 
+    /// The switch between the formatted page, the page beside the text and the plain text, the same in each of the
+    /// three states and in the same place (the top right), so the way back is always where the person is looking. Its
+    /// buttons are added right to left, so call it inside a right-to-left layout. Gives the view chosen, if any.
+    fn preview_switch(ui: &mut Ui, now: settings::PreviewView) -> Option<settings::PreviewView> {
+        use settings::PreviewView::{Full, Split, Text};
+        let mut chosen = None;
+        for (view, label, hover) in [(Text, "Plain text", "Show the file as plain text, to edit it"), (Split, "Side by side", "The text and the formatted page side by side"), (Full, "Formatted", "Show the file as the formatted page it makes")] {
+            if ui.selectable_label(now == view, crate::i18n::tr(label)).on_hover_text(crate::i18n::tr(hover)).clicked() && now != view {
+                chosen = Some(view);
+            }
+        }
+        ui.label(RichText::new(crate::i18n::tr("Show as:")).color(theme::text_dim()).size(12.5));
+        chosen
+    }
+
+    /// A thin row above the text of a file that can be shown as a page (Markdown, a web page and the like), holding
+    /// the switch back to the formatted view. Without it, a file shown as plain text has no sign it ever had another view.
+    fn preview_strip(&mut self, ui: &mut Ui, index: usize) {
+        let doc = &self.docs[index];
+        if doc.preview_view == settings::PreviewView::Full || doc.hex_mode || doc.placeholder || doc.picture.is_some() {
+            return;
+        }
+        if !matches!(Self::preview_kind(doc), Some(preview::Kind::Markdown | preview::Kind::Html | preview::Kind::Svg)) {
+            return;
+        }
+        let now = doc.preview_view;
+        let mut chosen = None;
+        egui::Frame::new().fill(theme::editor_back()).inner_margin(egui::Margin { left: 8, right: 8, top: 1, bottom: 1 }).show(ui, |ui| {
+            // A row of its own height: a right-to-left layout would otherwise take all the room below.
+            ui.allocate_ui_with_layout(egui::vec2(ui.available_width(), 22.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                chosen = Self::preview_switch(ui, now);
+            });
+        });
+        if let Some(view) = chosen {
+            self.docs[index].preview_view = view;
+            self.pending_focus = true;
+        }
+    }
+
     fn full_preview(&mut self, ui: &mut Ui) {
         self.doc().update_syntax();
         let mut chosen = None;
@@ -6502,12 +6584,7 @@ impl Limoniter {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(crate::i18n::tr("Preview, full screen")).color(theme::text_dim()).size(12.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(crate::i18n::tr("Text only")).on_hover_text(crate::i18n::tr("Back to the text, to edit it")).clicked() {
-                        chosen = Some(settings::PreviewView::Text);
-                    }
-                    if ui.button(crate::i18n::tr("Split screen")).on_hover_text(crate::i18n::tr("The text and the preview side by side")).clicked() {
-                        chosen = Some(settings::PreviewView::Split);
-                    }
+                    chosen = Self::preview_switch(ui, settings::PreviewView::Full);
                 });
             });
             ui.separator();
@@ -8612,6 +8689,24 @@ impl Limoniter {
                         window.settle_now(&self.eprom_prefs);
                     }
                 }
+                "greaseweazle" => {
+                    // The Greaseweazle window: "TAB;PROGRAM" (setup, read, write or tools; the program a stand-in for gw,
+                    // as no Greaseweazle is plugged in here), run to its end.
+                    let (tab, program) = value.split_once(';').unwrap_or((value, ""));
+                    let tab = match tab {
+                        "read" => greaseweazle_host::Tab::Read,
+                        "write" => greaseweazle_host::Tab::Write,
+                        "tools" => greaseweazle_host::Tab::Tools,
+                        _ => greaseweazle_host::Tab::Setup,
+                    };
+                    if !program.is_empty() {
+                        self.gw_prefs.program = Some(PathBuf::from(program));
+                    }
+                    self.open_greaseweazle(tab, None);
+                    if let Some(window) = &mut self.gw {
+                        window.settle_now(&self.gw_prefs);
+                    }
+                }
                 // A notebook in front: "run-all", "select-N" (a cell by its place, from 0), "edit-N" (typing in it),
                 // "text" (as JSON) or "kind-markdown" and the like.
                 "notebook" => self.notebook_screenshot_step(value),
@@ -9071,6 +9166,7 @@ impl Limoniter {
                 "narrow" => self.edit_tools_screenshot_step("narrow"),
                 "text-object" => self.edit_tools_screenshot_step("text-object"),
                 "preview-full" => self.doc().preview_view = settings::PreviewView::Full,
+                "preview-text" => self.doc().preview_view = settings::PreviewView::Text,
                 "settings-files" => self.dialog = Dialog::Settings(settings::WindowState { section: 4, ..settings::WindowState::default() }),
                 "addons" | "addon-panel" => self.script_screenshot_step(step),
                 step if step.starts_with("window-theme=") => self.themes.window = step["window-theme=".len()..].to_string(),
@@ -9759,6 +9855,7 @@ impl Limoniter {
         self.flashing_window(&ctx);
         self.serial_window(&ctx);
         self.eprom_window(&ctx);
+        self.greaseweazle_window(&ctx);
         self.formatters_window(&ctx);
         self.time_spent_window(&ctx);
         self.php_window(&ctx);
@@ -10673,6 +10770,8 @@ mod binary_tools_host;
 mod serial_host;
 #[path = "eprom_host.rs"]
 mod eprom_host;
+#[path = "greaseweazle_host.rs"]
+mod greaseweazle_host;
 #[path = "search_panel.rs"]
 mod search_panel;
 #[path = "outline.rs"]
@@ -12966,6 +13065,103 @@ mod tests {
             draw(&mut app, &ctx, events);
         }
         assert!(matches!(app.dialog, Dialog::None), "the box is closed");
+    }
+
+    /// The sum of where every piece of text was drawn down the screen: it changes when the list scrolls.
+    fn text_depth(output: &egui::FullOutput) -> f32 {
+        fn walk(shape: &egui::Shape) -> f32 {
+            match shape {
+                egui::Shape::Text(text) => text.pos.y,
+                egui::Shape::Vec(inner) => inner.iter().map(walk).sum(),
+                _ => 0.0,
+            }
+        }
+        output.shapes.iter().map(|clipped| walk(&clipped.shape)).sum()
+    }
+
+    #[test]
+    fn the_command_box_scrolls_freely_and_follows_the_choice_only_when_it_moves() {
+        let (mut app, ctx) = app_with("");
+        draw(&mut app, &ctx, Vec::new());
+        draw(&mut app, &ctx, vec![key(Key::F1, egui::Modifiers::NONE)]);
+        let over_the_list = egui::pos2(800.0, 250.0);
+        let mut settled = draw(&mut app, &ctx, vec![egui::Event::PointerMoved(over_the_list)]);
+        for _ in 0..3 {
+            settled = draw(&mut app, &ctx, Vec::new());
+        }
+        let top = text_depth(&settled);
+        // The wheel takes the list down, and it stays where the person left it.
+        draw(&mut app, &ctx, vec![egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point, source: egui::MouseWheelSource::Wheel, delta: egui::vec2(0.0, -300.0), phase: egui::TouchPhase::Move, modifiers: egui::Modifiers::NONE }]);
+        // The wheel's scrolling is animated (a point or so a frame here), so wait until the list has stopped
+        // moving: ten frames alike in a row.
+        let settle = |app: &mut Limoniter| {
+            let mut last = text_depth(&draw(app, &ctx, Vec::new()));
+            let mut alike = 0;
+            for _ in 0..3000 {
+                let now = text_depth(&draw(app, &ctx, Vec::new()));
+                alike = if now == last { alike + 1 } else { 0 };
+                last = now;
+                if alike == 10 {
+                    break;
+                }
+            }
+            last
+        };
+        let scrolled = settle(&mut app);
+        assert!(scrolled != top, "the wheel moved the list");
+        for _ in 0..5 {
+            assert_eq!(text_depth(&draw(&mut app, &ctx, Vec::new())), scrolled, "the list stayed where it was scrolled to");
+        }
+        // The arrow keys bring the choice back into view.
+        for _ in 0..3 {
+            draw(&mut app, &ctx, vec![key(Key::ArrowUp, egui::Modifiers::NONE)]);
+        }
+        assert_eq!(settle(&mut app), top, "moving the choice scrolls it into view");
+    }
+
+    #[test]
+    fn a_file_shown_as_plain_text_keeps_the_switch_back_to_the_page() {
+        let (mut app, ctx, _) = markdown_app();
+        draw(&mut app, &ctx, Vec::new());
+        let words = |output: &egui::FullOutput| {
+            fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
+                match shape {
+                    egui::Shape::Text(text) => out.push(text.galley.text().to_string()),
+                    egui::Shape::Vec(inner) => inner.iter().for_each(|s| walk(s, out)),
+                    _ => {}
+                }
+            }
+            let mut out = Vec::new();
+            output.shapes.iter().for_each(|clipped| walk(&clipped.shape, &mut out));
+            out
+        };
+        for view in [settings::PreviewView::Text, settings::PreviewView::Split, settings::PreviewView::Full] {
+            app.doc().preview_view = view;
+            draw(&mut app, &ctx, Vec::new());
+            let shown = words(&draw(&mut app, &ctx, Vec::new()));
+            for label in ["Show as:", "Plain text", "Formatted"] {
+                assert!(shown.iter().any(|text| text == label), "{label} is on show in {view:?}");
+            }
+        }
+        // And pressing it goes back: the way out of the plain text is a click on Formatted.
+        app.doc().preview_view = settings::PreviewView::Text;
+        draw(&mut app, &ctx, Vec::new());
+        let at = {
+            let output = draw(&mut app, &ctx, Vec::new());
+            fn find(shape: &egui::Shape) -> Option<egui::Pos2> {
+                match shape {
+                    egui::Shape::Text(text) if text.galley.text() == "Formatted" => Some(text.pos + text.galley.size() / 2.0),
+                    egui::Shape::Vec(inner) => inner.iter().find_map(find),
+                    _ => None,
+                }
+            }
+            output.shapes.iter().find_map(|clipped| find(&clipped.shape)).unwrap()
+        };
+        let click = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        draw(&mut app, &ctx, vec![egui::Event::PointerMoved(at)]);
+        draw(&mut app, &ctx, vec![click(true)]);
+        draw(&mut app, &ctx, vec![click(false)]);
+        assert_eq!(app.doc().preview_view, settings::PreviewView::Full);
     }
 
     #[test]
