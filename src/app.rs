@@ -13081,38 +13081,29 @@ mod tests {
         assert!(matches!(app.dialog, Dialog::None), "the box is closed");
     }
 
-    /// The sum of where every piece of text was drawn down the screen: it changes when the list scrolls.
-    fn text_depth(output: &egui::FullOutput) -> f32 {
-        fn walk(shape: &egui::Shape) -> f32 {
-            match shape {
-                egui::Shape::Text(text) => text.pos.y,
-                egui::Shape::Vec(inner) => inner.iter().map(walk).sum(),
-                _ => 0.0,
-            }
-        }
-        output.shapes.iter().map(|clipped| walk(&clipped.shape)).sum()
-    }
-
     #[test]
     fn the_command_box_scrolls_freely_and_follows_the_choice_only_when_it_moves() {
         let (mut app, ctx) = app_with("");
         draw(&mut app, &ctx, Vec::new());
         draw(&mut app, &ctx, vec![key(Key::F1, egui::Modifiers::NONE)]);
         let over_the_list = egui::pos2(800.0, 250.0);
-        let mut settled = draw(&mut app, &ctx, vec![egui::Event::PointerMoved(over_the_list)]);
-        for _ in 0..3 {
-            settled = draw(&mut app, &ctx, Vec::new());
-        }
-        let top = text_depth(&settled);
-        // The wheel takes the list down, and it stays where the person left it.
-        draw(&mut app, &ctx, vec![egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point, source: egui::MouseWheelSource::Wheel, delta: egui::vec2(0.0, -300.0), phase: egui::TouchPhase::Move, modifiers: egui::Modifiers::NONE }]);
+        draw(&mut app, &ctx, vec![egui::Event::PointerMoved(over_the_list)]);
+        // How far down the list is scrolled, after a frame drawn with no input. (The list's own offset, not where
+        // its text lands: commands found in the background can add a row while the test runs.)
+        let offset = |app: &mut Limoniter| {
+            draw(app, &ctx, Vec::new());
+            match &app.dialog {
+                Dialog::Palette(state) => state.scrolled,
+                _ => panic!("the command box is open"),
+            }
+        };
         // The wheel's scrolling is animated (a point or so a frame here), so wait until the list has stopped
         // moving: ten frames alike in a row.
         let settle = |app: &mut Limoniter| {
-            let mut last = text_depth(&draw(app, &ctx, Vec::new()));
+            let mut last = offset(app);
             let mut alike = 0;
             for _ in 0..3000 {
-                let now = text_depth(&draw(app, &ctx, Vec::new()));
+                let now = offset(app);
                 alike = if now == last { alike + 1 } else { 0 };
                 last = now;
                 if alike == 10 {
@@ -13121,10 +13112,13 @@ mod tests {
             }
             last
         };
+        let top = settle(&mut app);
+        // The wheel takes the list down, and it stays where the person left it.
+        draw(&mut app, &ctx, vec![egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point, source: egui::MouseWheelSource::Wheel, delta: egui::vec2(0.0, -300.0), phase: egui::TouchPhase::Move, modifiers: egui::Modifiers::NONE }]);
         let scrolled = settle(&mut app);
-        assert!(scrolled != top, "the wheel moved the list");
+        assert!(scrolled > top, "the wheel moved the list down");
         for _ in 0..5 {
-            assert_eq!(text_depth(&draw(&mut app, &ctx, Vec::new())), scrolled, "the list stayed where it was scrolled to");
+            assert_eq!(offset(&mut app), scrolled, "the list stayed where it was scrolled to");
         }
         // The arrow keys bring the choice back into view.
         for _ in 0..3 {

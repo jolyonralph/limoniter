@@ -1112,6 +1112,9 @@ pub(super) struct PaletteState {
     /// Whether the list should scroll to the chosen row this frame: only after the choice moved, never while the
     /// person is scrolling the list themselves.
     follow: bool,
+    /// How far down the list is scrolled, for the tests to see.
+    #[cfg(test)]
+    pub(super) scrolled: f32,
 }
 
 impl PaletteState {
@@ -2265,7 +2268,7 @@ impl Limoniter {
             if found.is_empty() {
                 ui.label(RichText::new(crate::i18n::tr("Nothing matches that. Try another word.")).color(theme::text_faint()));
             }
-            egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+            let _list = egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
                 for (index, each) in found.iter().enumerate() {
                     let here = index == state.selected;
                     let (rect, response) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 30.0), egui::Sense::click());
@@ -2309,6 +2312,10 @@ impl Limoniter {
                     }
                 }
             });
+            #[cfg(test)]
+            {
+                state.scrolled = _list.state.offset().y;
+            }
             ui.add_space(4.0);
             ui.label(RichText::new(crate::i18n::tr("\u{2191} \u{2193} to choose, Enter to do it, Esc to close")).color(theme::text_faint()).size(11.5));
         });
