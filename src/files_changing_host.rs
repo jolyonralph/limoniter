@@ -16,7 +16,7 @@ impl Limoniter {
                 if project.root.is_none() {
                     places.extend(project.files.iter().cloned());
                 }
-                crate::files_changing::source_for(project.root.as_deref(), hidden, on_server, &places)
+                crate::files_changing::source_for(self.agents.wt.view.as_deref().or(project.root.as_deref()), hidden, on_server, &places)
             }
             None => crate::files_changing::source_for(None, &[], false, &open),
         }

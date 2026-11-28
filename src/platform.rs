@@ -1,7 +1,7 @@
 //! The few things done differently on Windows, macOS and Linux: running a command line, stopping it and what it
 //! started, and handing a file or folder to the system's own file manager or usual program.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// For tests that run an emulator as a reference: a command whose program can't reach a display, so it opens no
@@ -127,6 +127,25 @@ pub const CREDENTIAL_STORE: &str = if cfg!(windows) {
 /// What runs a command line, in words.
 pub const SHELL_NAME: &str = if cfg!(windows) { "the Command Prompt" } else { "the shell (sh)" };
 
+/// A path made whole (links followed, `..` gone) in the form other programs take. Windows' own `canonicalize` gives
+/// `\\?\C:\…`, which Git and most programs refuse, so that's taken off again.
+pub fn canonical(path: &Path) -> std::io::Result<PathBuf> {
+    Ok(without_verbatim(&std::fs::canonicalize(path)?))
+}
+
+/// A path without Windows' `\\?\` (or `\\?\UNC\`) at the start; any other path as it is.
+pub fn without_verbatim(path: &Path) -> PathBuf {
+    let text = path.to_string_lossy();
+    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+        PathBuf::from(format!(r"\\{rest}"))
+    } else if let Some(rest) = text.strip_prefix(r"\\?\") {
+        PathBuf::from(rest)
+    } else {
+        path.to_path_buf()
+    }
+}
+
+
 /// Opens a folder in the file manager.
 pub fn open_folder(folder: &Path) -> Result<(), String> {
     let program = if cfg!(windows) {
@@ -207,6 +226,14 @@ pub fn from_store() -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn windows_long_path_marks_are_taken_off() {
+        use std::path::{Path, PathBuf};
+        assert_eq!(super::without_verbatim(Path::new(r"\\?\C:\Users\a\x")), PathBuf::from(r"C:\Users\a\x"));
+        assert_eq!(super::without_verbatim(Path::new(r"\\?\UNC\server\share\x")), PathBuf::from(r"\\server\share\x"));
+        assert_eq!(super::without_verbatim(Path::new("/home/a/x")), PathBuf::from("/home/a/x"));
+    }
+
     #[cfg(windows)]
     #[test]
     fn a_batch_file_on_the_path_is_found_and_an_exe_wins() {

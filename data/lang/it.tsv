@@ -11732,3 +11732,77 @@ Recent projects	Progetti recenti
 Run it from:	Esegui da:
 Looking for Claude Code and Codex in WSL...	Ricerca di Claude Code e Codex in WSL...
 {} wasn't found in WSL: {}	{} non è stato trovato in WSL: {}
+Work in a separate copy (Git worktree)	Lavorare in una copia separata (Git worktree)
+The session gets its own folder on its own branch, so it can't disturb what you are doing. Afterwards you review its changes and merge them in.	La sessione ottiene una cartella propria su un branch proprio, così non disturba ciò che si sta facendo. Poi se ne rivedono le modifiche e le si unisce con un merge.
+Name for the task:	Nome per l'attività:
+used for the branch name	usato per il nome del branch
+The project has {n} changes that aren't committed yet. What should the copy start with?	Il progetto ha {n} modifiche non ancora committate. Con cosa deve iniziare la copia?
+Carry the changes over to the copy	Porta le modifiche nella copia
+Start from the last commit	Parti dall'ultimo commit
+A separate copy needs the project to be in a Git repository.	Una copia separata richiede che il progetto sia in un repository Git.
+The project has no commit yet, so there is nothing to copy. Make a first commit, then try again.	Il progetto non ha ancora commit, quindi non c'è nulla da copiare. Fare un primo commit, poi riprovare.
+A merge or rebase is half done in the project. Finish or abort it first.	Nel progetto un merge o rebase è a metà. Completarlo o interromperlo prima.
+Choose what to do with the changes not yet committed.	Scegliere cosa fare delle modifiche non ancora committate.
+The project has no folder beside it to put a copy in.	Accanto al progetto non c'è una cartella in cui mettere una copia.
+Couldn't make the folder {} for the copy: {e}	Impossibile creare la cartella {} per la copia: {e}
+Couldn't copy {} into the new copy: {}	Impossibile copiare {} nella nuova copia: {}
+Couldn't delete {}: {e}	Impossibile eliminare {}: {e}
+Please review the changes below, which another AI assistant made. Look for mistakes, missed cases and anything unclear. Don't change any files. Write each comment on a line of its own, as path:line: what you found, and finish with one short sentence on whether the changes are ready.	Rivedi le modifiche qui sotto, fatte da un altro assistente IA. Cerca errori, casi trascurati e tutto ciò che non è chiaro. Non modificare nessun file. Scrivi ogni commento su una riga a parte, come percorso:riga: cosa hai trovato, e concludi con una breve frase che dica se le modifiche sono pronte.
+(The diff was too long to hand over whole, so the end of it is left out.)	(Il diff era troppo lungo per essere consegnato per intero, quindi la sua fine è omessa.)
+{reviewer} reviewed your changes and says:\n\n{review}\n\nPlease go through it, and change what needs changing.	{reviewer} ha rivisto le tue modifiche e dice:\n\n{review}\n\nEsaminala e cambia ciò che va cambiato.
+{} (copy)	{} (copia)
+Working in a separate copy on the branch {}, at {}	Lavora in una copia separata sul branch {}, in {}
+The session's separate copy is still at {} on the branch {}. Remove it with git worktree remove when you are done with it.	La copia separata della sessione è ancora in {} sul branch {}. Rimuoverla con git worktree remove quando non serve più.
+This session has no separate copy.	Questa sessione non ha una copia separata.
+{} files were taken as the copy has them.	{} file sono stati presi come li ha la copia.
+{} files were changed in both places and fitted together.	{} file sono stati modificati in entrambi i posti e uniti.
+{} files were already the same.	{} file erano già uguali.
+{} files that aren't text were changed in both places and are left as they are: {}	{} file che non sono testo sono stati modificati in entrambi i posti e restano come sono: {}
+Original: {}	Originale: {}
+Mine (the project): {}	Mio (il progetto): {}
+Theirs (the copy): {}	Loro (la copia): {}
+{} files clash with your changes and are open in the merge view: settle each one and save it.	{} file sono in conflitto con le tue modifiche e sono aperti nella vista di merge: risolvi ciascuno e salvalo.
+The copy has no changes to merge.	La copia non ha modifiche da unire.
+Review and merge	Rivedi e unisci
+The copy is on the branch {}, started from {}.	La copia è sul branch {}, partito da {}.
+The copy has no changes.	La copia non ha modifiche.
+Click a file to see its changes beside the project's file.	Fare clic su un file per vederne le modifiche accanto al file del progetto.
+already the same in the project	già uguale nel progetto
+goes in as it is	entra così com'è
+fits with your changes	si accorda con le tue modifiche
+clashes with your changes: opens in the merge view	è in conflitto con le tue modifiche: si apre nella vista di merge
+not text, changed in both places: left alone	non è testo, modificato in entrambi i posti: lasciato com'è
+Merge into the project	Unisci nel progetto
+Puts the changes into your files, merging with anything you changed since. Nothing is committed.	Mette le modifiche nei tuoi file, unendole a ciò che hai cambiato nel frattempo. Non viene fatto alcun commit.
+Commit on its branch and leave it	Fai commit sul suo branch e lascialo
+Remove the copy's folder now? The branch stays, with the commit on it.	Rimuovere ora la cartella della copia? Il branch resta, con il commit.
+Remove the copy and its branch now? Its session is closed with it.	Rimuovere ora la copia e il suo branch? La sua sessione viene chiusa con essa.
+{} (not in the project)	{} (non nel progetto)
+{} (deleted in the copy)	{} (eliminato nella copia)
+Changes made in the session: {}	Modifiche fatte nella sessione: {}
+Committed on the branch {}. The copy is still at {}.	Commit fatto sul branch {}. La copia è ancora in {}.
+Separate copy on {}	Copia separata su {}
+Show it in Files changing	Mostra in File modificati
+Files changing lists what changes in the copy, instead of in the project.	File modificati elenca ciò che cambia nella copia, invece che nel progetto.
+Hands the changes in the project to the other tool to review.	Passa le modifiche del progetto all'altro strumento per la revisione.
+{name} is reviewing...	{name} sta rivedendo...
+{name} reviewed it: {} comments	{name} l'ha rivisto: {} commenti
+Show the review	Mostra la revisione
+Ask the other to review	Chiedi all'altro di rivedere
+{} will be given the changes and asked to review them. It won't be asked to change anything.	{} riceverà le modifiche e gli verrà chiesto di rivederle. Non gli verrà chiesto di cambiare nulla.
+Only one of Claude Code and Codex is installed, so the same one reviews.	È installato solo uno tra Claude Code e Codex, quindi rivede lo stesso.
+A new {} session	Una nuova sessione {}
+The session: {}	La sessione: {}
+What it is asked:	Cosa gli viene chiesto:
+Use the usual words	Usa le parole solite
+That session has gone.	Quella sessione non c'è più.
+There are no changes to review yet.	Non ci sono ancora modifiche da rivedere.
+Review by {name}	Revisione di {name}
+It made no comments about particular lines.	Non ha fatto commenti su righe particolari.
+Click a comment to go to its line.	Fare clic su un commento per andare alla sua riga.
+What it said	Cosa ha detto
+The changes it looked at	Le modifiche che ha esaminato
+Send the review back	Rimanda la revisione
+Gives it to the session that made the changes, as its next message.	La dà alla sessione che ha fatto le modifiche, come suo prossimo messaggio.
+Sent.	Inviato.
+Couldn't copy {} into the new copy: {e}	Impossibile copiare {} nella nuova copia: {e}

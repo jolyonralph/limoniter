@@ -147,10 +147,15 @@ impl Setup {
 
 /// Whether a program can be found on the PATH, as the Command Prompt would find it.
 pub(super) fn installed(program: &str) -> bool {
+    let endings: &[&str] = if cfg!(windows) { &["", ".exe", ".cmd", ".bat", ".com"] } else { &[""] };
+    // A program given by its place, not only by its name to look for on PATH.
+    let given = std::path::Path::new(program);
+    if given.is_absolute() || given.components().count() > 1 {
+        return endings.iter().any(|ext| std::path::PathBuf::from(format!("{program}{ext}")).is_file());
+    }
     let Some(path) = std::env::var_os("PATH") else {
         return false;
     };
-    let endings: &[&str] = if cfg!(windows) { &[".exe", ".cmd", ".bat", ".com"] } else { &[""] };
     std::env::split_paths(&path).any(|dir| endings.iter().any(|ext| dir.join(format!("{program}{ext}")).is_file()))
 }
 

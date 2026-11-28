@@ -21,11 +21,16 @@ pub(super) struct Choice {
     pub effort: String,
     /// The WSL distribution to run the tool in, or None for this computer's own.
     pub place: Option<String>,
+    /// The session works in a copy of its own (a Git worktree), and what to do with changes not yet committed.
+    pub separate: bool,
+    pub carry: crate::agent_worktree::Carry,
+    /// What the copy's branch is named after.
+    pub task: String,
 }
 
 impl Default for Choice {
     fn default() -> Self {
-        Choice { tool: Tool::Claude, mode: Mode::Ask, model: "default".into(), effort: String::new(), place: None }
+        Choice { tool: Tool::Claude, mode: Mode::Ask, model: "default".into(), effort: String::new(), place: None, separate: false, carry: Default::default(), task: String::new() }
     }
 }
 
@@ -50,7 +55,7 @@ pub(super) struct State {
     /// The box for a new session is open, with these choices.
     pub dialog: Option<Choice>,
     /// What's been chosen before, offered again.
-    last: Choice,
+    pub(super) last: Choice,
     /// The models the tool has said it has, kept for the next box.
     models: Vec<ModelChoice>,
     probing: Option<Receiver<Result<Vec<ModelChoice>, String>>>,
@@ -80,6 +85,8 @@ pub(super) struct State {
     locating: Option<Receiver<Found>>,
     /// Where each tool was last run from.
     remembered: Remembered,
+    /// Sessions in copies of their own, and reviews by the other tool.
+    pub(super) wt: agent_worktree_host::WtState,
 }
 
 /// What looking in the WSL distributions found.
@@ -118,6 +125,7 @@ impl Default for State {
             found: None,
             locating: None,
             remembered: Remembered::load(),
+            wt: Default::default(),
         }
     }
 }
@@ -172,10 +180,13 @@ impl Limoniter {
     pub(super) fn agent_new_session_box(&mut self) {
         self.panels.agents = true;
         self.agents.dialog = Some(self.agents.last.clone());
+        self.worktree_forget_offer();
     }
 
     /// Starts a session on the program, in `folder`, and puts it in front.
     pub(super) fn agent_start(&mut self, ctx: &Context, folder: &Path, choice: &Choice, resume: Option<&Past>) -> Result<(), String> {
+        let (folder_made, worktree) = self.worktree_for_start(folder, choice, resume.is_some())?;
+        let folder = folder_made.as_path();
         let wake = ctx.clone();
         let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(move || wake.request_repaint());
         let model = Some(choice.model.clone()).filter(|m| m != "default");
@@ -217,9 +228,13 @@ impl Limoniter {
         }
         let number = self.agents.next_number;
         self.agents.next_number += 1;
-        self.agents.tabs.push(Tab::new(session, number));
+        let mut tab = Tab::new(session, number);
+        tab.worktree = worktree;
+        self.agents.tabs.push(tab);
         self.agents.active = self.agents.tabs.len() - 1;
         self.agents.last = choice.clone();
+        self.agents.last.task.clear();
+        self.agents.last.carry = Default::default();
         let place = Some(choice.place.clone().unwrap_or_default());
         match choice.tool {
             Tool::Claude => self.agents.remembered.claude = place,
@@ -288,6 +303,9 @@ impl Limoniter {
             return;
         }
         let tab = self.agents.tabs.remove(index);
+        if let Some(copy) = &tab.worktree {
+            self.worktree_left_behind(copy);
+        }
         let reviews: Vec<u64> = self.agents.reviews.iter().filter(|r| r.session == tab.number).map(|r| r.tab).collect();
         self.agents.reviews.retain(|r| r.session != tab.number);
         for review in reviews {
@@ -474,8 +492,13 @@ impl Limoniter {
         let mut usage = false;
         ui.horizontal_wrapped(|ui| {
             for (n, tab) in self.agents.tabs.iter().enumerate() {
-                let label = egui::RichText::new(&tab.session.title).color(agent_panel::tab_colour(tab));
-                if ui.selectable_label(n == self.agents.active, label).clicked() {
+                let title = if tab.worktree.is_some() { crate::i18n::tf!("{} (copy)", tab.session.title) } else { tab.session.title.clone() };
+                let label = egui::RichText::new(title).color(agent_panel::tab_colour(tab));
+                let mut response = ui.selectable_label(n == self.agents.active, label);
+                if let Some(copy) = &tab.worktree {
+                    response = response.on_hover_text(crate::i18n::tf!("Working in a separate copy on the branch {}, at {}", copy.branch, copy.path.display()));
+                }
+                if response.clicked() {
                     self.agents.active = n;
                 }
                 if ui.small_button("\u{D7}").on_hover_text(crate::i18n::tr("Close this session")).clicked() {
@@ -558,6 +581,7 @@ impl Limoniter {
             let ui = &mut inside;
             'draw: {
                 new = self.agent_tab_row(ui);
+                self.worktree_bar(ui);
                 if self.agents.showing_past {
                     resume = self.agent_past_list(ui, &folder);
                     ui.separator();
@@ -606,7 +630,7 @@ impl Limoniter {
     }
 
     /// Whether a tool can be run: its own, the stand-in a test gave, or one found in WSL.
-    fn agent_installed(&self, tool: Tool) -> bool {
+    pub(super) fn agent_installed(&self, tool: Tool) -> bool {
         !self.agent_places(tool).is_empty()
     }
 
@@ -735,9 +759,11 @@ impl Limoniter {
             let warning = choice.mode == Mode::Bypass;
             let colour = if warning { theme::rainbow_mistake() } else { theme::text_dim() };
             ui.label(egui::RichText::new(crate::i18n::tr(choice.mode.explain_for(choice.tool))).color(colour).size(12.0));
+            ui.add_space(6.0);
+            let waiting = self.worktree_choice(ui, &folder, &mut choice);
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.add_enabled(installed_both[usize::from(choice.tool == Tool::Codex)], egui::Button::new(crate::i18n::tr("Start"))).clicked() {
+                if ui.add_enabled(installed_both[usize::from(choice.tool == Tool::Codex)] && !waiting, egui::Button::new(crate::i18n::tr("Start"))).clicked() {
                     start = true;
                 }
                 if ui.button(crate::i18n::tr("Cancel")).clicked() {

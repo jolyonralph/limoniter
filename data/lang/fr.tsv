@@ -11732,3 +11732,77 @@ Recent projects	Projets récents
 Run it from:	Lancer depuis :
 Looking for Claude Code and Codex in WSL...	Recherche de Claude Code et de Codex dans WSL...
 {} wasn't found in WSL: {}	{} est introuvable dans WSL : {}
+Work in a separate copy (Git worktree)	Travailler dans une copie séparée (Git worktree)
+The session gets its own folder on its own branch, so it can't disturb what you are doing. Afterwards you review its changes and merge them in.	La session obtient son propre dossier sur sa propre branche, et ne peut donc pas gêner ce que vous faites. Ensuite, vous relisez ses modifications et les fusionnez.
+Name for the task:	Nom de la tâche :
+used for the branch name	utilisé pour le nom de la branche
+The project has {n} changes that aren't committed yet. What should the copy start with?	Le projet a {n} modifications qui ne sont pas encore commitées. Par quoi la copie doit-elle commencer ?
+Carry the changes over to the copy	Reporter les modifications dans la copie
+Start from the last commit	Partir du dernier commit
+A separate copy needs the project to be in a Git repository.	Une copie séparée nécessite que le projet soit dans un dépôt Git.
+The project has no commit yet, so there is nothing to copy. Make a first commit, then try again.	Le projet n'a pas encore de commit, il n'y a donc rien à copier. Faites un premier commit, puis réessayez.
+A merge or rebase is half done in the project. Finish or abort it first.	Une fusion ou un rebase est à moitié fait dans le projet. Terminez-le ou abandonnez-le d'abord.
+Choose what to do with the changes not yet committed.	Choisissez quoi faire des modifications pas encore commitées.
+The project has no folder beside it to put a copy in.	Le projet n'a pas de dossier à côté de lui pour y mettre une copie.
+Couldn't make the folder {} for the copy: {e}	Impossible de créer le dossier {} pour la copie : {e}
+Couldn't copy {} into the new copy: {}	Impossible de copier {} dans la nouvelle copie : {}
+Couldn't delete {}: {e}	Impossible de supprimer {} : {e}
+Please review the changes below, which another AI assistant made. Look for mistakes, missed cases and anything unclear. Don't change any files. Write each comment on a line of its own, as path:line: what you found, and finish with one short sentence on whether the changes are ready.	Veuillez relire les modifications ci-dessous, faites par un autre assistant IA. Cherchez les erreurs, les cas oubliés et tout ce qui n'est pas clair. Ne modifiez aucun fichier. Écrivez chaque commentaire sur sa propre ligne, sous la forme chemin:ligne : ce que vous avez trouvé, et terminez par une courte phrase indiquant si les modifications sont prêtes.
+(The diff was too long to hand over whole, so the end of it is left out.)	(Le diff était trop long pour être transmis en entier, sa fin est donc omise.)
+{reviewer} reviewed your changes and says:\n\n{review}\n\nPlease go through it, and change what needs changing.	{reviewer} a relu vos modifications et dit :\n\n{review}\n\nVeuillez la parcourir et modifier ce qui doit l'être.
+{} (copy)	{} (copie)
+Working in a separate copy on the branch {}, at {}	Travaille dans une copie séparée sur la branche {}, dans {}
+The session's separate copy is still at {} on the branch {}. Remove it with git worktree remove when you are done with it.	La copie séparée de la session est toujours dans {} sur la branche {}. Supprimez-la avec git worktree remove quand vous en avez fini avec elle.
+This session has no separate copy.	Cette session n'a pas de copie séparée.
+{} files were taken as the copy has them.	{} fichiers ont été repris tels que la copie les a.
+{} files were changed in both places and fitted together.	{} fichiers ont été modifiés aux deux endroits et assemblés.
+{} files were already the same.	{} fichiers étaient déjà identiques.
+{} files that aren't text were changed in both places and are left as they are: {}	{} fichiers qui ne sont pas du texte ont été modifiés aux deux endroits et sont laissés tels quels : {}
+Original: {}	Original : {}
+Mine (the project): {}	Le mien (le projet) : {}
+Theirs (the copy): {}	Le leur (la copie) : {}
+{} files clash with your changes and are open in the merge view: settle each one and save it.	{} fichiers entrent en conflit avec vos modifications et sont ouverts dans la vue de fusion : réglez-les un par un et enregistrez-les.
+The copy has no changes to merge.	La copie n'a aucune modification à fusionner.
+Review and merge	Relire et fusionner
+The copy is on the branch {}, started from {}.	La copie est sur la branche {}, partie de {}.
+The copy has no changes.	La copie n'a aucune modification.
+Click a file to see its changes beside the project's file.	Cliquez sur un fichier pour voir ses modifications à côté du fichier du projet.
+already the same in the project	déjà identique dans le projet
+goes in as it is	est repris tel quel
+fits with your changes	s'accorde avec vos modifications
+clashes with your changes: opens in the merge view	entre en conflit avec vos modifications : s'ouvre dans la vue de fusion
+not text, changed in both places: left alone	pas du texte, modifié aux deux endroits : laissé tel quel
+Merge into the project	Fusionner dans le projet
+Puts the changes into your files, merging with anything you changed since. Nothing is committed.	Met les modifications dans vos fichiers, en les fusionnant avec tout ce que vous avez changé depuis. Rien n'est commité.
+Commit on its branch and leave it	Commiter sur sa branche et la laisser
+Remove the copy's folder now? The branch stays, with the commit on it.	Supprimer maintenant le dossier de la copie ? La branche reste, avec le commit.
+Remove the copy and its branch now? Its session is closed with it.	Supprimer maintenant la copie et sa branche ? Sa session est fermée avec elle.
+{} (not in the project)	{} (pas dans le projet)
+{} (deleted in the copy)	{} (supprimé dans la copie)
+Changes made in the session: {}	Modifications faites dans la session : {}
+Committed on the branch {}. The copy is still at {}.	Commité sur la branche {}. La copie est toujours dans {}.
+Separate copy on {}	Copie séparée sur {}
+Show it in Files changing	L'afficher dans Fichiers modifiés
+Files changing lists what changes in the copy, instead of in the project.	Fichiers modifiés liste ce qui change dans la copie, au lieu du projet.
+Hands the changes in the project to the other tool to review.	Confie les modifications du projet à l'autre outil pour relecture.
+{name} is reviewing...	{name} relit...
+{name} reviewed it: {} comments	{name} l'a relu : {} commentaires
+Show the review	Afficher la relecture
+Ask the other to review	Demander à l'autre de relire
+{} will be given the changes and asked to review them. It won't be asked to change anything.	{} recevra les modifications et devra les relire. On ne lui demandera de rien changer.
+Only one of Claude Code and Codex is installed, so the same one reviews.	Un seul de Claude Code et Codex est installé, c'est donc le même qui relit.
+A new {} session	Une nouvelle session {}
+The session: {}	La session : {}
+What it is asked:	Ce qu'on lui demande :
+Use the usual words	Utiliser les mots habituels
+That session has gone.	Cette session n'existe plus.
+There are no changes to review yet.	Il n'y a pas encore de modifications à relire.
+Review by {name}	Relecture par {name}
+It made no comments about particular lines.	Il n'a fait aucun commentaire sur des lignes précises.
+Click a comment to go to its line.	Cliquez sur un commentaire pour aller à sa ligne.
+What it said	Ce qu'il a dit
+The changes it looked at	Les modifications qu'il a examinées
+Send the review back	Renvoyer la relecture
+Gives it to the session that made the changes, as its next message.	La donne à la session qui a fait les modifications, comme prochain message.
+Sent.	Envoyé.
+Couldn't copy {} into the new copy: {e}	Impossible de copier {} dans la nouvelle copie : {e}

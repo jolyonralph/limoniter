@@ -3577,6 +3577,7 @@ impl Limoniter {
         self.watch_remote_files(ctx);
         self.claude_ide_tick(ctx);
         self.agents_tick(ctx);
+        self.worktree_tick();
         self.usage_tick(ctx);
         let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends() | self.check_sessions();
         busy |= self.remote_project_tick(ctx);
@@ -8633,6 +8634,7 @@ impl Limoniter {
                 "usage" => self.usage_screenshot_step(value),
                 // The New session box.
                 "agent-new" => self.agents_dialog_screenshot_step(value),
+                "agent-copy" => self.worktree_screenshot_step(value),
                 "stacked" => {
                     self.panels.project = true;
                     self.panels.functions = true;
@@ -9737,6 +9739,7 @@ impl Limoniter {
         self.ripper_window(&ctx);
         self.boot_disk_window(&ctx);
         self.agent_dialog(&ctx);
+        self.worktree_dialogs(&ctx);
         self.usage_window(&ctx);
         self.project_index_tick(&ctx);
         self.outline_tick();
@@ -10728,6 +10731,8 @@ mod claude_ide_host;
 
 #[path = "agent_host.rs"]
 mod agent_host;
+#[path = "agent_worktree_host.rs"]
+mod agent_worktree_host;
 #[path = "usage_host.rs"]
 mod usage_host;
 

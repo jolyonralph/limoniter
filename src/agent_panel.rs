@@ -23,11 +23,13 @@ pub struct Tab {
     /// Markdown laid out for a message: by its id, with the text it was made from.
     markdown: HashMap<String, (usize, Vec<crate::preview::Block>)>,
     pub stick: bool,
+    /// The separate copy of the project this session works in, if it has one.
+    pub worktree: Option<crate::agent_worktree::Worktree>,
 }
 
 impl Tab {
     pub fn new(session: Session, number: u64) -> Self {
-        Tab { session, number, markdown: HashMap::new(), stick: true }
+        Tab { session, number, markdown: HashMap::new(), stick: true, worktree: None }
     }
 }
 

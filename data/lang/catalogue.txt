@@ -180,6 +180,7 @@ ${} is too large a number
 (A plot, shown above)
 (Nothing to show)
 (Output of a kind that can't be shown here: {what})
+(The diff was too long to hand over whole, so the end of it is left out.)
 (before the first label)
 (blank line)
 (choose a file)
@@ -749,6 +750,7 @@ A listing for
 A machine-code block can't be 64K or more.
 A mask plane, not used here
 A merge is partway through. Settle each conflict below, press + beside it, then Commit.
+A merge or rebase is half done in the project. Finish or abort it first.
 A mirror goes one way: choose which side is to be made like the other.
 A name
 A name can't have any of these in it: < > : " / \\ | ? *
@@ -759,6 +761,7 @@ A new file: a whole Amiga program showing the list, to run with F9
 A new part at each line containing
 A new part every so many lines
 A new {} file, with a starter to change
+A new {} session
 A newer Limoniter
 A normal C64 cartridge (type 0) from an 8K or 16K binary, or from a program that loads at $8000: 8K is ROML at $8000 with EXROM active; 16K adds ROMH at $A000, with GAME active too. The binary starts with the cartridge's cold and warm start addresses and CBM80.
 A normal cartridge is 8,192 or 16,384 bytes; this is {n}.
@@ -812,6 +815,7 @@ A script needs the AmigaShell's own commands, which vamos doesn't have. Choose a
 A search has no option called {other}. It can have match_case, whole_word, regex and backward.
 A sector map points to sector {sector}, which isn't on the disk, so the disk is damaged.
 A segment of an Atari binary load file, {} bytes at ${origin:04X}
+A separate copy needs the project to be in a Git repository.
 A shell on the server, starting in this folder
 A shift
 A shifted {}, channels {}, minterm ${lf:02X}{what}
@@ -1250,6 +1254,7 @@ Ask the assistant
 Ask the assistant…
 Ask the kernel again what it holds
 Ask the language server
+Ask the other to review
 Ask this rule first
 Ask this rule later
 Asked for only if needed
@@ -1659,6 +1664,7 @@ Carries on working, and says when it's ready to restart into
 Carry on
 Carry on playing
 Carry on with this session
+Carry the changes over to the copy
 Cart's sprites, map and sounds
 Cartridge
 Cartridges
@@ -1707,6 +1713,7 @@ Changed {}, now {}
 Changes
 Changes ({})
 Changes apply straight away.
+Changes made in the session: {}
 Changes made since, here or anywhere else, stay as they are
 Changes save at once
 Changes to the theme in use show at once.
@@ -1791,6 +1798,7 @@ Choose the machine and starting character set in the Character table.
 Choose the schema…
 Choose what to compare on both sides.
 Choose what to copy first.
+Choose what to do with the changes not yet committed.
 Choose where it's to be applied first.
 Choose where it's to be applied.
 Choose where what's made goes:
@@ -1839,8 +1847,10 @@ Clears the accumulator, the link and the flags, and runs from the program counte
 Clears the character chosen
 Click a cell to paint with its tile
 Click a command to give it a button. Buttons have the ribbon's picture for the command, or its name where the ribbon has none.
+Click a comment to go to its line.
 Click a control's key, then press the key it's to be on. Esc leaves it as it was.
 Click a dot to set or clear that bit, as the Baby's typewriter buttons did.
+Click a file to see its changes beside the project's file.
 Click a state to go to it. Right-click to compare it. Where you are now stays in the list.
 Click beside a line's number for a breakpoint.
 Click beside a line's number for a breakpoint; it stops there.
@@ -1977,7 +1987,9 @@ Comments and strings
 Comments, strings and names
 Commit all changes
 Commit message
+Commit on its branch and leave it
 Commit {staged} file(s)
+Committed on the branch {}. The copy is still at {}.
 Commodore 128
 Commodore 1541 disk, 170K (.d64)
 Commodore 1571 disk, 340K (.d71)
@@ -2163,6 +2175,8 @@ Couldn't ask the system to open it.\n\n{e}
 Couldn't be read
 Couldn't connect to {host} on port {port}: {e}
 Couldn't connect to {host}.\n\n{e}
+Couldn't copy {} into the new copy: {e}
+Couldn't delete {}: {e}
 Couldn't find {host}.
 Couldn't find {host}.\n\n{e}
 Couldn't find {host}: {e}
@@ -2178,6 +2192,7 @@ Couldn't make the copy for the command line.\n\n{e}
 Couldn't make the copy to run.\n\n{e}
 Couldn't make the copy to send.\n\n{e}
 Couldn't make the folder {part}.\n\n{text}
+Couldn't make the folder {} for the copy: {e}
 Couldn't make the folder {}.\n\n{e}
 Couldn't make the folder {}: {e}
 Couldn't make {}.\n\n{e}
@@ -2838,6 +2853,7 @@ Files can't be copied into {} from a comparison. Each kind of disk image has its
 Files can't be copied into {}.
 Files changed on both sides since then are shown as conflicts, and left alone unless you tick them
 Files changing
+Files changing lists what changes in the copy, instead of in the project.
 Files edited lately stand out:
 Files ending .csv, .tsv, .tab or .psv go straight into table view
 Files in a folder
@@ -3124,6 +3140,7 @@ Given to the program, as typed in the Shell
 Gives a type: DIM x AS UBYTE, FUNCTION f(a AS INTEGER) AS LONG.
 Gives cells the colours below, leaving their pixels as they are
 Gives each level of nested brackets its own color
+Gives it to the session that made the changes, as its next message.
 Gives this tile copies of its characters, so drawing on it changes no other tile
 GlowIcons (OS 3.5)
 Go To
@@ -3186,6 +3203,7 @@ Halt
 Halted (HLT). Continue carries on after it.
 Halves
 Handler
+Hands the changes in the project to the other tool to review.
 Hard drive
 Hard drive: {}.
 Hard drives: {}.
@@ -3546,6 +3564,7 @@ It isn't the program made from this source.
 It isn't there any more.
 It isn't there to change
 It keeps to the schema.
+It made no comments about particular lines.
 It needs a password.
 It needs the helper, limoniter-retro: Get an emulator, under Devices and emulators, gets it, or choose it by hand.
 It needs the original file, which can't be read.
@@ -4262,6 +4281,7 @@ Mention in Claude Code
 Merge
 Merge hunks (-m; Cranker calls it dangerous)
 Merge hunks of the same memory type (-h)
+Merge into the project
 Merge three files…
 Merge: save the result as
 Mermaid's “{kind}” diagrams aren't drawn here yet, so here is its text.
@@ -4272,6 +4292,7 @@ Microcontroller flashing
 Microcontroller flashing…
 Microcontrollers
 Microsoft and Windows
+Mine (the project): {}
 Mine, then theirs
 Minterms
 Mirror
@@ -4354,6 +4375,7 @@ NOT x: true when x is false.
 NTSC
 NTSC (6567R8)
 Name
+Name for the task:
 Name on the tape
 Name:
 Narrow
@@ -4749,6 +4771,7 @@ Only on the left
 Only on the lines changed
 Only on the right
 Only once you're sure the new key is right
+Only one of Claude Code and Codex is installed, so the same one reviews.
 Only show lines with the selection
 Only side {head} holds a file system Limoniter knows, so the disk is laid out from that side alone.
 Only single-sided RS-DOS disks of 18 sectors a track are changed here.
@@ -4923,6 +4946,7 @@ Oric tape (TAP) · {} file(s)
 Original (from the markers)
 Original (planar)
 Original (planar, Workbench 1.x colours)
+Original: {}
 Other
 Other Mac encodings can be chosen under Reopen.
 Other Windows code pages can be chosen under Reopen.
@@ -5169,6 +5193,7 @@ Playfield
 Playing
 Plays at 50 Hz whatever the BPM, with no CIA timer
 Please enter whole numbers.
+Please review the changes below, which another AI assistant made. Look for mistakes, missed cases and anything unclear. Don't change any files. Write each comment on a line of its own, as path:line: what you found, and finish with one short sentence on whether the changes are ready.
 Please wait
 Please wait for the file being worked through to finish.
 Please wait for this file to finish being read or written first.
@@ -5312,6 +5337,7 @@ Put this in the text in place of the word
 Put this listing into it
 Put this part back as it was before it
 Puts the changes into the file, to be saved as any change is; nothing else in it changes
+Puts the changes into your files, merging with anything you changed since. Nothing is committed.
 Puts the machine back as Save state kept it
 Puts the pictures'
 Puts the pictures' addresses into the list's bitplane pointers: call it once, from your code section,
@@ -5485,6 +5511,8 @@ Remove
 Remove from Windows
 Remove from favourites
 Remove it
+Remove the copy and its branch now? Its session is closed with it.
+Remove the copy's folder now? The branch stays, with the commit on it.
 Remove the tag
 Rename
 Rename or delete…
@@ -5540,6 +5568,8 @@ Restore settings from a file…
 Result, to edit: {path}
 Retro
 Returns to ${:04X}; the address is on the stack at ${:04X}
+Review and merge
+Review by {name}
 Revolutions a track
 Revolutions read
 Rhymes
@@ -6022,6 +6052,7 @@ Send files…
 Send the HTTP request at the cursor
 Send the file in front
 Send the line or selection to the console
+Send the review back
 Send to device
 Send to this folder
 Send to {name}
@@ -6042,7 +6073,9 @@ Sent {name} to {}. {note}
 Sent {pages} pages to the printer
 Sent {} to {name}: start it there
 Sent, with {retries} blocks tried again.
+Sent.
 Sentence case
+Separate copy on {}
 Separate from Atari 8-bit.
 Separated by
 Separated by ; or commas. One ending / is for folders only; one with a / inside is matched against the path from the top
@@ -6123,6 +6156,7 @@ Show hidden items
 Show in the file manager
 Show it as a table
 Show it as text
+Show it in Files changing
 Show line endings
 Show me how…
 Show or hide what this cell printed and drew (O)
@@ -6133,6 +6167,7 @@ Show the cursor
 Show the first {} rows
 Show the image in hex
 Show the keys for commands chosen from a menu
+Show the review
 Show the selected lines
 Show the start page
 Show the types and parameters' names a server gives, at the ends of lines
@@ -6309,6 +6344,7 @@ Start a search with the selected text
 Start again from three colours:
 Start again from where the song loops back to, or from the start, when it ends
 Start from an .adf and put the pieces on it: what's already in its other sectors is kept
+Start from the last commit
 Start from:
 Start it
 Start keeping history…
@@ -6686,6 +6722,7 @@ That selection is too large for the clipboard. Select fewer lines to copy or cut
 That selection is too large to count. Select fewer lines.
 That selection is too large to read all at once.
 That selection is too large to save this way. Split into parts can write a file of any size in pieces.
+That session has gone.
 That side can't be read as bytes.
 That side has no catalogue.
 That state is no longer kept.
@@ -6941,6 +6978,7 @@ The certificate of {} isn't the one it had before, and no authority this compute
 The change failed.
 The change is open in a tab for you to accept or reject. You can edit it there first.
 The changed copy
+The changes it looked at
 The character ROM is too short: it should be 4096 bytes (or 2048 for one set).
 The character and sprite editor, which draws in the Next's own palette
 The character at the cursor
@@ -7002,6 +7040,9 @@ The control register {upper} is the {}'s, and this is for the {cpu_name}
 The conversation was condensed to make room.
 The copper list and the empty sprite, in chip memory, where the chips can read them.
 The copper stops on line ${line:03X}.
+The copy has no changes to merge.
+The copy has no changes.
+The copy is on the branch {}, started from {}.
 The copy unpacks and starts itself, as the Pack page says to start it, and goes beside the source as name_packed.prg, in the background; the program runs as built.
 The copy, crunched with the options on the Crunch page, goes beside the source as name_crunched, in the background; the program runs as built.
 The core's own options, kept for next time
@@ -7496,6 +7537,9 @@ The program's lines don't link up as an Oric program's do, from &0501, so it can
 The program's load address was taken off first: put it back, or load the packed data where you like.
 The project
 The project and {host} are alike: there's nothing to sync.
+The project has no commit yet, so there is nothing to copy. Make a first commit, then try again.
+The project has no folder beside it to put a copy in.
+The project has {n} changes that aren't committed yet. What should the copy start with?
 The project is for the {system}, and Limoniter only runs TRSE's programs for the Commodore 64, 128, VIC-20, Plus/4 and PET, the Atari 2600, the Vectrex, the NES and the Game Boy. Build it in TRSE itself.
 The project open isn't a folder on a server. Open one with File, Open a remote folder.
 The project recommends: {}
@@ -7581,6 +7625,9 @@ The server wants the password sent as it is, which Limoniter only does over TLS.
 The server's SCRAM login wasn't as the standard has it.
 The server's answer couldn't be read: {text}
 The server's passive reply couldn't be read.
+The session gets its own folder on its own branch, so it can't disturb what you are doing. Afterwards you review its changes and merge them in.
+The session's separate copy is still at {} on the branch {}. Remove it with git worktree remove when you are done with it.
+The session: {}
 The settings from {} are in use.{note}
 The setups in this folder's .vscode/launch.json:
 The shell couldn't be started: {e}
@@ -7719,6 +7766,7 @@ The {} has no instruction {}.
 The {} has no room to grow on this disk.
 The {} table runs past the header.
 The {} tree {what}, so the volume is damaged; let the Mac check it first.
+Theirs (the copy): {}
 Theirs, then mine
 Theme
 Theme for this file
@@ -7734,6 +7782,7 @@ There are no autodocs in that folder: no .doc files with pages such as Area.mui/
 There are no autodocs to read yet. The Amiga's come with Hyperion's NDK: download it, or use one you have, with the NDK button. MUI's come with the MUI SDK: point to its Autodocs folder with MUI's autodocs.
 There are no bytes after the cursor to delete.
 There are no changes to Git's files to write a message about.
+There are no changes to review yet.
 There are no conflict markers in this file.
 There are no effects.
 There are no files to read on this card.
@@ -8229,6 +8278,7 @@ This project's {} source is built with {name}, which wasn't found on this comput
 This raw CD image's first sector is mode {mode}, which isn't a data sector.
 This replaces the files on disk. A backup of how they are now is taken first.
 This row has {} fields; the headings have {}.
+This session has no separate copy.
 This setup debugs the file in front, so save it first, or open one.
 This shape, changed a little
 This should be a condition such as a > 3, not text
@@ -8500,6 +8550,7 @@ Use for the window
 Use in Find
 Use it
 Use the text on the right, as it is now (Alt+A)
+Use the usual words
 Use them
 Use this database for the SQL run
 Use this function above
@@ -8617,7 +8668,9 @@ What follows byte {at} doesn't look like a BASIC line, so it isn't listed.
 What follows byte {} doesn't look like BASIC lines, so it isn't listed.
 What it is
 What it is (optional)
+What it is asked:
 What it may do without asking:
+What it said
 What it suggested, against what was there
 What the chosen cell is
 What the {} has
@@ -8735,12 +8788,14 @@ Words in the file
 Words with a meaning like "{word}"
 Wordworth
 Wordworth's fonts ({}) and sizes aren't carried over.
+Work in a separate copy (Git worktree)
 Work it out
 Work it out ({name})
 Work out the SID's notes and the CIA timers for a PAL machine (985248 Hz) rather than NTSC (1022727 Hz)
 Work to do each frame goes here.
 Workbench icon
 Workbench icon…
+Working in a separate copy on the branch {}, at {}
 Working it out…
 Working on a folder of code
 Working…
@@ -8977,6 +9032,7 @@ again. Its words in 1948 are in the comments.
 align( ) needs a size above 0.
 all bits clear
 all went well
+already the same in the project
 already used on the disk written over
 always, or e.g. A=0 && [count]>3
 amiga-ansi
@@ -9157,6 +9213,7 @@ characters; map
 checksums put in) and runs it in an emulator: SameBoy, mGBA, Gambatte, BGB, Mesen or MAME.
 chequerboard, 320 by 256) with a raster bar bouncing over it, until the left mouse button is pressed, when
 clambers
+clashes with your changes: opens in the merge view
 classic-mac
 claude
 claude-haiku-4-5
@@ -9356,6 +9413,7 @@ filled in by setup
 filter_selection
 find_from_selection
 find_in_file_folder
+fits with your changes
 fixed for you
 fixed_to_csv
 flags'
@@ -9396,6 +9454,7 @@ go vet ./...
 go_back
 go_forward
 go_to_brace
+goes in as it is
 gpt-5.5
 graphics.library, any version
 graphics.library, takes the blitter, empties the display with LoadView(0), stops multitasking with Forbid, and
@@ -9754,6 +9813,7 @@ not found
 not known
 not multicolour
 not scrolled
+not text, changed in both places: left alone
 notebook on 18 July 1948. The first version ran on 21 June 1948, the first program
 notebooks
 nothing optimised, for vasm
@@ -10395,6 +10455,7 @@ update_checks
 update_download
 upper_case
 us-ascii
+used for the branch name
 utf-16be
 utf-16le
 utf-32be
@@ -10712,6 +10773,7 @@ zx_notation
 {name} is in drive A.
 {name} is missing, and it's required.
 {name} is packed with {} ({} bytes): it's open as what it holds, {} bytes, read-only.
+{name} is reviewing...
 {name} is the file in front, and would be working on itself. Go to the file you want it to work on, then play it from there.
 {name} is too large to add.
 {name} is too short to be a Hobeta file
@@ -10749,6 +10811,7 @@ zx_notation
 {name} on {} has been changed since it was last sent from here.\n\nReplace it with this version?
 {name} only goes with a post-indexed address: [Rn],offset
 {name} puts its value in a register
+{name} reviewed it: {} comments
 {name} says it's {length} bytes, more than the card has left, so the list stops there.
 {name} sets a byte
 {name} shifts by 1, by CL or (on the 186 and later) by a number
@@ -10900,6 +10963,7 @@ zx_notation
 {remote} is a folder.
 {remote} isn't there after sending it.
 {rest} bytes after the banks, for the program to read
+{reviewer} reviewed your changes and says:\n\n{review}\n\nPlease go through it, and change what needs changing.
 {revision} isn't a revision of this repository.
 {right_aligned} right-aligned paragraph format(s) are left-aligned here.
 {rows} rows fit
@@ -11092,12 +11156,15 @@ zx_notation
 {} (PUAE's {} model)
 {} (as it is now)
 {} (as it is)
+{} (copy)
 {} (decimal {byte}, hex {byte:02X})\nUnicode: {}\nType: {}\nIn {}
+{} (deleted in the copy)
 {} (from {})
 {} (in use)
 {} (line {}): {why}
 {} (no longer set up)
 {} (no longer there)
+{} (not in the project)
 {} (palette changes down the screen), so colours may be off
 {} (proposed)
 {} (text with zero bytes)
@@ -11196,7 +11263,12 @@ zx_notation
 {} file will be left as {} are, because not every change in {} can be found.
 {} file(s) to make UTF-8.
 {} file(s) waiting for .sync on the Next
+{} files clash with your changes and are open in the merge view: settle each one and save it.
+{} files that aren't text were changed in both places and are left as they are: {}
 {} files were
+{} files were already the same.
+{} files were changed in both places and fitted together.
+{} files were taken as the copy has them.
 {} files will be left as {} are, because not every change in {} can be found.
 {} filled, {} numbers: total {}, average {}, smallest {}, largest {}
 {} finished, but the program it should have made wasn't there.
@@ -11407,6 +11479,7 @@ zx_notation
 {} wasn't found. It's at {}
 {} wasn't found. {}
 {} wasn't in the last commit.
+{} will be given the changes and asked to review them. It won't be asked to change anything.
 {} without its start
 {} words a row, {} bytes a copy, {} in all
 {} words a row; BLTSIZE ${size:04X}
