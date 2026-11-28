@@ -280,6 +280,31 @@ fn the_panel_and_the_box_for_a_new_session_draw_with_a_made_up_conversation() {
 }
 
 #[test]
+fn the_panel_keeps_its_width_however_long_the_lines_in_it() {
+    let (mut app, ctx) = app_with("");
+    app.agents_screenshot_step("top");
+    // A line with nowhere to break, and a command as long, as an agent's output can have.
+    let long = "x".repeat(3000);
+    let tab = &mut app.agents.tabs[0];
+    tab.session.apply(&Event::Text { id: "long:t1".into(), text: format!("`{long}`\n\n{long}"), done: true });
+    tab.session.apply(&Event::ToolUse { id: "t-long".into(), name: "Bash".into(), summary: format!("Ran {long}"), kind: ToolKind::Command(long.clone()), parent: None });
+    let width = |app: &mut Limoniter| {
+        let mut width = None;
+        let mut output = ctx.run_ui(super::super::tests::input(Vec::new()), |ui| {
+            app.draw_frame(ui);
+            width = egui::containers::panel::PanelState::load(ui.ctx(), ui.scope_id().with_salt(egui::IdSalt::new("agents-panel"))).map(|state| state.size().x);
+        });
+        output.textures_delta.clear();
+        width.expect("the panel is drawn")
+    };
+    let first = width(&mut app);
+    for _ in 0..10 {
+        assert_eq!(width(&mut app), first, "the panel didn't grow");
+    }
+    assert!(first < 600.0, "it's about as wide as it starts, not as wide as the line: {first}");
+}
+
+#[test]
 fn the_files_an_at_can_name_skip_what_nobody_would_mention() {
     let dir = folder("files");
     std::fs::create_dir_all(dir.join("src")).unwrap();

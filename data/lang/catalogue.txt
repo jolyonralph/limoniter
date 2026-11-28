@@ -5439,6 +5439,7 @@ Receive
 Received {count} files, with {retries} blocks tried again.
 Receiving {name}: {done} bytes, {retries} tried again
 Recent
+Recent projects
 Recently edited files
 Recently opened
 Recently opened files

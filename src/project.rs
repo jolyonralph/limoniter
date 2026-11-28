@@ -493,6 +493,8 @@ pub fn in_background(work: impl FnOnce() -> Result<Report, String> + Send + 'sta
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PanelAction {
     Open(PathBuf),
+    /// Open a recent project.
+    OpenProject(PathBuf),
     Remove(PathBuf),
     /// Compare a file with another, to be chosen.
     CompareWith(PathBuf),
@@ -514,6 +516,8 @@ pub enum PanelAction {
 pub struct PanelState {
     pub filter: String,
     pub explorer: crate::explorer::Explorer,
+    /// The recent projects offered while none is open: each one's file, the name it's shown by, and where it is.
+    pub recent: Vec<(PathBuf, String, String)>,
 }
 
 /// A folder in the panel's tree.
@@ -618,10 +622,23 @@ fn draw_tree(ui: &mut Ui, folder: &TreeFolder, salt: &str, place: &Path, marks: 
     }
 }
 
+/// How many recent projects the panel offers while none is open.
+const MOST_RECENT_SHOWN: usize = 8;
+
 pub fn panel(ui: &mut Ui, state: &mut PanelState, project: Option<&Project>, active: Option<&Path>) -> Vec<PanelAction> {
     let mut actions = Vec::new();
     let Some(project) = project else {
         ui.label(RichText::new(crate::i18n::tr("No project is open. File, Open folder opens a folder as one; Project can make one or open one.")).color(theme::text_faint()).size(12.5));
+        // The ones opened lately, a click away.
+        if !state.recent.is_empty() {
+            ui.add_space(8.0);
+            ui.label(RichText::new(crate::i18n::tr("Recent projects")).color(theme::text_faint()).size(12.5).strong());
+            for (path, name, place) in state.recent.iter().take(MOST_RECENT_SHOWN) {
+                if ui.link(name).on_hover_text(place).clicked() {
+                    actions.push(PanelAction::OpenProject(path.clone()));
+                }
+            }
+        }
         return actions;
     };
     // A folder opened as a project: the Explorer, or the files a few letters find while some are typed.
@@ -974,5 +991,33 @@ mod tests {
         // Kept with the .limproj.
         let read = Project::from_text(&project.path, &project.to_text()).unwrap();
         assert_eq!(read.explorer.recency, 50);
+    }
+
+    #[test]
+    fn with_no_project_open_the_panel_offers_the_recent_ones() {
+        let ctx = egui::Context::default();
+        let mut state = PanelState { recent: vec![(PathBuf::from("/work/alpha.limproj"), "Alpha".into(), "/work/alpha.limproj".into()), (PathBuf::from("/work/beta"), "beta".into(), "/work/beta".into())], ..Default::default() };
+        let run = |events: Vec<egui::Event>, state: &mut PanelState| {
+            let mut actions = Vec::new();
+            let input = egui::RawInput { events, screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(300.0, 400.0))), ..Default::default() };
+            let output = ctx.run_ui(input, |ui| actions = panel(ui, state, None, None));
+            (actions, output.shapes)
+        };
+        let (actions, shapes) = run(Vec::new(), &mut state);
+        assert!(actions.is_empty());
+        // Where "beta" was drawn, to click it.
+        let mut at = None;
+        for clipped in &shapes {
+            if let egui::Shape::Text(text) = &clipped.shape
+                && text.galley.text() == "beta"
+            {
+                at = Some(text.visual_bounding_rect().center());
+            }
+        }
+        let at = at.expect("beta is listed");
+        let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        run(vec![egui::Event::PointerMoved(at), button(true)], &mut state);
+        let (actions, _) = run(vec![button(false)], &mut state);
+        assert_eq!(actions, [PanelAction::OpenProject(PathBuf::from("/work/beta"))]);
     }
 }

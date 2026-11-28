@@ -436,25 +436,35 @@ impl Limoniter {
         let mut new = false;
         let mut resume = None;
         let mut acts = Vec::new();
-        crate::panels::dock_right(ui, "agents-panel", "AI agents", 400.0, &mut shown, |ui| {
-            new = self.agent_tab_row(ui);
-            if self.agents.showing_past {
-                resume = self.agent_past_list(ui, &folder);
-                ui.separator();
-            }
-            if self.agents.tabs.is_empty() {
-                ui.add_space(8.0);
-                ui.label(egui::RichText::new(crate::i18n::tr("An AI agent works on this project beside you: it reads and changes files, runs commands, and asks before it does.")).color(theme::text_dim()));
-                ui.add_space(6.0);
-                if ui.button(crate::i18n::tr("New session")).clicked() {
-                    new = true;
+        crate::panels::dock_right(ui, "agents-panel", "AI agents", 400.0, &mut shown, |outer| {
+            // Drawn in a box as wide as the panel and no wider: a long line or a row of choices wider than the
+            // panel would otherwise make the panel grow to fit it, again and again as the transcript streams in.
+            let room = outer.available_rect_before_wrap();
+            let mut inside = outer.new_child(egui::UiBuilder::new().max_rect(room));
+            inside.set_clip_rect(room.intersect(outer.clip_rect()));
+            inside.set_max_width(room.width());
+            let ui = &mut inside;
+            'draw: {
+                new = self.agent_tab_row(ui);
+                if self.agents.showing_past {
+                    resume = self.agent_past_list(ui, &folder);
+                    ui.separator();
                 }
-                return;
+                if self.agents.tabs.is_empty() {
+                    ui.add_space(8.0);
+                    ui.label(egui::RichText::new(crate::i18n::tr("An AI agent works on this project beside you: it reads and changes files, runs commands, and asks before it does.")).color(theme::text_dim()));
+                    ui.add_space(6.0);
+                    if ui.button(crate::i18n::tr("New session")).clicked() {
+                        new = true;
+                    }
+                    break 'draw;
+                }
+                let active = self.agents.active.min(self.agents.tabs.len() - 1);
+                let State { tabs, reviews, .. } = &mut self.agents;
+                let reviewing = |id: &str| reviews.iter().any(|r| r.request == id);
+                acts = agent_panel::draw(ui, &mut tabs[active], &files, &reviewing);
             }
-            let active = self.agents.active.min(self.agents.tabs.len() - 1);
-            let State { tabs, reviews, .. } = &mut self.agents;
-            let reviewing = |id: &str| reviews.iter().any(|r| r.request == id);
-            acts = agent_panel::draw(ui, &mut tabs[active], &files, &reviewing);
+            outer.allocate_rect(room, egui::Sense::hover());
         });
         self.panels.agents = shown;
         if new {

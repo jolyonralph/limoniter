@@ -6058,6 +6058,9 @@ impl Limoniter {
         self.panels.project_panel.explorer.set_git(self.git.repo.as_deref(), entries);
         let doc = &self.docs[active];
         let stack_view = DocView { id: doc.id, text: &doc.text, hex: &doc.hex, format: &doc.text.format, path: doc.path.as_deref(), hex_mode: doc.hex_mode, name: doc.name(), language: doc.language_name(), no_file: doc.placeholder, syntax: doc.resolved_syntax.flatten(), image: doc.browser.as_ref().map(|b| b.view()) };
+        // With no project open, the panel offers the recent ones.
+        let recent = if self.project.is_none() && self.panels.project { self.recent_projects.iter().map(|path| { let (name, place, _) = self.recent_lists.shown_as(path); (path.clone(), name, place) }).collect() } else { Vec::new() };
+        self.panels.project_panel.recent = recent;
         let project_actions = self.panels.show_project(ui, self.project.as_ref(), doc.path.as_deref(), &stack_view, &mut actions);
         let todo_view = DocView { id: doc.id, text: &doc.text, hex: &doc.hex, format: &doc.text.format, path: doc.path.as_deref(), hex_mode: doc.hex_mode, name: doc.name(), language: doc.language_name(), no_file: doc.placeholder, syntax: doc.resolved_syntax.flatten(), image: None };
         let todo_acts = self.panels.show_todos(ui, &todo_view, self.project.as_ref());
@@ -6071,6 +6074,7 @@ impl Limoniter {
             match action {
                 project::PanelAction::Explorer(act) => explorer_acts.push(act),
                 project::PanelAction::Open(path) => actions.push(Action::OpenPath(path)),
+                project::PanelAction::OpenProject(path) => self.open_project(&path),
                 project::PanelAction::Remove(path) => {
                     if let Some(project) = &mut self.project {
                         project.remove(&path);
