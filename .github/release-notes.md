@@ -1,15 +1,39 @@
-## What's new in 0.17.1
+## What's new in 0.18.0
 
-Limoniter 0.17.1 lets you install an emulator for Limoniter's window straight from F9, lets you change what F9 remembers, and offers a new Amiga C project from File, New as.
+Limoniter 0.18.0 makes Limoniter the place where Claude Code and Codex work. Both run in a panel beside your files, and both work with `claude` and `codex` in the terminal. Each edit is a diff to accept or change. Both can work on one project at once, with Limoniter as referee. 0.18.0 also adds tools for writers: rhymes, a thesaurus, metre, and song lyrics for Suno. Colour tags can now be named, and a colour picker writes colours the way an Amiga, a Spectrum or a web page expects them.
 
-**Emulators in Limoniter's window**
-- **Install from F9**: when a machine's "in Limoniter's window" choice is greyed out because limoniter-retro or its core isn't downloaded, the **Run on machine** box has a button that downloads what's missing in one go ("Install limoniter-retro and the PUAE core").
+**AI agents**
+- **The AI agents panel** (View, Panels; Tools, New AI agent session): Claude Code or Codex working on the project from a side panel, as in VS Code. Choose the permission mode, the model and the effort, and change them as it works. The transcript shows its answers as Markdown, its thinking and each tool it uses, folded. `@` mentions a file, a message typed while it works waits its turn, and Stop interrupts. Sessions run side by side as tabs, and past ones can be carried on.
+- **Each edit opens as a diff** in the editor: Accept, Reject, or change the text first and then Accept. Commands ask **Allow once**, **Allow for this session** or **Refuse**.
+- **Codex** with its own permission levels (Read only, Ask before changes, Workspace write, Full access), its own models and reasoning effort, and a tool server from Limoniter that gives it the problems, the open file, the selection and the open tabs.
+- **Claude Code in Limoniter's terminal** connects by itself, as it does with VS Code: its proposed edits open as a review tab (Accept with Alt+A, Reject with Alt+R), it sees what you select and the problems the language servers have found, and **Edit, Mention in Claude Code** puts the file and the selected lines in its prompt.
+- **In WSL**: on Windows the panel finds Claude Code and Codex in your WSL distributions too, and runs them there on your project, with every path translated both ways.
+- **A copy of its own**: a session can work in its own Git worktree, so it can't disturb your work or another agent's. **Review and merge** shows what it changed and merges it back with Limoniter's three-way merge. **Ask the other to review** hands the changes to the other tool to look over.
+- **Claude Code and Codex together** on one copy: files and folders can be **claimed** for a session (by you, from the Explorer, or by the agent), and another session's edits there are refused with a message saying who has them. **Builds and tests wait their turn**, one at a time across sessions. A **task board** hands out tasks for the sessions to take.
+- **Usage** (Tools, Usage of AI tools): what Claude Code and Codex have used today or this week, by tool and model, counted from the tools' own logs so that sessions in a terminal count too. It also shows the plan's five-hour and weekly limits with their reset times, and the sessions running now with their tokens and how full their context is.
+- **Files changing** (View, Panels): the project's files as they change, newest first, each marked **You**, an agent's name, or **Elsewhere**.
 
-**F9**
-- **Where F9 runs programs**, in Devices and emulators: each machine F9 remembers, with **Change** and **Forget**. Before, undoing "Always run there" meant editing the settings file.
+**Opening files from a terminal**
+- `limoniter notes.txt:42` opens the file in the Limoniter window already open, at that line; `--new-window` gives it a window of its own, and `--wait` waits until it's closed, so Limoniter can be Git's editor (`git config core.editor "limoniter --wait"`).
+- In Limoniter's own terminal the command reaches that terminal's window. The Windows installer can add it to PATH for every terminal.
+- In WSL, a small `limoniter` script (offered when a WSL terminal opens) runs the Windows Limoniter with the paths turned into Windows' form.
+
+**Writing**
+- **Words** (Tools, Words): rhymes for the word at the cursor (Ctrl+F7) and a thesaurus (Shift+F7), both kept in the program, so nothing is downloaded. Syllable counts beside each line, the stress and metre of a passage ("iambic pentameter"), haiku and limerick checks, and repeated words, filler words and adverbs marked.
+- **Song lyrics** (File, New as, Song lyrics): section tags such as `[Verse]` and `[Chorus]`, coloured, folded and offered as you type, a style box kept in the file, Suno's length limits shown as you write, and the syllables and rhyme scheme of each section in the margin.
+
+**Colours**
+- **Colour tags of your own**: tags with a name, a colour and a key of your own ("To check", "Slow"), kept in your settings or with the project. The six can be renamed, and the tag menu is now in View.
+- **A colour picker** (Tools, Ctrl+Alt+K, or More… on the swatch beside a colour) that writes the colour in the file's own form: hex, rgb(), hsl() or oklch() for the web, `$0RGB` and AGA's halves on the Amiga, INK and BRIGHT on the Spectrum, and the palettes of the C64, CPC, Next, Atari ST and others, each machine's nearest colour shown. It has a contrast checker and an eyedropper for anywhere on the screen.
+
+**Retro**
+- **Set up the Amiga** (File, Run on): downloads the emulator, finds your Kickstarts (Amiga Forever's too) or uses the free AROS, and sets F9. Amiga programs then run in Limoniter's window, booted straight into them.
+- **Watchpoints**: stop when an address is read or written, or when its value changes, rises or falls. **Conditional breakpoints**, with hit counts. Both work on the built-in machines, the Amiga debugger, ZEsarUX and VICE.
+- **The trainer** (Run on, Trainer…) finds where a game keeps its lives or score, and freezes them.
+- A **debug console port** on each built-in machine shows what a program writes to it in the Output panel.
 
 **And**
-- **File, New as, Amiga** offers **New Amiga C project…** beside the single files.
+- With no project open, the Project panel lists the **recent projects** to open.
 
 ## Downloads
 

@@ -52,15 +52,15 @@ Open a folder (File, Open folder) and Limoniter works across all of it, as VS Co
 
 ## Claude Code and Codex: Limoniter beside VS Code
 
-What VS Code's two extensions do, and where Limoniter has it: **Done**, **Better**, or **Not yet** (each of those is in IDEAS.md for later).
+What VS Code's two extensions do, and where Limoniter has it: **Done**, **Better**, or **Not yet** (planned for later).
 
 Claude Code
 
 | What VS Code's extension does | Limoniter |
 |---|---|
 | Chat panel beside the editor, streaming Markdown, thinking, tool uses | **Done**: AI agents panel (View, Panels). |
-| Proposed edits as a diff to accept, reject or change | **Done** in the panel (diff review tab, `agent_host.rs`) and for `claude` in Limoniter's terminal (review tab, `claude_ide_host.rs`). |
-| Permission modes (ask, accept edits, plan, bypass) | **Done** (`Mode`), changeable while running; bypass only for a session started in it (the CLI's rule). |
+| Proposed edits as a diff to accept, reject or change | **Done** in the panel (a diff to review) and for `claude` in Limoniter's terminal (a review tab). |
+| Permission modes (ask, accept edits, plan, bypass) | **Done**, changeable while running; bypass only for a session started in it (the CLI's rule). |
 | Model and effort chooser, changeable | **Done**, from the program's own model list. |
 | Plan mode with the plan to approve | **Done in part**: "Start on this plan" with Allow/Refuse; editing the plan is not offered. |
 | Resume past conversations | **Done** for Claude's (Past sessions, from its logs); Codex's too. |
@@ -68,7 +68,7 @@ Claude Code
 | Subagents and background tasks, stop them | **Done** (tasks with tokens and tool uses, Stop). |
 | Context use, tokens, cost, plan limits | **Better**: all at the top of each session, plus the Usage window with today and the week from both tools' logs and the limits for terminal sessions. |
 | `@` file mentions in the prompt | **Done** in the panel (`@` lists project files); **Done** for the terminal (Edit, Mention in Claude Code, with the selected lines). |
-| Selection and open file shown to Claude | **Done** for `claude` in the terminal (selection as it changes). **Not yet** for panel sessions (the CLI doesn't connect to the IDE server in `-p` mode: tested in batch 2). |
+| Selection and open file shown to Claude | **Done** for `claude` in the terminal (selection as it changes). **Not yet** for panel sessions (Claude Code doesn't connect to the editor when it's run by another program). |
 | Problems (diagnostics) given to Claude | **Done** for the terminal (`getDiagnostics`). **Not yet** for panel sessions (same reason). |
 | Open a file Claude names | **Done** (`openFile`, and clicks in the panel). |
 | Terminal integration (`claude` finds the editor) | **Done**, by itself, including `claude` in WSL from Windows. |
@@ -112,8 +112,7 @@ Codex
 - Narrow to the selection (**Ctrl+Shift+N**): every command then works on just those lines.
 - Folding, hiding chosen lines, and showing only the lines that contain the selection.
 - Colour tags (**Ctrl+Shift+1** to **6**) mark sections in six colours, shown in the margin and the document map, and kept with the file.
-## IDEAS.md Done row
-| Colour tags of your own: name, colour and key, kept in settings or the project; the six renamable; menu moved to View | Next |
+- **Colour tags of your own**: beyond the six colours, make tags with a name and a colour you choose ("To check", "Slow", "Ask Sam"), and give them keys. Rename the six. Keep tags in your settings, or with the project so everyone who opens it has them. The tag menu is in View, Colour tag; hover over a tag's block in the margin or on the map to see its name; Search, Colour tags, Go to lists them by name and filters as you type. Deleting a tag still used in open files offers to turn those places into another tag or take them away.
 - Bookmarks, and back and forward (**Alt+Left**, **Alt+Right**) through where the cursor has been, across files. **Search, Bookmarks** goes to any of them by its line, and copies, cuts or deletes the bookmarked lines (or deletes every other line), swaps bookmarked and not, or clears them all.
 - Show line numbers, ruler, document map, changed lines, spaces and tabs, line endings, control characters by name, rainbow brackets and the cursor's line and column.
 - **Column markers** (View, Show): lines down the text after chosen columns, up to eight (80 to begin with; 7 and 72 for COBOL, 72 for commit messages), set in Settings.
@@ -419,8 +418,7 @@ Switched on under **View, Panels**:
 - **The status bar's items** (a right-click on it): where the cursor is, the language, encoding, line endings, display profile, size and the lock, each shown or hidden and put in the order wished.
 ## Tools
 
-- ## IDEAS.md Done row
-| For 0.18: a colour picker that knows where it is (context-sensitive forms for the web and fourteen machines, nearest machine colour, contrast checker, screen eyedropper) | Next |
+- **Colour picker** (Tools, Ctrl+Alt+K, or More... on the swatch beside a colour): hue, saturation and value, with the colour in hex, rgb(), hsl(), oklch() and its nearest CSS name, each editable; written over the colour at the cursor in the form it already has, or in one chosen. In Amiga, Spectrum, Next, C64, CPC, Atari ST/STE, BBC, MSX, Atari 8-bit, 2600 and NES files it shows the nearest colour the machine can show and writes it as that machine's code wants (the Amiga's `$0RGB` for COLORxx and copper lists, AGA's high and low halves, INK and BRIGHT, CPC firmware and hardware numbers, and so on), with the machine's palette as a grid. A WCAG 2 contrast checker (AA and AAA, normal and large text), and an eyedropper that picks from anywhere on the screen.
 - **Words** (Tools, Words): rhymes for the word at the cursor (Ctrl+F7), perfect, near and of several syllables, from the CMU Pronouncing Dictionary kept inside the program (nothing is downloaded), grouped by syllables; a thesaurus (Shift+F7) from WordNet, by sense with a short definition, synonyms and antonyms; click any word to put it in place of the one at the cursor, in its capitals. **Syllable counts** beside each line (for this file, or every text and Markdown file; off until asked for, a ? where a word's syllables were guessed). **Stress and metre** of the selected lines (or the paragraph) marked with ˘ and ¯ (or u and –) and named ("iambic pentameter", "trochaic tetrameter catalectic" as a plain note), with the syllables that fall off the beat said. A **haiku** and **limerick** checker that says plainly where the poem is off: lines, syllables, beats, the lines that should rhyme. For prose, words that **repeat too close together**, **filler words** and **adverbs** are underlined (each its own switch, a reason on hover, never in code). English only for now; words the dictionary hasn't got are guessed by rule and marked as guesses.
 - **Song lyrics** (File, New as, Song lyrics; Tools, Song lyrics): for writing lyrics for Suno and other song makers. A `.lyrics` file has **section tags** (`[Intro]`, `[Verse 2: whispered]`, `[Chorus]`, `[Bridge]`, `[Outro]` and the rest) coloured by kind, offered as you type `[`, listed in Go to symbol, and each section **folds** as code does. A **style box** above the text keeps the song's style prompt in the file itself (a front-matter block, so it survives copying), and the **lengths** of lyrics and style are shown as you write against Suno's limits (settings, as they change). In the margin, the **syllables** of each line and the section's **rhyme scheme** (A, B, with ~ for a near rhyme). **Copy the lyrics for Suno** (tags kept), the style, or the words alone, ready to paste.
 - Count words; SHA-256 fingerprint; convert a number between decimal, hex and binary; copy the file's path.
