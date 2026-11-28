@@ -249,6 +249,7 @@ mod agent_logs;
 mod agent_panel;
 mod agent_session;
 mod agent_worktree;
+mod agent_team;
 mod agent_wsl;
 mod usage_logs;
 mod usage_status;

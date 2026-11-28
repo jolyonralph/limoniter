@@ -11806,3 +11806,51 @@ Send the review back	Devolver la revisión
 Gives it to the session that made the changes, as its next message.	Se la da a la sesión que hizo los cambios, como su próximo mensaje.
 Sent.	Enviado.
 Couldn't copy {} into the new copy: {e}	No se pudo copiar {} en la nueva copia: {e}
+Tasks ({open})	Tareas ({open})
+Tasks ({open}, {n} waiting to build)	Tareas ({open}, {n} esperando compilación)
+The task board the agents share: tasks, notes, and builds waiting their turn	El tablero de tareas que comparten los agentes: tareas, notas y compilaciones esperando su turno
+Claims:	Reservas:
+Let go of this claim	Soltar esta reserva
+Claim a file or folder for a session	Reservar un archivo o una carpeta para una sesión
+Claim	Reservar
+src/parser/	src/parser/
+Me	Yo
+nobody	nadie
+all	todos
+you	usted
+A new task	Una tarea nueva
+Give to	Dar a
+Tell it to start	Decirle que empiece
+Reopen	Reabrir
+Remove this task	Quitar esta tarea
+No tasks yet. Write one below, or ask a session to plan.	Aún no hay tareas. Escriba una abajo o pida a una sesión que planifique.
+Notes: {}	Notas: {}
+Planner	Planificador
+Ask one session to split a goal into tasks on the board. It changes no files while it plans.	Pida a una sesión que divida un objetivo en tareas en el tablero. No cambia ningún archivo mientras planifica.
+The goal, in a few words or lines	El objetivo, en pocas palabras o líneas
+Ask to plan	Pedir que planifique
+Builds and tests	Compilaciones y pruebas
+Nothing is building. A build or test one session asks for waits here while another's runs.	No se está compilando nada. Una compilación o prueba que pide una sesión espera aquí mientras se ejecuta la de otra.
+{who} is running {command}	{who} está ejecutando {command}
+{who} is waiting to run {command}	{who} está esperando para ejecutar {command}
+Go next	Pasar primero
+Let this one run as soon as the one running has finished	Ejecutar esta en cuanto termine la que se está ejecutando
+Notes	Notas
+No notes between the agents yet.	Aún no hay notas entre los agentes.
+To {}	Para {}
+A note	Una nota
+What counts as a build or test	Qué cuenta como compilación o prueba
+The first words of a command, one to a line. A command that starts with one waits for the others.	Las primeras palabras de un comando, una por línea. Un comando que empieza por una espera a los demás.
+Use the usual list	Usar la lista habitual
+Please start on task {id} from the task board: {title}. Claim it with claim_task, claim the files you will change with claim_paths, and finish it with finish_task when it's done.	Empieza con la tarea {id} del tablero: {title}. Tómala con claim_task, reserva los archivos que vas a cambiar con claim_paths y termínala con finish_task cuando esté hecha.
+You are the planner for this project. The goal: {goal}\n\nLook at the project if you need to. Then split the goal into small tasks that can be done separately, perhaps by different agents, and add each to the shared task board with the add_task tool (a title, details, and the files or folders it will be in). Don't change any files yourself. When you've added them, say in a sentence what you added.	Eres el planificador de este proyecto. El objetivo: {goal}\n\nEchale un vistazo al proyecto si lo necesitas. Luego divide el objetivo en tareas pequeñas que puedan hacerse por separado, quizá por distintos agentes, y añade cada una al tablero de tareas compartido con la herramienta add_task (un título, detalles y los archivos o carpetas en los que estará). No cambies ningún archivo tú mismo. Cuando las hayas añadido, di en una frase qué añadiste.
+Refused: {shown} is claimed by {holder}.	Rechazado: {shown} está reservado por {holder}.
+Waiting for {who}'s {what}	Esperando {what} de {who}
+{who} is waiting to run {what} until this has finished.	{who} espera para ejecutar {what} hasta que esto termine.
+{who} left a note for {to}.	{who} dejó una nota para {to}.
+{who} changed {shown}, which {owner} has claimed.	{who} cambió {shown}, que {owner} ha reservado.
+{who} changed {shown}, which you have claimed.	{who} cambió {shown}, que usted ha reservado.
+Claim for	Reservar para
+Take the claim back	Retirar la reserva
+Claimed by {holder}	Reservado por {holder}
+claimed by {holder}	reservado por {holder}

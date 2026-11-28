@@ -4,6 +4,7 @@
 import json
 import os
 import sys
+import urllib.request
 
 
 def real(path):
@@ -78,6 +79,16 @@ def stream_text(message_id, pieces):
     event({"type": "content_block_stop", "index": 0})
 
 
+def mcp_call(name, arguments):
+    """Calls one of Limoniter's tools over MCP, as Claude Code does with the server in --mcp-config."""
+    config = json.load(open(ARGS[ARGS.index("--mcp-config") + 1]))["mcpServers"]["limoniter"]
+    headers = dict(config["headers"])
+    headers["Content-Type"] = "application/json"
+    body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": arguments}}
+    request = urllib.request.Request(config["url"], data=json.dumps(body).encode(), headers=headers)
+    return json.load(urllib.request.urlopen(request, timeout=10))["result"]["content"][0]["text"]
+
+
 def ask(tool, tool_input, then, suggestions=None):
     counter[0] += 1
     request_id = "perm-%d" % counter[0]
@@ -119,8 +130,7 @@ def edit_scenario(path, kind):
     ask(tool, tool_input, then, [{"type": "setMode", "mode": "acceptEdits", "destination": "session"}])
 
 
-def bash_scenario():
-    command = "cargo test"
+def bash_scenario(command="cargo test"):
 
     def then(tool_id, response):
         body = response.get("response", {})
@@ -161,6 +171,15 @@ def user_message(content):
         edit_scenario(rest.strip(), word)
     elif word == "bash":
         bash_scenario()
+    elif word == "run":
+        bash_scenario(rest.strip())
+    elif text.startswith("You are the planner"):
+        for title in ("Plan step one", "Plan step two"):
+            mcp_call("add_task", {"title": title, "details": "from the planner"})
+        finish("msg_planned", "Planned.")
+    elif word == "board":
+        name, _, payload = rest.partition(" ")
+        finish("msg_board", mcp_call(name, json.loads(payload or "{}")))
     elif word == "agent":
         agent_scenario()
     elif word == "slow":

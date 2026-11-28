@@ -24,6 +24,8 @@ pub const SERVER_NAME: &str = "Claude Code Limoniter MCP";
 pub const IDE_NAME: &str = "Limoniter";
 /// The header the client proves itself with.
 const AUTH_HEADER: &str = "x-claude-code-ide-authorization";
+/// The header a session started by Limoniter sends, naming itself ("Codex 1") to the task board.
+pub const SESSION_HEADER: &str = "x-limoniter-session";
 /// The most clients at once; a few terminals is usual.
 const MOST_CLIENTS: usize = 16;
 /// How long the connection threads wait for a message before looking at what the window has to say.
@@ -870,7 +872,7 @@ fn serve(stream: TcpStream, shared: &Arc<Shared>) {
                 let Ok(message) = serde_json::from_str::<Value>(&text) else {
                     continue;
                 };
-                match handle(&message, id, shared, &style, false) {
+                match handle(&message, id, shared, &style, false, None) {
                     Handled::Reply(reply) => {
                         if socket.send(Message::text(reply.to_string())).is_err() {
                             break 'talk;
@@ -965,7 +967,9 @@ fn serve_http(mut stream: TcpStream, shared: &Arc<Shared>) {
     };
     let id = shared.next_id.fetch_add(1, Ordering::Relaxed);
     let style = AtomicU8::new(shared.default_style.load(Ordering::Relaxed));
-    match handle(&message, id, shared, &style, true) {
+    // A session Limoniter started says which it is, so the board knows who is asking.
+    let session = header(SESSION_HEADER);
+    match handle(&message, id, shared, &style, true, session.as_deref()) {
         Handled::Reply(reply) => http_reply(&mut stream, "200 OK", &reply.to_string()),
         Handled::Wait(pend) => {
             let answer = match pend.reply.recv_timeout(WAIT_FOR_WINDOW) {
@@ -989,7 +993,7 @@ fn error(id: &Value, code: i64, message: &str) -> Handled {
 }
 
 /// Deals with one message from a client: answers it, or asks the window and says what to wait for.
-fn handle(message: &Value, client: u64, shared: &Shared, style: &AtomicU8, http: bool) -> Handled {
+fn handle(message: &Value, client: u64, shared: &Shared, style: &AtomicU8, http: bool, who: Option<&str>) -> Handled {
     let Some(method) = message.get("method").and_then(Value::as_str) else {
         return Handled::Nothing;
     };
@@ -1010,11 +1014,23 @@ fn handle(message: &Value, client: u64, shared: &Shared, style: &AtomicU8, http:
             }))
         }
         "ping" => ok(json!({})),
-        "tools/list" => ok(json!({ "tools": if http { tools_for_http() } else { tools() } })),
+        "tools/list" => {
+            let mut listed = if http { tools_for_http() } else { tools() };
+            if let (Some(list), Some(team)) = (listed.as_array_mut(), crate::agent_team::tools().as_array()) {
+                list.extend(team.iter().cloned());
+            }
+            ok(json!({ "tools": listed }))
+        }
         "tools/call" => {
             let name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let args = params.get("arguments").cloned().unwrap_or(Value::Null);
             let text = |key: &str| args.get(key).and_then(Value::as_str).map(str::to_string);
+            // The task board, claims and notes between the agents are Limoniter's own to answer, at once.
+            if crate::agent_team::is_team_tool(name) {
+                let (text, failed) = crate::agent_team::call(who, name, &args);
+                (shared.wake)();
+                return ok(json!({ "content": [{ "type": "text", "text": text }], "isError": failed }));
+            }
             let (reply, wait) = channel();
             let asked = match name {
                 "openDiff" => {
@@ -1225,7 +1241,8 @@ mod tests {
         ask(&mut socket, 8, "tools/list", json!({}));
         let listed = next_message(&mut socket);
         let names: Vec<&str> = listed["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-        assert_eq!(names, ["openDiff", "getDiagnostics", "close_tab", "openFile", "closeAllDiffTabs"], "executeCode is a Jupyter tool, which Limoniter has no use for");
+        assert_eq!(names[..5], ["openDiff", "getDiagnostics", "close_tab", "openFile", "closeAllDiffTabs"], "executeCode is a Jupyter tool, which Limoniter has no use for");
+        assert_eq!(names[5..].len(), 8, "and the task board's tools");
         for tool in listed["result"]["tools"].as_array().unwrap() {
             assert_eq!(tool["inputSchema"]["type"], "object");
         }
@@ -1378,7 +1395,8 @@ mod tests {
         assert_eq!(status, 202, "a notification is accepted and not answered");
         let (_, tools) = post(server.port, "POST", Some(&server.token), &json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }));
         let names: Vec<&str> = tools["result"]["tools"].as_array().unwrap().iter().filter_map(|t| t["name"].as_str()).collect();
-        assert_eq!(names, vec!["getDiagnostics", "openFile", "getCurrentSelection", "getOpenEditors"], "no diffs: Codex's changes go through its own approvals");
+        assert_eq!(names[..4], ["getDiagnostics", "openFile", "getCurrentSelection", "getOpenEditors"], "no diffs: Codex's changes go through its own approvals");
+        assert!(names.contains(&"claim_paths") && names.contains(&"leave_note"), "and the task board's tools");
         assert!(tools["result"]["tools"].as_array().unwrap().iter().all(|t| t["annotations"]["destructiveHint"] == false), "none asks Codex to ask the person first");
         let (status, _) = post(server.port, "GET", Some(&server.token), &json!({}));
         assert_eq!(status, 405, "no stream of server messages is offered");

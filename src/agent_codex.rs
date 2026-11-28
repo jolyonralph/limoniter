@@ -51,6 +51,8 @@ pub fn mode_from(approval: &Value, sandbox: &Value) -> Option<Mode> {
 pub struct Mcp {
     pub url: String,
     pub token: String,
+    /// The session's name on the task board ("Codex 1"), sent with every call so the board knows who asks.
+    pub who: String,
 }
 
 /// What a new session is started with.
@@ -83,7 +85,7 @@ pub fn arguments(options: &Options) -> Vec<String> {
 /// MCP server Limoniter offers. `thread/start` takes them as `config`, found by running it.
 pub fn thread_config(mcp: Option<&Mcp>) -> Option<Value> {
     let mcp = mcp?;
-    Some(json!({"mcp_servers": {"limoniter": {"url": mcp.url, "http_headers": {"Authorization": format!("Bearer {}", mcp.token)}, "startup_timeout_sec": 10, "tool_timeout_sec": 600}}}))
+    Some(json!({"mcp_servers": {"limoniter": {"url": mcp.url, "http_headers": {"Authorization": format!("Bearer {}", mcp.token), crate::claude_ide::SESSION_HEADER: mcp.who}, "startup_timeout_sec": 10, "tool_timeout_sec": 600}}}))
 }
 
 // ---------- What the editor tells Codex it's looking at ----------

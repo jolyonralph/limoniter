@@ -51,7 +51,7 @@ type FileList = Arc<Mutex<Option<(PathBuf, Arc<Vec<String>>)>>>;
 pub(super) struct State {
     pub tabs: Vec<Tab>,
     pub active: usize,
-    next_number: u64,
+    pub(super) next_number: u64,
     /// The box for a new session is open, with these choices.
     pub dialog: Option<Choice>,
     /// What's been chosen before, offered again.
@@ -87,6 +87,8 @@ pub(super) struct State {
     remembered: Remembered,
     /// Sessions in copies of their own, and reviews by the other tool.
     pub(super) wt: agent_worktree_host::WtState,
+    /// The team's views: the Tasks view, the claim row.
+    pub team_ui: super::agent_team_host::TeamUi,
 }
 
 /// What looking in the WSL distributions found.
@@ -126,6 +128,7 @@ impl Default for State {
             locating: None,
             remembered: Remembered::load(),
             wt: Default::default(),
+            team_ui: Default::default(),
         }
     }
 }
@@ -192,12 +195,13 @@ impl Limoniter {
         let model = Some(choice.model.clone()).filter(|m| m != "default");
         let effort = Some(choice.effort.clone()).filter(|e| !e.is_empty());
         let (program, prefix, wsl) = self.agent_command(choice.tool, choice.place.as_deref(), folder)?;
+        let name = self.team_new_handle(choice.tool);
         let (handle, known) = match choice.tool {
             Tool::Claude => {
                 // Tried with Claude Code 2.1.332 and Limoniter's own IDE server: a `claude -p` session didn't connect to it,
                 // with `--ide`, the port in CLAUDE_CODE_SSE_PORT and a matching lock file, so no port is passed (see NOTES).
                 let ide_port = None;
-                let options = crate::agent_claude::Options { program, prefix, folder: folder.to_path_buf(), mode: choice.mode, model, effort, resume: resume.map(|p| p.id.clone()), ide_port, wsl, wake };
+                let options = crate::agent_claude::Options { program, prefix, folder: folder.to_path_buf(), mode: choice.mode, model, effort, resume: resume.map(|p| p.id.clone()), ide_port, mcp: self.team_mcp("127.0.0.1", &name).filter(|_| wsl.is_none()), wsl, wake };
                 (crate::agent_claude::start(options)?, self.agents.models.clone())
             }
             Tool::Codex => {
@@ -207,12 +211,13 @@ impl Limoniter {
                     (Some(_), Some(address)) => address.to_string(),
                     _ => "127.0.0.1".to_string(),
                 };
-                let mcp = self.claude_ide.server.as_ref().filter(|_| self.prefs.claude_ide).map(|server| crate::agent_codex::Mcp { url: format!("http://{host}:{}/mcp", server.port), token: server.token.clone() });
+                let mcp = self.team_mcp(&host, &name);
                 let options = crate::agent_codex::Options { program, prefix, folder: folder.to_path_buf(), mode: choice.mode, model, effort, resume: resume.map(|p| p.id.clone()), mcp, wsl, wake };
                 (crate::agent_codex::start(options)?, self.agents.codex_models.clone())
             }
         };
         let mut session = Session::new(choice.tool, folder, handle);
+        self.team_join(&mut session, &name);
         session.mode = choice.mode;
         session.chosen_model = Some(choice.model.clone());
         session.effort = Some(choice.effort.clone()).filter(|e| !e.is_empty());
@@ -323,6 +328,7 @@ impl Limoniter {
 
     /// Everything the window does for the sessions, each time round.
     pub(super) fn agents_tick(&mut self, ctx: &Context) {
+        self.team_tick();
         if let Some(locating) = &self.agents.locating {
             match locating.try_recv() {
                 Ok(found) => {
@@ -582,6 +588,11 @@ impl Limoniter {
             'draw: {
                 new = self.agent_tab_row(ui);
                 self.worktree_bar(ui);
+                self.team_strip(ui);
+                if self.agents.team_ui.show_tasks {
+                    self.team_tasks_view(ui);
+                    break 'draw;
+                }
                 if self.agents.showing_past {
                     resume = self.agent_past_list(ui, &folder);
                     ui.separator();
@@ -807,6 +818,9 @@ impl Limoniter {
     pub(super) fn agents_screenshot_step(&mut self, value: &str) {
         use crate::agent_session::{Context as Fill, Limit, Limits, Permission, Task, TaskState, Tokens};
         self.panels.agents = true;
+        if value.contains("team") {
+            return self.team_screenshot_step(value.contains("tasks"));
+        }
         let folder = self.agent_folder().unwrap_or_else(|| PathBuf::from("."));
         // "codex" is the same conversation as Codex has it (its own mode names, models and efforts).
         let codex = value.contains("codex");

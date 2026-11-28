@@ -51,10 +51,30 @@ pub struct Options {
     pub resume: Option<String>,
     /// The port of Limoniter's IDE server, if the session may use it.
     pub ide_port: Option<u16>,
+    /// Limoniter's task board and claims for the session, offered as an MCP server in a file made for it.
+    pub mcp: Option<crate::agent_codex::Mcp>,
     /// Set when the program runs in WSL: how the paths in what's said each way are translated.
     pub wsl: Option<crate::agent_wsl::Paths>,
     /// Called when there's something new for the window to look at.
     pub wake: Arc<dyn Fn() + Send + Sync>,
+}
+
+/// The MCP settings for one session, in a file the program is told of with `--mcp-config`. The file is the
+/// person's only and holds the key to Limoniter's server, so it's made readable by them alone where that's a thing.
+pub fn mcp_config(mcp: &crate::agent_codex::Mcp) -> Value {
+    json!({"mcpServers": {"limoniter": {"type": "http", "url": mcp.url, "headers": {"Authorization": format!("Bearer {}", mcp.token), crate::claude_ide::SESSION_HEADER: mcp.who}}}})
+}
+
+fn write_mcp_config(mcp: &crate::agent_codex::Mcp) -> Option<PathBuf> {
+    let name: String = mcp.who.chars().map(|c| if c.is_alphanumeric() { c } else { '-' }).collect();
+    let file = std::env::temp_dir().join(format!("limoniter-mcp-{}-{name}.json", std::process::id()));
+    std::fs::write(&file, mcp_config(mcp).to_string()).ok()?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600));
+    }
+    Some(file)
 }
 
 /// The arguments the program is run with. Research said `--permission-prompt-tool stdio` and the two formats were
@@ -686,12 +706,28 @@ fn session_permissions(pending: &Pending) -> Vec<Value> {
 struct Running {
     child: Mutex<Child>,
     stderr: Arc<Mutex<String>>,
+    /// The session's MCP settings file, taken away when the session is.
+    mcp_file: Option<PathBuf>,
+}
+
+impl Drop for Running {
+    fn drop(&mut self) {
+        if let Some(file) = &self.mcp_file {
+            let _ = std::fs::remove_file(file);
+        }
+    }
 }
 
 /// Starts `claude` and gives the session its two channels.
 pub fn start(options: Options) -> Result<Handle, String> {
     let mut command = crate::platform::command(&options.program);
-    command.args(arguments(&options)).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mcp_file = options.mcp.as_ref().and_then(write_mcp_config);
+    command.args(arguments(&options));
+    if let Some(file) = &mcp_file {
+        // Its own tools are allowed without asking each time: they only touch the board, which the person sees.
+        command.arg("--mcp-config").arg(file).args(["--allowedTools", "mcp__limoniter"]);
+    }
+    command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     // `wsl.exe` is given the folder to work in (in WSL's form), and a folder only WSL can reach can't be its own.
     if options.wsl.is_none() {
         command.current_dir(&options.folder);
@@ -718,7 +754,7 @@ pub fn start(options: Options) -> Result<Handle, String> {
             }
         }
     });
-    let running = Arc::new(Running { child: Mutex::new(child), stderr });
+    let running = Arc::new(Running { child: Mutex::new(child), stderr, mcp_file });
     let state = Arc::new(Mutex::new(State::new(&options.folder)));
     let stdin = Arc::new(Mutex::new(Some(stdin)));
     let (event_tx, events) = channel::<Event>();

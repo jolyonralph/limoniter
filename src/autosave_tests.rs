@@ -10,6 +10,19 @@ fn folder(name: &str) -> PathBuf {
     dir
 }
 
+/// Waits until every session folder in `root` can be locked, as it can once the window that had it is gone. Another
+/// test starting a program at the same moment can hold the lock for an instant (a child holds what was open until it
+/// starts its program), and the next start would take the folder for one still in use.
+fn wait_for_locks(root: &Path) {
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    for entry in std::fs::read_dir(root).into_iter().flatten().flatten() {
+        let lock = entry.path().join("session.lock");
+        while lock.exists() && crate::recovery::take_lock(&lock).is_err() && std::time::Instant::now() < until {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+}
+
 /// Opens a file, types at its start, and makes autosave think the change is old enough to save.
 fn edited(app: &mut Limoniter, ctx: &Context, path: &Path) {
     assert!(app.open_path(path));
@@ -266,6 +279,7 @@ fn quitting_with_unsaved_files_asks_nothing_and_they_come_back_as_they_were() {
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "text", "nothing was saved over the file");
     assert!(root.join(HOT_EXIT_MARKER).exists());
     drop(app);
+    wait_for_locks(&root);
 
     let (mut next, ctx) = app_with("");
     next.start_recovery_in(root.clone());
@@ -303,6 +317,7 @@ fn hot_exit_can_be_turned_off_and_leaves_a_file_changed_meanwhile_to_the_usual_o
     app.finish_recovery();
     drop(app);
     std::fs::write(&path, "changed by someone else, and longer").unwrap();
+    wait_for_locks(&root);
     let (mut next, _ctx) = app_with("");
     next.start_recovery_in(root.clone());
     assert!(matches!(next.dialog, Dialog::Recovery(_)), "the usual offer");

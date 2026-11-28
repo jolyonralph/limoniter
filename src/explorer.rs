@@ -167,6 +167,10 @@ pub enum Act {
     CopyPath(PathBuf),
     CopyRelativePath(PathBuf),
     Reveal(PathBuf),
+    /// Claimed for a session of the AI agents (or "You"), so no other session may change it.
+    Claim { path: PathBuf, holder: String },
+    /// A claim on this taken back.
+    Unclaim(PathBuf),
     Terminal(PathBuf),
     FindIn(PathBuf),
     CompareWith(PathBuf),
@@ -752,6 +756,11 @@ impl Explorer {
                     ui.painter().text(egui::pos2(size_end, y), egui::Align2::RIGHT_CENTER, size, small, faint);
                 }
             }
+            // Whose it is, when an AI agent (or you) has claimed it.
+            let claimed = crate::agent_team::holder_name(&entry.path);
+            if let Some(holder) = &claimed {
+                ui.painter().text(egui::pos2(right - 16.0, rect.center().y), egui::Align2::RIGHT_CENTER, holder, egui::FontId::proportional(10.5), crate::theme::git_changed());
+            }
             if let Some(change) = change {
                 let (letter, tint) = git_mark(change);
                 ui.painter().text(egui::pos2(right, rect.center().y), egui::Align2::RIGHT_CENTER, letter, egui::FontId::proportional(11.5), tint);
@@ -763,6 +772,10 @@ impl Explorer {
                 Some(when) => format!("{}\n{}", entry.path.display(), kept::when_said(when, now)),
                 None if entry.hidden => format!("{}\n{}", entry.path.display(), crate::i18n::tr("Hidden in this project")),
                 None => entry.path.display().to_string(),
+            };
+            let hover = match claimed {
+                Some(ref holder) => format!("{hover}\n{}", crate::i18n::tf!("Claimed by {holder}")),
+                None => hover,
             };
             let response = response.on_hover_text(hover);
             if self.scroll_to.as_deref() == Some(entry.path.as_path()) {
@@ -885,6 +898,9 @@ impl Explorer {
                 }
             });
         }
+        // Kept for an AI agent session, or for you, so no other session changes it.
+        let mut claimed = Vec::new();
+        claim_menu(ui, &path, &mut claimed);
         ui.separator();
         if ui.button(crate::i18n::tr("Rename\u{2026}")).clicked() {
             self.start_rename(&path);
@@ -893,6 +909,7 @@ impl Explorer {
         item(ui, "Move to the Recycle Bin", Act::Delete(path));
         acts.extend(coloured);
         acts.extend(always);
+        acts.extend(claimed);
     }
 
     /// The box a name is typed in: Enter makes it, Escape leaves it.
@@ -969,6 +986,33 @@ pub fn filtered(ui: &mut Ui, root: &Path, files: &[PathBuf], filter: &str, activ
         }
     });
     acts
+}
+
+/// "Claim for", with each AI agent session (and you) to claim a file or folder for, and a way to take the claim back.
+fn claim_menu(ui: &mut Ui, path: &Path, acts: &mut Vec<Act>) {
+    let (sessions, held) = {
+        let team = crate::agent_team::team();
+        (team.members.iter().map(|m| (m.key.clone(), team.label(&m.key))).collect::<Vec<_>>(), team.holder_of(path).is_some())
+    };
+    crate::fit::menu_button(ui, crate::i18n::tr("Claim for"), |ui| {
+        if ui.button(crate::i18n::tr("Me")).clicked() {
+            acts.push(Act::Claim { path: path.to_path_buf(), holder: crate::agent_team::PERSON.to_string() });
+            ui.close();
+        }
+        for (key, label) in sessions {
+            if ui.button(label).clicked() {
+                acts.push(Act::Claim { path: path.to_path_buf(), holder: key });
+                ui.close();
+            }
+        }
+        if held {
+            ui.separator();
+            if ui.button(crate::i18n::tr("Take the claim back")).clicked() {
+                acts.push(Act::Unclaim(path.to_path_buf()));
+                ui.close();
+            }
+        }
+    });
 }
 
 #[cfg(test)]

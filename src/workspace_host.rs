@@ -423,6 +423,19 @@ impl Limoniter {
                 ui.ctx().copy_text(crate::explorer::relative(&root, &path));
                 false
             }
+            Act::Claim { path, holder } => {
+                if let Err(problem) = crate::agent_team::team().claim_paths(&holder, &[path.display().to_string()]) {
+                    self.message("AI agents", problem);
+                }
+                false
+            }
+            Act::Unclaim(path) => {
+                let mut team = crate::agent_team::team();
+                if let Some(holder) = team.holder_of(&path) {
+                    team.release_paths(&holder, &[path.display().to_string()]);
+                }
+                false
+            }
             Act::Reveal(path) => {
                 if let Err(problem) = crate::platform::reveal(&path) {
                     self.message("Show in the file manager", problem);

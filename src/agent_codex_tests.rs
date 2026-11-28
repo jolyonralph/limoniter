@@ -67,10 +67,11 @@ fn the_program_is_run_as_the_app_server_and_limoniters_tools_go_in_the_threads_o
     o.prefix = vec!["x.py".into()];
     assert_eq!(arguments(&o), vec!["x.py", "app-server"]);
     assert_eq!(thread_config(None), None);
-    let mcp = Mcp { url: "http://127.0.0.1:5000/mcp".into(), token: "tok".into() };
+    let mcp = Mcp { url: "http://127.0.0.1:5000/mcp".into(), token: "tok".into(), who: "Codex 1".into() };
     let config = thread_config(Some(&mcp)).unwrap();
     assert_eq!(config["mcp_servers"]["limoniter"]["url"], "http://127.0.0.1:5000/mcp");
     assert_eq!(config["mcp_servers"]["limoniter"]["http_headers"]["Authorization"], "Bearer tok");
+    assert_eq!(config["mcp_servers"]["limoniter"]["http_headers"]["x-limoniter-session"], "Codex 1");
     // It goes in thread/start, not into config.toml.
     o.mcp = Some(mcp);
     let mut s = State::new(&o);

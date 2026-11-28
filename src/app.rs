@@ -10733,6 +10733,8 @@ mod claude_ide_host;
 mod agent_host;
 #[path = "agent_worktree_host.rs"]
 mod agent_worktree_host;
+#[path = "agent_team_host.rs"]
+mod agent_team_host;
 #[path = "usage_host.rs"]
 mod usage_host;
 

@@ -760,11 +760,13 @@ A new effect, from the shape
 A new file: a whole Amiga program showing the list, to run with F9
 A new part at each line containing
 A new part every so many lines
+A new task
 A new {} file, with a starter to change
 A new {} session
 A newer Limoniter
 A normal C64 cartridge (type 0) from an 8K or 16K binary, or from a program that loads at $8000: 8K is ROML at $8000 with EXROM active; 16K adds ROMH at $A000, with GAME active too. The binary starts with the cartridge's cold and warm start addresses and CBM80.
 A normal cartridge is 8,192 or 16,384 bytes; this is {n}.
+A note
 A note's value: Hz
 A number
 A number and some text can't be put together like that.
@@ -1250,6 +1252,7 @@ Ask before edits
 Ask for some rows and columns in SQL's words, such as SELECT a, b WHERE c > 10 ORDER BY d
 Ask for some rows and columns of the file in SQL's words, and the answer opens as a table. For example:
 Ask for something. Enter sends, Shift+Enter starts a new line, @ names a file.
+Ask one session to split a goal into tasks on the board. It changes no files while it plans.
 Ask the assistant
 Ask the assistant…
 Ask the kernel again what it holds
@@ -1257,6 +1260,7 @@ Ask the language server
 Ask the other to review
 Ask this rule first
 Ask this rule later
+Ask to plan
 Asked for only if needed
 Asking the kernel…
 Asks Compose again now, rather than waiting
@@ -1530,6 +1534,7 @@ Browsing only
 Build
 Building {} didn't work:\n{}
 Building {} needs a C compiler (cc, gcc or clang), and none was found. {}
+Builds and tests
 Builds the image again and starts the service: up --build
 Busiest instructions (offset in the program, cycles)
 Busiest lines
@@ -1809,6 +1814,11 @@ Choose...
 Choose…
 Chosen
 Chunks of the program that wrote it ({}) aren't carried over.
+Claim
+Claim a file or folder for a session
+Claim for
+Claimed by {holder}
+Claims:
 Classic Macintosh Western
 Claude Code
 Claude Code connected
@@ -3136,6 +3146,7 @@ Give the file a new name (F2)
 Give the packed file a name of its own.
 Give the program a name.
 Give the template a name without slashes, and not starting with a dot.
+Give to
 Given to the program, as typed in the Shell
 Gives a type: DIM x AS UBYTE, FUNCTION f(a AS INTEGER) AS LONG.
 Gives cells the colours below, leaving their pixels as they are
@@ -3148,6 +3159,7 @@ Go array
 Go back to Limoniter {version}? This version, {}, is kept in its place, so you can come back to it the same way.
 Go back to looking where it's usually installed
 Go back to the previous version
+Go next
 Go there
 Go to
 Go to any file in the folder from a few letters of its name.
@@ -3903,6 +3915,8 @@ Length first (1 byte{order}{counting})
 Length first ({width} bytes{order}{counting})
 Let Claude Code and Codex work with Limoniter
 Let Workbench place it
+Let go of this claim
+Let this one run as soon as the one running has finished
 Let's start
 Lets go of every earlier state of this file. The text stays as it is
 Letterlike Symbols
@@ -4256,6 +4270,7 @@ Matches in the code alone count
 Materials
 Mathematical Operators
 Maths coprocessor
+Me
 Mean
 Mega Drive
 Mega Drive / Genesis
@@ -4528,6 +4543,7 @@ No matches.
 No more were found.
 No multi-byte sequences are defined for this profile.
 No music found: no tracker modules (ProTracker and its kin, Scream Tracker 3, FastTracker 2, Impulse Tracker), SID, SNDH, YM, PT3 or AY files.
+No notes between the agents yet.
 No one metre fits these lines well, so each is shown with the one it fits best.
 No other task runs from here on.
 No package.json, requirements.txt, pyproject.toml, composer.json or R package was found in the project's folder.
@@ -4568,6 +4584,7 @@ No suggestions.
 No tables
 No tag has that name.
 No tasks here: none of Cargo.toml, a Makefile, package.json, go.mod or CMakeLists.txt above the file, and no project tasks.
+No tasks yet. Write one below, or ask a session to plan.
 No template fits this file. Choose one above, or write your own.
 No template is being used.
 No test results were found in what it printed: see the Output panel.
@@ -4640,7 +4657,9 @@ Note the system's view, take the blitter, and show nothing: LoadView(0) puts the
 Note with time
 Notebook
 Notebook as text
+Notes
 Notes:
+Notes: {}
 Nothing
 Nothing called {name} has been read yet.
 Nothing counted for these days yet.
@@ -4652,6 +4671,7 @@ Nothing has changed yet. Files changed by Limoniter, an agent or another program
 Nothing in it
 Nothing is allowed here.
 Nothing is asked: it may change or delete anything here.
+Nothing is building. A build or test one session asks for waits here while another's runs.
 Nothing is deleted.
 Nothing is frozen.
 Nothing is running that Limoniter can reach.
@@ -5169,6 +5189,7 @@ Plain text…
 Plan only
 Planes
 Planes…
+Planner
 PlatformIO: build
 PlatformIO: serial monitor
 PlatformIO: test
@@ -5194,6 +5215,7 @@ Playing
 Plays at 50 Hz whatever the BPM, with no CIA timer
 Please enter whole numbers.
 Please review the changes below, which another AI assistant made. Look for mistakes, missed cases and anything unclear. Don't change any files. Write each comment on a line of its own, as path:line: what you found, and finish with one short sentence on whether the changes are ready.
+Please start on task {id} from the task board: {title}. Claim it with claim_task, claim the files you will change with claim_paths, and finish it with finish_task when it's done.
 Please wait
 Please wait for the file being worked through to finish.
 Please wait for this file to finish being read or written first.
@@ -5488,6 +5510,7 @@ Reformat
 Refresh
 Refuse
 Refused
+Refused: {shown} is claimed by {holder}.
 Register 13 chooses the shape, and writing it starts the envelope again. 0 to 7 each sound as 9 or 15.
 Register A of the AY gets E, on the CPC, through the PPI.
 Register A of the AY gets E, on the MSX.
@@ -5514,6 +5537,7 @@ Remove it
 Remove the copy and its branch now? Its session is closed with it.
 Remove the copy's folder now? The branch stays, with the commit on it.
 Remove the tag
+Remove this task
 Rename
 Rename or delete…
 Rename {old} to
@@ -5525,6 +5549,7 @@ Renamed to {new_name} in {changed} places.
 Renamed {written} to {new} in {changed} place.
 Renamed {written} to {new} in {changed} places.
 Rename…
+Reopen
 Reopen using encoding
 Reopen with another encoding…
 Reopen with…
@@ -6604,6 +6629,7 @@ Take off the project
 Take over the interrupts: none at all while they're changed.
 Take the UDGs' pictures from
 Take the blitter and empty the display, then stop multitasking.
+Take the claim back
 Take the file off the image (Delete)
 Take the original
 Take the padding off
@@ -6624,7 +6650,10 @@ Tandy Color Computer
 Tape sound
 Tapes, snapshots and UDG data
 Tasks
+Tasks ({open})
+Tasks ({open}, {n} waiting to build)
 Teletext
+Tell it to start
 Telnet
 Template
 Template name
@@ -7229,6 +7258,7 @@ The first character's code: 32 is the space
 The first colour kept black, for the border and what's cleared
 The first rule that fits a document chooses its theme. Endings, languages and character sets can be listed with commas; a character set matches by the start of its name, so “teletext” matches every teletext set.
 The first time a file is saved in a session, the file as it was is kept beside it, with .bak added to its name
+The first words of a command, one to a line. A command that starts with one waits for the others.
 The first {MOST_LISTED} are listed: narrow them down to see more.
 The first {} of {} rows
 The first {} of {} rows. The rest were left out.
@@ -7265,6 +7295,7 @@ The function
 The function number for the trap that follows:\n{}
 The function or label scrolled past stays at the top of the text
 The function's name
+The goal, in a few words or lines
 The grammar for {name}: {problem}
 The grammar for {} couldn't be loaded: {problem}
 The gzip file couldn't be unpacked: {e:?}
@@ -7688,6 +7719,7 @@ The tape starts this file at block {}: the blocks before it are missing.
 The tape stops partway through a block.
 The tape's CODE block, {} bytes at ${start:04X}
 The tar file ends too soon.
+The task board the agents share: tasks, notes, and builds waiting their turn
 The teleprinter
 The template went round its lists too many times; it may never stop.
 The templates folder:
@@ -8368,6 +8400,7 @@ To the matching bracket
 To the right…
 To unpack it: {}
 To write
+To {}
 Today
 Tokenise BASIC
 Tokenised BASIC
@@ -8550,6 +8583,7 @@ Use for the window
 Use in Find
 Use it
 Use the text on the right, as it is now (Alt+A)
+Use the usual list
 Use the usual words
 Use them
 Use this database for the SQL run
@@ -8640,6 +8674,7 @@ Waiting for the Next
 Waiting for the cells that are running to finish…
 Waiting for the frame: the chips set bit 5 of INTREQ (VERTB) at the start of every frame whether or not the
 Waiting for the other side to begin…
+Waiting for {who}'s {what}
 Waiting to be sent: {}
 Waits for the next frame to begin: see the main loop.
 Wanted is the newest version the project's own limits allow. Tools, Tasks lists the updates.
@@ -8664,6 +8699,7 @@ What Limoniter can do
 What Limoniter can do…
 What PHP 7 and 8 took away that the code still uses, and what replaces each. The safe ones are fixed for you; the rest are listed to do by hand.
 What came in, as it came
+What counts as a build or test
 What follows byte {at} doesn't look like a BASIC line, so it isn't listed.
 What follows byte {} doesn't look like BASIC lines, so it isn't listed.
 What it is
@@ -8866,6 +8902,7 @@ Yes, remove it
 Yes: a BASIC program, RUN to start it
 Yes: it uses PlaySID's own extras, such as its samples
 You
+You are the planner for this project. The goal: {goal}\n\nLook at the project if you need to. Then split the goal into small tasks that can be done separately, perhaps by different agents, and add each to the shared task board with the add_task tool (a title, details, and the files or folders it will be in). Don't change any files yourself. When you've added them, say in a sentence what you added.
 You're helping someone in a text editor. They've chosen a part of {file} ({language}), {lines}.\n\n{}\n
 Your changes to {} were kept over Codex's, and Codex will be told in your next message.
 Your email:
@@ -9030,6 +9067,7 @@ after line {} of {}
 after this
 again. Its words in 1948 are in the comments.
 align( ) needs a size above 0.
+all
 all bits clear
 all went well
 already the same in the project
@@ -9212,6 +9250,7 @@ characters
 characters; map
 checksums put in) and runs it in an emulator: SameBoy, mGBA, Gambatte, BGB, Mesen or MAME.
 chequerboard, 320 by 256) with a raster bar bouncing over it, until the left mouse button is pressed, when
+claimed by {holder}
 clambers
 clashes with your changes: opens in the merge view
 classic-mac
@@ -9796,6 +9835,7 @@ no tag: take them away
 no window
 no, addresses go up
 no: go round again (to line 1)
+nobody
 noise period {} (about {} Hz)
 noise pitch
 noise slide
@@ -10100,6 +10140,7 @@ sprites {} pixels wide
 spurious interrupt
 sql
 sql_regcase
+src/parser/
 start line ${:02X}, left edge ${:03X} (lowres, without its lowest bit)
 start line bits 10-8 = {vstart}, horizontal bit 8 {}; stop line bits 10-8 = {vstop}, horizontal bit 8 {}
 starting sign negative
@@ -10561,6 +10602,7 @@ yes
 yes, addresses go down
 yes: put 0 back
 yesterday
+you
 zx
 zx-spectrum
 zx0 (ZX0)
@@ -11113,6 +11155,12 @@ zx_notation
 {what}, in the background…
 {what}: colour {c}, {}
 {what}CP/M disk, {} format
+{who} changed {shown}, which you have claimed.
+{who} changed {shown}, which {owner} has claimed.
+{who} is running {command}
+{who} is waiting to run {command}
+{who} is waiting to run {what} until this has finished.
+{who} left a note for {to}.
 {why} F9's Run on machine box can install it.
 {width}×{height}, a sheet of {} sprites
 {words} (yours)

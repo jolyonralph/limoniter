@@ -644,7 +644,12 @@ impl Panel {
                 let name = name_of(&row.path);
                 let folder = if counts.get(&name).is_some_and(|c| *c > 1) { folder_of(&row.path, self.root.as_deref()) } else { String::new() };
                 let deleted = row.what == What::Deleted;
-                let response = draw_row(ui, row, &name, &folder, &said(row.what, &ago_now(row.when, now)), open(&row.path));
+                let when = said(row.what, &ago_now(row.when, now));
+                let when = match crate::agent_team::holder_name(&row.path) {
+                    Some(holder) => format!("{when} \u{b7} {}", crate::i18n::tf!("claimed by {holder}")),
+                    None => when,
+                };
+                let response = draw_row(ui, row, &name, &folder, &when, open(&row.path));
                 let exact = chrono::DateTime::<chrono::Local>::from(row.when).format("%Y-%m-%d %H:%M:%S").to_string();
                 let response = response.on_hover_text(format!("{}\n{exact}", row.path.display()));
                 if response.clicked() && !deleted {

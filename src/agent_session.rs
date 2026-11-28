@@ -6,6 +6,7 @@
 //! what a [`Command`] asks. A driver gives a [`Handle`], the two ends of a pair of channels, and the session does
 //! the rest. Claude Code's is in `agent_claude.rs`; Codex's will be another.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
@@ -340,6 +341,22 @@ pub struct Session {
     events: Receiver<Event>,
     /// Whether the title is the tool's, which the first message mustn't replace.
     titled: bool,
+    /// The name the team of sessions knows it by ("Codex 1"), or empty for a session that isn't one of the team
+    /// (a past one, or a test's).
+    pub key: String,
+    /// It has been let run a build or test, and hasn't yet seen it finish.
+    building: bool,
+    /// Answers kept back until the build before them has finished.
+    held: Vec<Held>,
+    /// What the files claimed by others looked like when a command began, by the command's tool use.
+    prints: HashMap<String, (Vec<PathBuf>, crate::agent_team::Prints)>,
+}
+
+/// An answer to a build or test, waiting its turn.
+struct Held {
+    id: String,
+    answer: Answer,
+    entry: u64,
 }
 
 /// The most of a first message that makes a title.
@@ -380,6 +397,10 @@ impl Session {
             commands: handle.commands,
             events: handle.events,
             titled: false,
+            key: String::new(),
+            building: false,
+            held: Vec::new(),
+            prints: HashMap::new(),
         }
     }
 
@@ -420,21 +441,44 @@ impl Session {
 
     /// Stops the agent's work. What was queued still goes when it has stopped.
     pub fn stop(&mut self) {
+        // Builds that were waiting their turn aren't going to run now.
+        for held in std::mem::take(&mut self.held) {
+            crate::agent_team::team().cancel_waiting(&self.key);
+            self.send_command(Command::Answer { id: held.id, answer: Answer::Refuse("The person stopped the session before this could run.".into()) });
+        }
         if self.busy {
             self.send_command(Command::Interrupt);
         }
     }
 
     pub fn answer(&mut self, id: &str, answer: Answer) {
+        // A build or test that's allowed goes through the queue, so two sessions don't run one at once.
+        let mut command = None;
         for item in &mut self.items {
             if let Item::Permission { permission, decided } = item
                 && permission.id == id
                 && *decided == Decided::Waiting
             {
+                if let (PermissionKind::Command(text), Answer::Allow { .. }) = (&permission.kind, &answer) {
+                    command = Some(text.clone());
+                }
                 *decided = match &answer {
                     Answer::Allow { for_session, .. } => Decided::Allowed { for_session: *for_session },
                     Answer::Refuse(_) => Decided::Refused,
                 };
+            }
+        }
+        if let Some(command) = command.filter(|_| !self.key.is_empty()) {
+            let mut team = crate::agent_team::team();
+            if team.build_part(&command).is_some() {
+                match team.build_request(&self.key, &command) {
+                    crate::agent_team::Turn::Wait(entry) => {
+                        drop(team);
+                        self.held.push(Held { id: id.to_string(), answer, entry });
+                        return;
+                    }
+                    crate::agent_team::Turn::Go => self.building = true,
+                }
             }
         }
         self.send_command(Command::Answer { id: id.to_string(), answer });
@@ -484,9 +528,100 @@ impl Session {
         let mut seen = Vec::new();
         while let Ok(event) = self.events.try_recv() {
             self.apply(&event);
-            seen.push(event);
+            if !self.referee(&event) {
+                seen.push(event);
+            }
         }
+        self.team_work();
         seen
+    }
+
+    /// What the team's rules do about an event. Returns true for one it has dealt with itself, which the window
+    /// then isn't told of.
+    fn referee(&mut self, event: &Event) -> bool {
+        if self.key.is_empty() {
+            return false;
+        }
+        match event {
+            // A change to a file another has claimed is refused, with a message saying who has it.
+            Event::Permission(permission) => {
+                let PermissionKind::Edit { path, .. } = &permission.kind else { return false };
+                let refusal = {
+                    let team = crate::agent_team::team();
+                    team.holder_other_than(&self.key, path).map(|holder| (team.refusal(&holder, path), team.label(&holder), team.shown(&crate::agent_team::normal(path))))
+                };
+                let Some((message, holder, shown)) = refusal else { return false };
+                self.answer(&permission.id, Answer::Refuse(message));
+                self.items.push(Item::Notice(crate::i18n::tf!("Refused: {shown} is claimed by {holder}.", shown = shown, holder = holder)));
+                true
+            }
+            Event::ToolUse { id, kind: ToolKind::Command(_), .. } => {
+                let others: Vec<PathBuf> = crate::agent_team::team().others_claims(&self.key).into_iter().map(|c| c.path).collect();
+                if !others.is_empty() {
+                    let before = crate::agent_team::fingerprint(&others);
+                    self.prints.insert(id.clone(), (others, before));
+                }
+                false
+            }
+            Event::ToolResult { id, is_error, .. } => {
+                let kind = self.items.iter().rev().find_map(|item| match item {
+                    Item::Tool { id: i, kind, .. } if i == id => Some(kind.clone()),
+                    _ => None,
+                });
+                let mut changed = Vec::new();
+                match kind {
+                    Some(ToolKind::Command(_)) => {
+                        self.build_finished();
+                        if let Some((paths, before)) = self.prints.remove(id) {
+                            changed = crate::agent_team::changed_between(&before, &crate::agent_team::fingerprint(&paths));
+                        }
+                    }
+                    // Done in a mode that doesn't ask, so it couldn't be refused: it's said what it touched.
+                    Some(ToolKind::FileChange(path)) if !is_error => changed.push(path),
+                    _ => {}
+                }
+                if !changed.is_empty() {
+                    let lines = crate::agent_team::team().report_changes(&self.key, &changed);
+                    self.items.extend(lines.into_iter().map(Item::Notice));
+                }
+                false
+            }
+            Event::TurnFinished => {
+                self.build_finished();
+                false
+            }
+            Event::Finished(_) => {
+                self.build_finished();
+                self.held.clear();
+                crate::agent_team::team().remove_member(&self.key);
+                false
+            }
+            _ => false,
+        }
+    }
+
+    fn build_finished(&mut self) {
+        if self.building {
+            self.building = false;
+            crate::agent_team::team().build_done(&self.key);
+        }
+    }
+
+    /// Each time round: what the team has to say to this session, and the builds whose turn has come.
+    fn team_work(&mut self) {
+        if self.key.is_empty() {
+            return;
+        }
+        let (notices, ready): (Vec<String>, Vec<usize>) = {
+            let mut team = crate::agent_team::team();
+            (team.take_notices(&self.key), self.held.iter().enumerate().filter(|(_, h)| team.is_its_turn(h.entry)).map(|(n, _)| n).collect())
+        };
+        self.items.extend(notices.into_iter().map(Item::Notice));
+        for n in ready.into_iter().rev() {
+            let held = self.held.remove(n);
+            self.building = true;
+            self.send_command(Command::Answer { id: held.id, answer: held.answer });
+        }
     }
 
     /// Does what one event says to the session's state.
@@ -623,6 +758,9 @@ impl Session {
 
 impl Drop for Session {
     fn drop(&mut self) {
+        if !self.key.is_empty() {
+            crate::agent_team::team().remove_member(&self.key);
+        }
         let _ = self.commands.send(Command::Close);
     }
 }

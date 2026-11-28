@@ -15,12 +15,23 @@ def real(path):
         return path[5].upper() + ":" + path[6:].replace("/", "\\")
     return path
 import time
+import urllib.request
 
 ARGS = sys.argv[1:]
 LOG = ARGS[ARGS.index("--log") + 1] if "--log" in ARGS else None
 REFUSE_CONTEXT = "--refuse-context" in ARGS
 THREAD = "thread-fake-1"
-state = {"turn": 0, "model": "gpt-5.6-luna", "answers": {}, "next_server_id": 0, "interrupted": False}
+def mcp_call(name, arguments):
+    """Calls one of Limoniter's tools over MCP, with the server and headers the thread was started with."""
+    config = state["mcp"]
+    headers = dict(config["http_headers"])
+    headers["Content-Type"] = "application/json"
+    body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": arguments}}
+    request = urllib.request.Request(config["url"], data=json.dumps(body).encode(), headers=headers)
+    return json.load(urllib.request.urlopen(request, timeout=10))["result"]["content"][0]["text"]
+
+
+state = {"mcp": None, "turn": 0, "model": "gpt-5.6-luna", "answers": {}, "next_server_id": 0, "interrupted": False}
 
 
 def out(message):
@@ -111,6 +122,15 @@ def run_turn(turn, text):
         note("item/reasoning/summaryTextDelta", {"threadId": THREAD, "turnId": turn, "itemId": "rs1", "delta": " it over", "summaryIndex": 0})
         item_completed(turn, {"type": "reasoning", "id": "rs1", "summary": ["**Thinking** it over"], "content": []})
         text_message(turn, "m1", ["Hel", "lo ", "there"])
+        usage(turn)
+    elif text.startswith("You are the planner"):
+        for title in ("Plan step one", "Plan step two"):
+            mcp_call("add_task", {"title": title, "details": "from the planner"})
+        text_message(turn, "mp", ["Planned."])
+        usage(turn)
+    elif first == "board":
+        payload = text.split(None, 2)[2] if len(words) > 2 else "{}"
+        text_message(turn, "mb" + turn, [mcp_call(words[1], json.loads(payload))])
         usage(turn)
     elif first == "command":
         item_started(turn, command_item(turn, "c1", "touch b.txt"))
@@ -211,6 +231,7 @@ def main():
                                        "secondary": {"usedPercent": 59, "windowDurationMins": 10080, "resetsAt": 1796252461}}})
         elif method in ("thread/start", "thread/resume"):
             state["model"] = params.get("model") or "gpt-6.2-sol"
+            state["mcp"] = ((params.get("config") or {}).get("mcp_servers") or {}).get("limoniter")
             thread = {"id": params.get("threadId", THREAD), "preview": "", "ephemeral": False}
             result(id, {"thread": thread, "model": state["model"], "approvalPolicy": params.get("approvalPolicy", "on-request"),
                         "sandbox": {"type": {"read-only": "readOnly", "workspace-write": "workspaceWrite", "danger-full-access": "dangerFullAccess"}[params.get("sandbox", "workspace-write")]},

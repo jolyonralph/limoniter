@@ -11806,3 +11806,51 @@ Send the review back	Prüfung zurückschicken
 Gives it to the session that made the changes, as its next message.	Gibt sie der Sitzung, die die Änderungen gemacht hat, als nächste Nachricht.
 Sent.	Gesendet.
 Couldn't copy {} into the new copy: {e}	{} konnte nicht in die neue Kopie kopiert werden: {e}
+Tasks ({open})	Aufgaben ({open})
+Tasks ({open}, {n} waiting to build)	Aufgaben ({open}, {n} warten auf den Build)
+The task board the agents share: tasks, notes, and builds waiting their turn	Das gemeinsame Aufgabenbrett der Agenten: Aufgaben, Notizen und Builds, die auf ihren Zug warten
+Claims:	Beanspruchungen:
+Let go of this claim	Diese Beanspruchung freigeben
+Claim a file or folder for a session	Eine Datei oder einen Ordner für eine Sitzung beanspruchen
+Claim	Beanspruchen
+src/parser/	src/parser/
+Me	Ich
+nobody	niemand
+all	alle
+you	Sie
+A new task	Eine neue Aufgabe
+Give to	Geben an
+Tell it to start	Ihr sagen, dass sie anfangen soll
+Reopen	Wieder öffnen
+Remove this task	Diese Aufgabe entfernen
+No tasks yet. Write one below, or ask a session to plan.	Noch keine Aufgaben. Schreiben Sie unten eine, oder bitten Sie eine Sitzung zu planen.
+Notes: {}	Notizen: {}
+Planner	Planer
+Ask one session to split a goal into tasks on the board. It changes no files while it plans.	Bitten Sie eine Sitzung, ein Ziel in Aufgaben auf dem Brett aufzuteilen. Beim Planen ändert sie keine Dateien.
+The goal, in a few words or lines	Das Ziel, in wenigen Worten oder Zeilen
+Ask to plan	Planen lassen
+Builds and tests	Builds und Tests
+Nothing is building. A build or test one session asks for waits here while another's runs.	Es läuft kein Build. Ein Build oder Test, den eine Sitzung anfordert, wartet hier, solange der einer anderen läuft.
+{who} is running {command}	{who} führt {command} aus
+{who} is waiting to run {command}	{who} wartet darauf, {command} auszuführen
+Go next	Als Nächstes
+Let this one run as soon as the one running has finished	Diesen starten, sobald der laufende fertig ist
+Notes	Notizen
+No notes between the agents yet.	Noch keine Notizen zwischen den Agenten.
+To {}	An {}
+A note	Eine Notiz
+What counts as a build or test	Was als Build oder Test gilt
+The first words of a command, one to a line. A command that starts with one waits for the others.	Die ersten Wörter eines Befehls, eines pro Zeile. Ein Befehl, der mit einem davon beginnt, wartet auf die anderen.
+Use the usual list	Die übliche Liste verwenden
+Please start on task {id} from the task board: {title}. Claim it with claim_task, claim the files you will change with claim_paths, and finish it with finish_task when it's done.	Bitte beginne mit Aufgabe {id} vom Aufgabenbrett: {title}. Übernimm sie mit claim_task, beanspruche die Dateien, die du ändern wirst, mit claim_paths, und schließe sie mit finish_task ab, wenn sie erledigt ist.
+You are the planner for this project. The goal: {goal}\n\nLook at the project if you need to. Then split the goal into small tasks that can be done separately, perhaps by different agents, and add each to the shared task board with the add_task tool (a title, details, and the files or folders it will be in). Don't change any files yourself. When you've added them, say in a sentence what you added.	Du bist der Planer für dieses Projekt. Das Ziel: {goal}\n\nSieh dir das Projekt an, wenn nötig. Teile das Ziel dann in kleine Aufgaben auf, die getrennt erledigt werden können, vielleicht von verschiedenen Agenten, und füge jede mit dem Werkzeug add_task zum gemeinsamen Aufgabenbrett hinzu (ein Titel, Einzelheiten und die Dateien oder Ordner, in denen sie liegt). Ändere selbst keine Dateien. Sage danach in einem Satz, was du hinzugefügt hast.
+Refused: {shown} is claimed by {holder}.	Abgelehnt: {shown} ist von {holder} beansprucht.
+Waiting for {who}'s {what}	Warte auf {what} von {who}
+{who} is waiting to run {what} until this has finished.	{who} wartet darauf, {what} auszuführen, bis dies fertig ist.
+{who} left a note for {to}.	{who} hat {to} eine Notiz hinterlassen.
+{who} changed {shown}, which {owner} has claimed.	{who} hat {shown} geändert, das {owner} beansprucht hat.
+{who} changed {shown}, which you have claimed.	{who} hat {shown} geändert, das Sie beansprucht haben.
+Claim for	Beanspruchen für
+Take the claim back	Beanspruchung zurücknehmen
+Claimed by {holder}	Beansprucht von {holder}
+claimed by {holder}	beansprucht von {holder}

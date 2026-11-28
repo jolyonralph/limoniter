@@ -17,7 +17,7 @@ fn events(state: &mut State, line: Value) -> Vec<Event> {
 
 #[test]
 fn arguments_ask_for_json_lines_and_permissions_through_the_host() {
-    let options = Options { program: "claude".into(), prefix: Vec::new(), folder: "/p".into(), mode: Mode::AcceptEdits, model: Some("haiku".into()), effort: Some("low".into()), resume: Some("abc".into()), ide_port: Some(1234), wsl: None, wake: Arc::new(|| {}) };
+    let options = Options { program: "claude".into(), prefix: Vec::new(), folder: "/p".into(), mode: Mode::AcceptEdits, model: Some("haiku".into()), effort: Some("low".into()), resume: Some("abc".into()), ide_port: Some(1234), mcp: None, wsl: None, wake: Arc::new(|| {}) };
     let args = arguments(&options);
     let has = |pair: &[&str]| args.windows(pair.len()).any(|w| w == pair);
     assert!(has(&["-p", "--output-format", "stream-json", "--input-format", "stream-json"]), "{args:?}");
@@ -25,7 +25,7 @@ fn arguments_ask_for_json_lines_and_permissions_through_the_host() {
     assert!(has(&["--permission-mode", "acceptEdits"]));
     assert!(has(&["--model", "haiku"]) && has(&["--effort", "low"]) && has(&["--resume", "abc"]));
     assert!(args.contains(&"--include-partial-messages".to_string()) && args.contains(&"--ide".to_string()));
-    let plain = Options { model: Some("default".into()), effort: None, resume: None, ide_port: None, ..options };
+    let plain = Options { model: Some("default".into()), effort: None, resume: None, ide_port: None, mcp: None, ..options };
     let args = arguments(&plain);
     assert!(!args.contains(&"--model".to_string()) && !args.contains(&"--effort".to_string()) && !args.contains(&"--ide".to_string()), "Default is no --model: {args:?}");
 }
@@ -358,7 +358,7 @@ pub(crate) fn fake_options(dir: &Path, extra: &[&str]) -> Option<Options> {
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/agent_testdata/fake_claude.py");
     let mut prefix = vec![script.display().to_string(), "--log".to_string(), dir.join("log.txt").display().to_string()];
     prefix.extend(extra.iter().map(|e| e.to_string()));
-    Some(Options { program, prefix, folder: dir.to_path_buf(), mode: Mode::Ask, model: None, effort: None, resume: None, ide_port: None, wsl: None, wake: Arc::new(|| {}) })
+    Some(Options { program, prefix, folder: dir.to_path_buf(), mode: Mode::Ask, model: None, effort: None, resume: None, ide_port: None, mcp: None, wsl: None, wake: Arc::new(|| {}) })
 }
 
 fn fake_session(dir: &Path, extra: &[&str]) -> Option<Session> {
@@ -581,7 +581,7 @@ fn the_program_dying_ends_the_session_with_what_it_said() {
 
 #[test]
 fn a_program_that_isnt_there_is_an_error_not_a_crash() {
-    let options = Options { program: "/no/such/claude".into(), prefix: Vec::new(), folder: std::env::temp_dir(), mode: Mode::Ask, model: None, effort: None, resume: None, ide_port: None, wsl: None, wake: Arc::new(|| {}) };
+    let options = Options { program: "/no/such/claude".into(), prefix: Vec::new(), folder: std::env::temp_dir(), mode: Mode::Ask, model: None, effort: None, resume: None, ide_port: None, mcp: None, wsl: None, wake: Arc::new(|| {}) };
     assert!(start(options).is_err());
 }
 
