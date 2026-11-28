@@ -402,3 +402,96 @@ fn real_codex_edits_a_file_through_the_review_and_asks_limoniters_tools() {
         eprintln!("ITEM {item:?}");
     }
 }
+
+// ---------- The tools in WSL ----------
+
+/// An app whose Codex is in a stand-in WSL distribution (Ubuntu), running on the Codex stand-in, in `dir`.
+fn app_with_wsl_codex(dir: &Path) -> Option<(Limoniter, Context)> {
+    let options = crate::agent_codex::agent_codex_tests::fake_options(dir, &[])?;
+    let run: Vec<String> = std::iter::once(options.program.clone()).chain(options.prefix.clone()).collect();
+    let wsl = crate::agent_wsl::agent_wsl_tests::fake_wsl(dir, &[("/home/ann/.nvm/bin/codex", run)])?;
+    let (mut app, ctx) = app_with("");
+    app.agents.wsl_program = wsl;
+    app.agents.found = Some(Found { codex: vec![Place { distribution: Some("Ubuntu".into()), program: "/home/ann/.nvm/bin/codex".into() }], ..Found::default() });
+    app.agent_start(&ctx, dir, &Choice { tool: Tool::Codex, place: Some("Ubuntu".into()), ..Choice::default() }, None).unwrap();
+    Some((app, ctx))
+}
+
+#[test]
+fn a_codex_in_wsl_makes_an_edit_through_the_review_with_the_files_windows_path() {
+    let dir = folder("wsl-codex");
+    let file = dir.join("a.txt");
+    std::fs::write(&file, "one\ntwo\nthree\n").unwrap();
+    let Some((mut app, ctx)) = app_with_wsl_codex(&dir) else { return };
+    app.agents.tabs[0].session.say(&format!("edit {}", file.display()));
+    until(&mut app, &ctx, "the review", |app| !app.review_tabs().is_empty());
+    let tab = review_tab(&app);
+    assert_eq!(app.review_proposed_text(tab).unwrap(), "one\nTWO\nthree\n");
+    assert!(crate::files_changing::claimed_by(&file).is_some_and(|who| who.starts_with("Codex")), "the file is the Windows one, put down to Codex");
+    app.decide_review(tab, true);
+    until(&mut app, &ctx, "the edit", |app| !session(app).busy && std::fs::read_to_string(&file).unwrap().replace("\r\n", "\n") == "one\nTWO\nthree\n");
+    // It was run through wsl.exe, in the folder in WSL's form.
+    let started = std::fs::read_to_string(dir.join("wsl.log")).unwrap();
+    let linux = crate::agent_wsl::Paths::new("Ubuntu", &dir);
+    assert!(started.contains(&serde_json::to_string(linux.linux_folder()).unwrap()), "{started}");
+}
+
+#[test]
+fn the_places_a_tool_can_run_from_are_offered_and_the_choice_is_checked() {
+    let (mut app, _ctx) = app_with("");
+    app.agents.codex_program = ("python".into(), vec!["stand-in.py".into()]);
+    app.agents.found = Some(Found { codex: vec![Place { distribution: Some("Ubuntu".into()), program: "/u/codex".into() }], claude: Vec::new(), gateway: None });
+    let places = app.agent_places(Tool::Codex);
+    assert_eq!(places.iter().map(|p| p.distribution.clone()).collect::<Vec<_>>(), vec![None, Some("Ubuntu".to_string())]);
+    assert!(app.agent_installed(Tool::Codex));
+    app.agents.program = ("no-such-claude-anywhere".into(), Vec::new());
+    assert!(!app.agent_installed(Tool::Claude), "Claude is in neither place");
+    let why = app.agent_start(&_ctx, Path::new("/tmp"), &Choice { tool: Tool::Codex, place: Some("Debian".into()), ..Choice::default() }, None).unwrap_err();
+    assert!(why.contains("Debian"), "{why}");
+    assert!(app.agents.tabs.is_empty());
+}
+
+/// By hand only (it uses the person's tokens), and only on Windows: the real `codex` in this computer's WSL, started
+/// from here, on its cheapest model, with one tiny edit through the review, which must show the file's Windows path.
+/// Run with `LIMONITER_REAL_WSL_CODEX=FOLDER cargo.exe test --release --offline real_wsl_codex -- --ignored
+/// --nocapture`, FOLDER being a scratch folder (on a drive) with an `a.txt` holding the lines one, two and three.
+#[test]
+#[ignore]
+fn real_wsl_codex_edits_a_file_through_the_review_with_a_windows_path() {
+    let dir = PathBuf::from(std::env::var("LIMONITER_REAL_WSL_CODEX").expect("a scratch folder"));
+    let file = dir.join("a.txt");
+    let (mut app, ctx) = app_with("");
+    let names: Vec<String> = crate::terminal::shells().into_iter().filter_map(|shell| if let crate::terminal::Shell::Wsl(name) = shell { Some(name) } else { None }).collect();
+    let codex = crate::agent_wsl::find_places(&app.agents.wsl_program, &names, "codex");
+    eprintln!("FOUND {codex:?}");
+    let place = codex.first().expect("a Codex in WSL").distribution.clone();
+    app.agents.found = Some(Found { codex, ..Found::default() });
+    app.agents.codex_program = ("no-such-codex-on-windows".into(), Vec::new());
+    let choice = Choice { tool: Tool::Codex, model: "gpt-5.6-luna".into(), effort: "low".into(), place, ..Choice::default() };
+    app.agent_start(&ctx, &dir, &choice, None).unwrap();
+    app.agents.tabs[0].session.say("Use apply_patch (not the shell) to change the line two to TWO in a.txt.");
+    let began = std::time::Instant::now();
+    while app.review_tabs().is_empty() {
+        app.agents_tick(&ctx);
+        let commands: Vec<String> = session(&app).waiting().iter().filter(|p| matches!(p.kind, PermissionKind::Command(_))).map(|p| p.id.clone()).collect();
+        for id in commands {
+            app.agents.tabs[0].session.answer(&id, Answer::Allow { text: None, for_session: false });
+        }
+        assert!(began.elapsed() < Duration::from_secs(180), "no review; transcript {:?}", session(&app).items);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let tab = review_tab(&app);
+    eprintln!("PROPOSED {:?}", app.review_proposed_text(tab));
+    eprintln!("CLAIM {:?}", crate::files_changing::claimed_by(&file));
+    assert!(crate::files_changing::claimed_by(&file).is_some(), "the review is for the Windows path");
+    app.decide_review(tab, true);
+    while session(&app).busy || session(&app).context.is_none() {
+        app.agents_tick(&ctx);
+        assert!(began.elapsed() < Duration::from_secs(300), "not finished; transcript {:?}", session(&app).items);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    eprintln!("FILE {:?}", std::fs::read_to_string(&file));
+    for item in &session(&app).items {
+        eprintln!("ITEM {item:?}");
+    }
+}

@@ -11727,3 +11727,8 @@ Copied the words without their tags ({count} characters), which is {extra} more 
 Copied the style ({count} characters).	Stile copiato ({count} caratteri).
 Copied the style ({count} characters), which is {extra} more than Suno's style box takes.	Stile copiato ({count} caratteri), cioè {extra} in più di quanti ne accetta la casella dello stile di Suno.
 Recent projects	Progetti recenti
+{tool_name}, in WSL: {name}	{tool_name}, in WSL: {name}
+{tool_name}, on Windows	{tool_name}, su Windows
+Run it from:	Esegui da:
+Looking for Claude Code and Codex in WSL...	Ricerca di Claude Code e Codex in WSL...
+{} wasn't found in WSL: {}	{} non è stato trovato in WSL: {}

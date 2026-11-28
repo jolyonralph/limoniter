@@ -29,6 +29,8 @@ pub struct Past {
     pub path: PathBuf,
     /// Whose log it is.
     pub tool: Tool,
+    /// The WSL distribution whose log it is, if it was found there.
+    pub wsl: Option<String>,
 }
 
 /// What Claude Code calls a project's folder in its logs: the path with each character that isn't a letter or a
@@ -105,7 +107,7 @@ fn read_past(path: &Path) -> Option<Past> {
         return None;
     }
     let title = if title.is_empty() { crate::agent_session::title_from(&first) } else { title };
-    Some(Past { id, title, first_message: first, when, path: path.to_path_buf(), tool: Tool::Claude })
+    Some(Past { id, title, first_message: first, when, path: path.to_path_buf(), tool: Tool::Claude, wsl: None })
 }
 
 /// The past sessions of a project, the newest first.

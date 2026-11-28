@@ -67,6 +67,8 @@ pub struct Options {
     pub resume: Option<String>,
     /// Limoniter's tools for Codex, if it may use them.
     pub mcp: Option<Mcp>,
+    /// Set when the program runs in WSL: how the paths in what's said each way are translated.
+    pub wsl: Option<crate::agent_wsl::Paths>,
     /// Called when there's something new for the window to look at.
     pub wake: Arc<dyn Fn() + Send + Sync>,
 }
@@ -1095,9 +1097,12 @@ struct Running {
 }
 
 /// Runs the program with its error output kept (the last of it), and its input and output taken.
-fn spawn(program: &str, args: &[String], folder: &Path) -> Result<(Running, std::process::ChildStdin, std::process::ChildStdout), String> {
+fn spawn(program: &str, args: &[String], folder: Option<&Path>) -> Result<(Running, std::process::ChildStdin, std::process::ChildStdout), String> {
     let mut command = crate::platform::command(program);
-    command.args(args).current_dir(folder).env("RUST_LOG", "warn").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    command.args(args).env("RUST_LOG", "warn").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    if let Some(folder) = folder {
+        command.current_dir(folder);
+    }
     let mut child = command.spawn().map_err(|e| crate::i18n::tf!("Couldn't start {}: {}", program, e))?;
     let stdin = child.stdin.take().ok_or("no input")?;
     let stdout = child.stdout.take().ok_or("no output")?;
@@ -1122,7 +1127,7 @@ fn spawn(program: &str, args: &[String], folder: &Path) -> Result<(Running, std:
 
 /// Starts `codex app-server` and gives the session its two channels.
 pub fn start(options: Options) -> Result<Handle, String> {
-    let (running, stdin, stdout) = spawn(&options.program, &arguments(&options), &options.folder)?;
+    let (running, stdin, stdout) = spawn(&options.program, &arguments(&options), options.wsl.is_none().then_some(options.folder.as_path()))?;
     let running = Arc::new(running);
     let state = Arc::new(Mutex::new(State::new(&options)));
     let stdin = Arc::new(Mutex::new(Some(stdin)));
@@ -1130,12 +1135,16 @@ pub fn start(options: Options) -> Result<Handle, String> {
     let (commands, command_rx) = channel::<Command>();
 
     let wake = options.wake.clone();
+    let paths = options.wsl.clone();
     let send_lines = {
-        let stdin = stdin.clone();
+        let (stdin, paths) = (stdin.clone(), paths.clone());
         move |lines: Vec<String>| -> bool {
             let Ok(mut stdin) = stdin.lock() else { return false };
             let Some(stdin) = stdin.as_mut() else { return false };
-            lines.iter().filter(|line| !line.is_empty()).all(|line| writeln!(stdin, "{line}").and_then(|()| stdin.flush()).is_ok())
+            lines.iter().filter(|line| !line.is_empty()).all(|line| {
+                let line = paths.as_ref().map_or_else(|| line.clone(), |paths| paths.outgoing(line));
+                writeln!(stdin, "{line}").and_then(|()| stdin.flush()).is_ok()
+            })
         }
     };
     let first = state.lock().map(|mut s| s.initialize()).unwrap_or_default();
@@ -1143,9 +1152,10 @@ pub fn start(options: Options) -> Result<Handle, String> {
 
     // Reading: what the program says.
     {
-        let (state, tx, running, wake, send_lines) = (state.clone(), event_tx.clone(), running.clone(), wake.clone(), send_lines.clone());
+        let (state, tx, running, wake, send_lines, paths) = (state.clone(), event_tx.clone(), running.clone(), wake.clone(), send_lines.clone(), paths.clone());
         std::thread::spawn(move || {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                let line = paths.as_ref().map_or(line.clone(), |paths| paths.incoming(&line));
                 let (events, replies) = state.lock().map(|mut s| s.line(&line)).unwrap_or_default();
                 if !replies.is_empty() {
                     send_lines(replies);
@@ -1210,8 +1220,8 @@ pub fn start(options: Options) -> Result<Handle, String> {
 
 /// Asks a `codex` which models it has, without starting a conversation (nothing is sent to the service).
 pub fn probe_models(program: &str, prefix: &[String], folder: &Path) -> Result<Vec<ModelChoice>, String> {
-    let options = Options { program: program.to_string(), prefix: prefix.to_vec(), folder: folder.to_path_buf(), mode: Mode::Ask, model: None, effort: None, resume: None, mcp: None, wake: Arc::new(|| {}) };
-    let (running, mut stdin, stdout) = spawn(program, &arguments(&options), folder)?;
+    let options = Options { program: program.to_string(), prefix: prefix.to_vec(), folder: folder.to_path_buf(), mode: Mode::Ask, model: None, effort: None, resume: None, mcp: None, wsl: None, wake: Arc::new(|| {}) };
+    let (running, mut stdin, stdout) = spawn(program, &arguments(&options), Some(folder))?;
     let mut state = State::new(&options);
     state.probe = true;
     let first = state.initialize();

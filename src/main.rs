@@ -248,6 +248,7 @@ mod agent_codex_logs;
 mod agent_logs;
 mod agent_panel;
 mod agent_session;
+mod agent_wsl;
 mod usage_logs;
 mod usage_status;
 mod files_changing;

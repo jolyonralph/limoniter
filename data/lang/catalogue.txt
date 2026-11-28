@@ -4076,6 +4076,7 @@ Look through the file in front, and the files inside it if it's a disk, tape or 
 Look up
 Looking every few seconds
 Looking for
+Looking for Claude Code and Codex in WSL...
 Looking for kernels…
 Looking for music…
 Looking for outdated packages…
@@ -5579,6 +5580,7 @@ Run cell and go to the next
 Run cell and stay
 Run it
 Run it from line (leave this empty for a program that doesn't start by itself):
+Run it from:
 Run on
 Run on machine
 Run only this
@@ -10970,6 +10972,8 @@ zx_notation
 {title} finished: {matches} in {files}
 {title} searching: {matches} in {files}
 {title}, with unsaved changes
+{tool_name}, in WSL: {name}
+{tool_name}, on Windows
 {tracks} tracks, 17 to 21 × 256-byte sectors
 {track} (all of it)
 {t} isn't a shift: LSL, LSR, ASR, ROR or RRX
@@ -11397,6 +11401,7 @@ zx_notation
 {} was assembled by SAS/C's asm, and isn't built here: assemble it with vasm (-Fhunk) and link it in, or rewrite it as C.
 {} was installed, but doesn't run:\n{said}
 {} was unpacked into {}, but its program wasn't found in it.
+{} wasn't found in WSL: {}
 {} wasn't found on this computer. Get it from {}, or take out the // compiler: line to use another.
 {} wasn't found.
 {} wasn't found. It's at {}

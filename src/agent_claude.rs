@@ -51,6 +51,8 @@ pub struct Options {
     pub resume: Option<String>,
     /// The port of Limoniter's IDE server, if the session may use it.
     pub ide_port: Option<u16>,
+    /// Set when the program runs in WSL: how the paths in what's said each way are translated.
+    pub wsl: Option<crate::agent_wsl::Paths>,
     /// Called when there's something new for the window to look at.
     pub wake: Arc<dyn Fn() + Send + Sync>,
 }
@@ -689,7 +691,11 @@ struct Running {
 /// Starts `claude` and gives the session its two channels.
 pub fn start(options: Options) -> Result<Handle, String> {
     let mut command = crate::platform::command(&options.program);
-    command.args(arguments(&options)).current_dir(&options.folder).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    command.args(arguments(&options)).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    // `wsl.exe` is given the folder to work in (in WSL's form), and a folder only WSL can reach can't be its own.
+    if options.wsl.is_none() {
+        command.current_dir(&options.folder);
+    }
     if let Some(port) = options.ide_port {
         command.env("CLAUDE_CODE_SSE_PORT", port.to_string()).env("CLAUDE_CODE_AUTO_CONNECT_IDE", "true");
     }
@@ -719,12 +725,16 @@ pub fn start(options: Options) -> Result<Handle, String> {
     let (commands, command_rx) = channel::<Command>();
 
     let wake = options.wake.clone();
+    let paths = options.wsl.clone();
     let send_lines = {
-        let stdin = stdin.clone();
+        let (stdin, paths) = (stdin.clone(), paths.clone());
         move |lines: Vec<String>| -> bool {
             let Ok(mut stdin) = stdin.lock() else { return false };
             let Some(stdin) = stdin.as_mut() else { return false };
-            lines.iter().all(|line| writeln!(stdin, "{line}").and_then(|()| stdin.flush()).is_ok())
+            lines.iter().all(|line| {
+                let line = paths.as_ref().map_or_else(|| line.clone(), |paths| paths.outgoing(line));
+                writeln!(stdin, "{line}").and_then(|()| stdin.flush()).is_ok()
+            })
         }
     };
     let first = state.lock().map(|mut s| s.initialize()).unwrap_or_default();
@@ -732,9 +742,10 @@ pub fn start(options: Options) -> Result<Handle, String> {
 
     // Reading: what the program says.
     {
-        let (state, tx, running, wake, send_lines) = (state.clone(), event_tx.clone(), running.clone(), wake.clone(), send_lines.clone());
+        let (state, tx, running, wake, send_lines, paths) = (state.clone(), event_tx.clone(), running.clone(), wake.clone(), send_lines.clone(), paths.clone());
         std::thread::spawn(move || {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                let line = paths.as_ref().map_or(line.clone(), |paths| paths.incoming(&line));
                 let (events, replies) = state.lock().map(|mut s| s.line(&line)).unwrap_or_default();
                 if !replies.is_empty() {
                     send_lines(replies);

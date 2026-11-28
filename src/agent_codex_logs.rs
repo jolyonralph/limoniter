@@ -157,7 +157,7 @@ fn read_past(path: &Path, meta: &Meta, names: &HashMap<String, String>) -> Optio
         return None;
     }
     let title = names.get(&meta.id).cloned().unwrap_or_else(|| crate::agent_session::title_from(&first));
-    Some(Past { id: meta.id.clone(), title, first_message: first, when, path: path.to_path_buf(), tool: Tool::Codex })
+    Some(Past { id: meta.id.clone(), title, first_message: first, when, path: path.to_path_buf(), tool: Tool::Codex, wsl: None })
 }
 
 /// The past sessions of a project, the newest first.

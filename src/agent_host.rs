@@ -7,6 +7,7 @@ use crate::agent_logs::{self, Past};
 use crate::agent_panel::{self, Act, Tab};
 use crate::agent_session::{Answer, Event, Mode, ModelChoice, PermissionKind, Session, Tool, ToolKind};
 use crate::review::Decision;
+use crate::agent_wsl::{self, Paths, Place, Remembered};
 use std::sync::mpsc::Receiver;
 
 /// How the person wants a new session.
@@ -18,11 +19,13 @@ pub(super) struct Choice {
     pub model: String,
     /// An effort, or empty for the tool's own.
     pub effort: String,
+    /// The WSL distribution to run the tool in, or None for this computer's own.
+    pub place: Option<String>,
 }
 
 impl Default for Choice {
     fn default() -> Self {
-        Choice { tool: Tool::Claude, mode: Mode::Ask, model: "default".into(), effort: String::new() }
+        Choice { tool: Tool::Claude, mode: Mode::Ask, model: "default".into(), effort: String::new(), place: None }
     }
 }
 
@@ -70,6 +73,22 @@ pub(super) struct State {
     pub program: (String, Vec<String>),
     /// The same for Codex.
     pub codex_program: (String, Vec<String>),
+    /// `wsl.exe`, and what goes before its own arguments (a test's stand-in).
+    pub wsl_program: (String, Vec<String>),
+    /// Where the tools are in WSL, found on a thread of their own.
+    pub found: Option<Found>,
+    locating: Option<Receiver<Found>>,
+    /// Where each tool was last run from.
+    remembered: Remembered,
+}
+
+/// What looking in the WSL distributions found.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(super) struct Found {
+    pub claude: Vec<Place>,
+    pub codex: Vec<Place>,
+    /// The address WSL reaches Windows by, if it has one of its own (not with mirrored networking).
+    pub gateway: Option<std::net::IpAddr>,
 }
 
 impl Default for State {
@@ -95,7 +114,19 @@ impl Default for State {
             scanning: None,
             program: ("claude".to_string(), Vec::new()),
             codex_program: ("codex".to_string(), Vec::new()),
+            wsl_program: ("wsl.exe".to_string(), Vec::new()),
+            found: None,
+            locating: None,
+            remembered: Remembered::load(),
         }
+    }
+}
+
+/// The folder a past session's log names, as the tool that kept it wrote it: WSL's form for one kept in WSL.
+fn log_folder_of(past: &Past, folder: &Path) -> PathBuf {
+    match &past.wsl {
+        Some(distribution) => PathBuf::from(Paths::new(distribution, folder).linux_folder()),
+        None => folder.to_path_buf(),
     }
 }
 
@@ -149,20 +180,24 @@ impl Limoniter {
         let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(move || wake.request_repaint());
         let model = Some(choice.model.clone()).filter(|m| m != "default");
         let effort = Some(choice.effort.clone()).filter(|e| !e.is_empty());
+        let (program, prefix, wsl) = self.agent_command(choice.tool, choice.place.as_deref(), folder)?;
         let (handle, known) = match choice.tool {
             Tool::Claude => {
-                let (program, prefix) = self.agents.program.clone();
                 // Tried with Claude Code 2.1.332 and Limoniter's own IDE server: a `claude -p` session didn't connect to it,
                 // with `--ide`, the port in CLAUDE_CODE_SSE_PORT and a matching lock file, so no port is passed (see NOTES).
                 let ide_port = None;
-                let options = crate::agent_claude::Options { program, prefix, folder: folder.to_path_buf(), mode: choice.mode, model, effort, resume: resume.map(|p| p.id.clone()), ide_port, wake };
+                let options = crate::agent_claude::Options { program, prefix, folder: folder.to_path_buf(), mode: choice.mode, model, effort, resume: resume.map(|p| p.id.clone()), ide_port, wsl, wake };
                 (crate::agent_claude::start(options)?, self.agents.models.clone())
             }
             Tool::Codex => {
-                let (program, prefix) = self.agents.codex_program.clone();
                 // Limoniter's tools go to this one thread as its own settings: the person's config.toml isn't touched.
-                let mcp = self.claude_ide.server.as_ref().filter(|_| self.prefs.claude_ide).map(|server| crate::agent_codex::Mcp { url: format!("http://127.0.0.1:{}/mcp", server.port), token: server.token.clone() });
-                let options = crate::agent_codex::Options { program, prefix, folder: folder.to_path_buf(), mode: choice.mode, model, effort, resume: resume.map(|p| p.id.clone()), mcp, wake };
+                // From WSL they are reached by the address WSL has for Windows, when it has one.
+                let host = match (&wsl, self.agents.found.as_ref().and_then(|f| f.gateway)) {
+                    (Some(_), Some(address)) => address.to_string(),
+                    _ => "127.0.0.1".to_string(),
+                };
+                let mcp = self.claude_ide.server.as_ref().filter(|_| self.prefs.claude_ide).map(|server| crate::agent_codex::Mcp { url: format!("http://{host}:{}/mcp", server.port), token: server.token.clone() });
+                let options = crate::agent_codex::Options { program, prefix, folder: folder.to_path_buf(), mode: choice.mode, model, effort, resume: resume.map(|p| p.id.clone()), mcp, wsl, wake };
                 (crate::agent_codex::start(options)?, self.agents.codex_models.clone())
             }
         };
@@ -173,8 +208,9 @@ impl Limoniter {
         session.models = known;
         if let Some(past) = resume {
             session.items = match past.tool {
-                Tool::Claude => agent_logs::transcript(&past.path, folder),
-                Tool::Codex => crate::agent_codex_logs::transcript(&past.path, folder),
+                // A log from WSL names its files as WSL does, so they're shortened against the folder in that form.
+                Tool::Claude => agent_logs::transcript(&past.path, &log_folder_of(past, folder)),
+                Tool::Codex => crate::agent_codex_logs::transcript(&past.path, &log_folder_of(past, folder)),
             };
             session.title = past.title.clone();
             session.session_id = Some(past.id.clone());
@@ -184,8 +220,66 @@ impl Limoniter {
         self.agents.tabs.push(Tab::new(session, number));
         self.agents.active = self.agents.tabs.len() - 1;
         self.agents.last = choice.clone();
+        let place = Some(choice.place.clone().unwrap_or_default());
+        match choice.tool {
+            Tool::Claude => self.agents.remembered.claude = place,
+            Tool::Codex => self.agents.remembered.codex = place,
+        }
+        self.agents.remembered.save();
         self.panels.agents = true;
         Ok(())
+    }
+
+    /// Where a tool can be run from: this computer's own if it's there, and each WSL distribution that has it.
+    pub(super) fn agent_places(&self, tool: Tool) -> Vec<Place> {
+        let (program, prefix) = match tool {
+            Tool::Claude => &self.agents.program,
+            Tool::Codex => &self.agents.codex_program,
+        };
+        let mut places = Vec::new();
+        if !prefix.is_empty() || assistant::installed(program) {
+            places.push(Place { distribution: None, program: program.clone() });
+        }
+        if let Some(found) = &self.agents.found {
+            places.extend(match tool {
+                Tool::Claude => found.claude.iter().cloned(),
+                Tool::Codex => found.codex.iter().cloned(),
+            });
+        }
+        places
+    }
+
+    /// What to run to start a tool in a place, in `folder`: the program, what goes before its arguments, and for
+    /// WSL how paths are translated.
+    fn agent_command(&self, tool: Tool, distribution: Option<&str>, folder: &Path) -> Result<(String, Vec<String>, Option<Paths>), String> {
+        let (program, prefix) = match tool {
+            Tool::Claude => self.agents.program.clone(),
+            Tool::Codex => self.agents.codex_program.clone(),
+        };
+        let Some(distribution) = distribution else { return Ok((program, prefix, None)) };
+        let place = self.agent_places(tool).into_iter().find(|p| p.distribution.as_deref() == Some(distribution)).ok_or_else(|| crate::i18n::tf!("{} wasn't found in WSL: {}", tool.name(), distribution))?;
+        let paths = Paths::new(distribution, folder);
+        let (program, prefix) = agent_wsl::runner(&self.agents.wsl_program, distribution, paths.linux_folder(), &place.program);
+        Ok((program, prefix, Some(paths)))
+    }
+
+    /// Looks for the tools in WSL, once, on a thread of their own (only on Windows, where WSL is).
+    fn agent_locate(&mut self, ctx: &Context) {
+        if !cfg!(windows) || self.agents.found.is_some() || self.agents.locating.is_some() {
+            return;
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let wsl = self.agents.wsl_program.clone();
+        let wake = ctx.clone();
+        std::thread::spawn(move || {
+            let distributions: Vec<String> = crate::terminal::shells().into_iter().filter_map(|shell| if let crate::terminal::Shell::Wsl(name) = shell { Some(name) } else { None }).collect();
+            let claude = agent_wsl::find_places(&wsl, &distributions, "claude");
+            let codex = agent_wsl::find_places(&wsl, &distributions, "codex");
+            let gateway = if distributions.is_empty() { None } else { super::claude_ide_host::wsl_gateway().into_iter().next() };
+            let _ = tx.send(Found { claude, codex, gateway });
+            wake.request_repaint();
+        });
+        self.agents.locating = Some(rx);
     }
 
     /// Closes a session's tab: its reviews go, and the program with it.
@@ -211,6 +305,18 @@ impl Limoniter {
 
     /// Everything the window does for the sessions, each time round.
     pub(super) fn agents_tick(&mut self, ctx: &Context) {
+        if let Some(locating) = &self.agents.locating {
+            match locating.try_recv() {
+                Ok(found) => {
+                    self.agents.locating = None;
+                    self.agents.found = Some(found);
+                    // Sessions in WSL can be listed now.
+                    self.agents.past = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => self.agents.locating = None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
         if let Some(probing) = &self.agents.probing {
             match probing.try_recv() {
                 Ok(result) => {
@@ -402,6 +508,12 @@ impl Limoniter {
         if self.agents.past.as_ref().is_none_or(|(f, _)| f != folder) {
             let mut listed = crate::claude_ide::config_dir().map(|config| agent_logs::list(&config, folder)).unwrap_or_default();
             listed.extend(crate::agent_codex_logs::codex_home().map(|home| crate::agent_codex_logs::list(&home, folder)).unwrap_or_default());
+            // Those the tools in WSL kept, for the distributions the tools were found in.
+            let distributions: std::collections::BTreeSet<String> = [Tool::Claude, Tool::Codex].into_iter().flat_map(|tool| self.agent_places(tool)).filter_map(|p| p.distribution).collect();
+            for distribution in distributions {
+                let root = PathBuf::from(format!("\\\\wsl.localhost\\{distribution}"));
+                listed.extend(agent_wsl::past_in(&root, &distribution, &Paths::new(&distribution, folder)));
+            }
             listed.sort_by_key(|past| std::cmp::Reverse(past.when));
             self.agents.past = Some((folder.to_path_buf(), listed));
         }
@@ -473,7 +585,7 @@ impl Limoniter {
         if let Some(past) = resume {
             self.agents.showing_past = false;
             let choice = self.agents.last.clone();
-            if let Err(why) = self.agent_start(&ctx, &folder, &Choice { tool: past.tool, model: if choice.tool == past.tool { choice.model.clone() } else { "default".into() }, effort: if choice.tool == past.tool { choice.effort.clone() } else { String::new() }, ..choice }, Some(&past)) {
+            if let Err(why) = self.agent_start(&ctx, &folder, &Choice { tool: past.tool, place: past.wsl.clone(), model: if choice.tool == past.tool { choice.model.clone() } else { "default".into() }, effort: if choice.tool == past.tool { choice.effort.clone() } else { String::new() }, ..choice }, Some(&past)) {
                 self.message("AI agents", why);
             }
         }
@@ -493,23 +605,17 @@ impl Limoniter {
         }
     }
 
-    /// Whether a tool's program can be run: its own, or the stand-in a test gave.
+    /// Whether a tool can be run: its own, the stand-in a test gave, or one found in WSL.
     fn agent_installed(&self, tool: Tool) -> bool {
-        let (program, prefix) = match tool {
-            Tool::Claude => &self.agents.program,
-            Tool::Codex => &self.agents.codex_program,
-        };
-        !prefix.is_empty() || assistant::installed(program)
+        !self.agent_places(tool).is_empty()
     }
 
     /// Asks the tool which models it has, once, on a thread; nothing is sent to the service.
-    fn agent_probe(&mut self, ctx: &Context, tool: Tool, folder: &Path) {
+    fn agent_probe(&mut self, ctx: &Context, tool: Tool, folder: &Path, place: Option<&str>) {
         let (tx, rx) = std::sync::mpsc::channel();
-        let (program, prefix) = match tool {
-            Tool::Claude => self.agents.program.clone(),
-            Tool::Codex => self.agents.codex_program.clone(),
-        };
-        let (folder, wake) = (folder.to_path_buf(), ctx.clone());
+        let Ok((program, prefix, wsl)) = self.agent_command(tool, place, folder) else { return };
+        // A tool in WSL is given its folder by `wsl.exe`; the folder it is started in here only has to exist.
+        let (folder, wake) = (if wsl.is_some() { std::env::temp_dir() } else { folder.to_path_buf() }, ctx.clone());
         std::thread::spawn(move || {
             let _ = tx.send(match tool {
                 Tool::Claude => crate::agent_claude::probe_models(&program, &prefix, &folder),
@@ -536,8 +642,19 @@ impl Limoniter {
             self.agents.dialog = None;
             return;
         };
+        self.agent_locate(ctx);
         let tool = choice.tool;
-        let installed = self.agent_installed(tool);
+        // Where it will run: the choice if it's still there, otherwise what was used last, otherwise the first.
+        let places = self.agent_places(tool);
+        if !places.iter().any(|p| p.distribution == choice.place) {
+            let remembered = match tool {
+                Tool::Claude => self.agents.remembered.claude.clone(),
+                Tool::Codex => self.agents.remembered.codex.clone(),
+            };
+            choice.place = agent_wsl::choose(&places, remembered.as_deref()).and_then(|p| p.distribution.clone());
+        }
+        let looking = self.agents.locating.is_some();
+        let installed = !places.is_empty();
         let installed_both = [self.agent_installed(Tool::Claude), self.agent_installed(Tool::Codex)];
         let (known, asking, probed) = match tool {
             Tool::Claude => (&self.agents.models, self.agents.probing.is_some(), self.agents.probed),
@@ -546,7 +663,7 @@ impl Limoniter {
         let probe_now = known.is_empty() && !asking && !probed && installed;
         let models = if known.is_empty() { vec![ModelChoice { value: "default".into(), name: crate::i18n::tr("Default").to_string(), efforts: Vec::new() }] } else { known.clone() };
         if probe_now {
-            self.agent_probe(ctx, tool, &folder);
+            self.agent_probe(ctx, tool, &folder, choice.place.as_deref());
         }
         let efforts = models.iter().find(|m| m.value == choice.model).map(|m| m.efforts.clone()).filter(|e| !e.is_empty()).unwrap_or_else(|| crate::agent_session::EFFORTS.iter().map(|e| e.to_string()).collect());
         let mut open = true;
@@ -566,10 +683,26 @@ impl Limoniter {
                         choice.tool = candidate;
                         choice.model = "default".into();
                         choice.effort = String::new();
+                        choice.place = None;
                     }
                 }
             });
-            if !installed {
+            if places.len() > 1 {
+                ui.horizontal(|ui| {
+                    ui.label(crate::i18n::tr("Run it from:"));
+                    egui::ComboBox::from_id_salt("agent-new-place").selected_text(places.iter().find(|p| p.distribution == choice.place).map_or(String::new(), |p| p.describe(tool.name()))).show_ui(ui, |ui| {
+                        for place in &places {
+                            ui.selectable_value(&mut choice.place, place.distribution.clone(), place.describe(tool.name()));
+                        }
+                    });
+                });
+            } else if let Some(place) = places.first().filter(|p| p.distribution.is_some()) {
+                ui.label(egui::RichText::new(place.describe(tool.name())).color(theme::text_dim()).size(12.0));
+            }
+            if looking {
+                ui.label(egui::RichText::new(crate::i18n::tr("Looking for Claude Code and Codex in WSL...")).color(theme::text_faint()).size(12.0));
+            }
+            if !installed && !looking {
                 let how = match tool {
                     Tool::Claude => crate::i18n::tr("Claude Code isn't installed here, or isn't on the PATH. Install it from claude.com/claude-code, then try again."),
                     Tool::Codex => crate::i18n::tr("Codex isn't installed here, or isn't on the PATH. Install it with npm i -g @openai/codex and sign in with codex, then try again."),

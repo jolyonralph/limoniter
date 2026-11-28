@@ -5,6 +5,14 @@ import json
 import os
 import sys
 
+
+def real(path):
+    """Where a path the program was given is on this computer. Run through the stand-in for wsl.exe on Windows, a
+    path in WSL's form (/mnt/c/Users/a) is Windows' own (C:\\Users\\a), as WSL would reach it."""
+    if os.environ.get("LIMONITER_FAKE_MNT") and len(path) >= 7 and path.startswith("/mnt/") and path[6:7] in ("/", ""):
+        return path[5].upper() + ":" + path[6:].replace("/", "\\")
+    return path
+
 # Options come before the program's own arguments: --log FILE, --no-limits, --no-bypass.
 ARGS = sys.argv[1:]
 LOG = ARGS[ARGS.index("--log") + 1] if "--log" in ARGS else None
@@ -98,10 +106,10 @@ def edit_scenario(path, kind):
         if body.get("behavior") == "allow":
             given = body.get("updatedInput", {})
             if tool == "Write":
-                open(given["file_path"], "w", newline="").write(given["content"])
+                open(real(given["file_path"]), "w", newline="").write(given["content"])
             else:
-                text = open(given["file_path"], newline="").read().replace(given["old_string"], given["new_string"], 1)
-                open(given["file_path"], "w", newline="").write(text)
+                text = open(real(given["file_path"]), newline="").read().replace(given["old_string"], given["new_string"], 1)
+                open(real(given["file_path"]), "w", newline="").write(text)
             tool_result(tool_id, "The file has been updated successfully.")
             finish("msg_edit_done", "Edited.")
         else:

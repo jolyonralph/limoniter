@@ -8,7 +8,7 @@ use crate::agent_session::{Decided, Item, Session, TaskState, Tool};
 static CONTEXT: Mutex<()> = Mutex::new(());
 
 fn options(folder: &str) -> Options {
-    Options { program: "codex".into(), prefix: Vec::new(), folder: folder.into(), mode: Mode::Ask, model: None, effort: None, resume: None, mcp: None, wake: Arc::new(|| {}) }
+    Options { program: "codex".into(), prefix: Vec::new(), folder: folder.into(), mode: Mode::Ask, model: None, effort: None, resume: None, mcp: None, wsl: None, wake: Arc::new(|| {}) }
 }
 
 fn events(state: &mut State, line: Value) -> Vec<Event> {
@@ -526,7 +526,7 @@ pub(crate) fn fake_options(dir: &Path, extra: &[&str]) -> Option<Options> {
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/agent_testdata/fake_codex.py");
     let mut prefix = vec![script.display().to_string(), "--log".to_string(), dir.join("log.txt").display().to_string()];
     prefix.extend(extra.iter().map(|e| e.to_string()));
-    Some(Options { program, prefix, folder: dir.to_path_buf(), mode: Mode::Ask, model: None, effort: None, resume: None, mcp: None, wake: Arc::new(|| {}) })
+    Some(Options { program, prefix, folder: dir.to_path_buf(), mode: Mode::Ask, model: None, effort: None, resume: None, mcp: None, wsl: None, wake: Arc::new(|| {}) })
 }
 
 fn fake_session(dir: &Path, extra: &[&str]) -> Option<Session> {

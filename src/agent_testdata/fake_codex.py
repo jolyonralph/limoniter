@@ -6,6 +6,14 @@
 import json
 import os
 import sys
+
+
+def real(path):
+    """Where a path the program was given is on this computer. Run through the stand-in for wsl.exe on Windows, a
+    path in WSL's form (/mnt/c/Users/a) is Windows' own (C:\\Users\\a), as WSL would reach it."""
+    if os.environ.get("LIMONITER_FAKE_MNT") and len(path) >= 7 and path.startswith("/mnt/") and path[6:7] in ("/", ""):
+        return path[5].upper() + ":" + path[6:].replace("/", "\\")
+    return path
 import time
 
 ARGS = sys.argv[1:]
@@ -133,12 +141,12 @@ def run_turn(turn, text):
         if decision in ("accept", "acceptForSession"):
             for change in changes:
                 if change["kind"]["type"] == "add":
-                    with open(change["path"], "w", newline="") as f:
+                    with open(real(change["path"]), "w", newline="") as f:
                         f.write("hello\n")
                 else:
-                    with open(change["path"], newline="") as f:
+                    with open(real(change["path"]), newline="") as f:
                         old = f.read()
-                    with open(change["path"], "w", newline="") as f:
+                    with open(real(change["path"]), "w", newline="") as f:
                         f.write(old.replace("two", "TWO", 1))
             item_completed(turn, dict(item, status="completed"))
             text_message(turn, "m3", ["changed"])
