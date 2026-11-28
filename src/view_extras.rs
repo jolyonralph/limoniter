@@ -122,6 +122,9 @@ pub enum Form {
     Rgb,
     Rgba,
     Hsl,
+    Oklch,
+    /// A CSS colour's name, which isn't looked for in every line, only where the colour picker is asked.
+    Named,
     /// The Amiga's $0RGB, a nybble for each.
     Amiga,
 }
@@ -170,16 +173,20 @@ pub fn colours_in(line: &str) -> Vec<Written> {
             }
         }
         // rgb(…), rgba(…), hsl(…), hsla(…).
-        let rest: String = chars[i..].iter().take(5).collect::<String>().to_ascii_lowercase();
+        let rest: String = chars[i..].iter().take(6).collect::<String>().to_ascii_lowercase();
         if chars.get(i.wrapping_sub(1)).is_none_or(|p| !p.is_alphanumeric())
-            && (rest.starts_with("rgb(") || rest.starts_with("rgba(") || rest.starts_with("hsl(") || rest.starts_with("hsla("))
+            && (rest.starts_with("rgb(") || rest.starts_with("rgba(") || rest.starts_with("hsl(") || rest.starts_with("hsla(") || rest.starts_with("oklch("))
             && let Some(close) = chars[i..].iter().position(|c| *c == ')')
         {
             let inside: String = chars[i..i + close].iter().skip_while(|c| **c != '(').skip(1).collect();
             let parts: Vec<f32> = inside.split([',', ' ', '/']).filter(|p| !p.trim().is_empty()).filter_map(|p| p.trim().trim_end_matches(['%', ';']).trim_end_matches("deg").parse::<f32>().ok()).collect();
             if parts.len() >= 3 {
                 let alpha = parts.get(3).map_or(255, |a| if *a <= 1.0 { (a * 255.0) as u8 } else { *a as u8 });
-                let (colour, form) = if rest.starts_with("hsl") {
+                let (colour, form) = if rest.starts_with("oklch") {
+                    let (l, c, h) = (parts[0] / if inside.contains('%') { 100.0 } else { 1.0 }, parts[1], parts[2]);
+                    let [r, g, b] = crate::colour_picker::from_oklch(f64::from(l).clamp(0.0, 1.0), f64::from(c), f64::from(h));
+                    (Color32::from_rgba_unmultiplied(r, g, b, alpha), Form::Oklch)
+                } else if rest.starts_with("hsl") {
                     let (r, g, b) = hsl_to_rgb(parts[0], parts[1] / 100.0, parts[2] / 100.0);
                     (Color32::from_rgba_unmultiplied(r, g, b, alpha), Form::Hsl)
                 } else {
@@ -235,6 +242,8 @@ pub fn write(colour: Color32, form: Form) -> String {
             let (h, s, l) = rgb_to_hsl(r, g, b);
             format!("hsl({h:.0}, {:.0}%, {:.0}%)", s * 100.0, l * 100.0)
         }
+        Form::Oklch => crate::colour_picker::oklch_text([r, g, b]),
+        Form::Named => crate::colour_picker::nearest_name([r, g, b]).0.to_string(),
         Form::Amiga => format!("$0{:X}{:X}{:X}", (r as u32 * 15 + 127) / 255, (g as u32 * 15 + 127) / 255, (b as u32 * 15 + 127) / 255),
     }
 }

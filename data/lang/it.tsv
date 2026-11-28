@@ -11427,3 +11427,246 @@ It goes in ~/.local/bin, which isn't on that shell's PATH yet; add it there, or 
 The limoniter command opens files in this window from a WSL shell, as it does from any other terminal. It's a small script in the distribution's ~/.local/bin.	Il comando limoniter apre i file in questa finestra da una shell WSL, come da qualsiasi altro terminale. È un piccolo script nella ~/.local/bin della distribuzione.
 There are no WSL distributions on this computer.	Non ci sono distribuzioni WSL su questo computer.
 It has a limoniter command of its own, which is left alone.	Ha un proprio comando limoniter, che viene lasciato com'è.
+Tag {}	Etichetta {}
+Edit tags	Modifica etichette
+A tag marks some lines in a colour, and a name says why. The six that come with Limoniter can be renamed. Your own tags can have a key too, such as Ctrl+Alt+K.	Un'etichetta segna alcune righe con un colore, e un nome dice perché. Le sei fornite con Limoniter possono essere rinominate. Le etichette tue possono avere anche un tasto, come Ctrl+Alt+K.
+Key	Tasto
+Kept	Conservata
+The colour of this tag	Il colore di questa etichetta
+This project	Questo progetto
+This computer	Questo computer
+New tag	Nuova etichetta
+One place in your open files has the tag “{}”.	Un punto nei tuoi file aperti ha l'etichetta “{}”.
+{} places in your open files have the tag “{}”.	{} punti nei tuoi file aperti hanno l'etichetta “{}”.
+Turn them into	Trasformali in
+no tag: take them away	nessuna etichetta: toglile
+Delete the tag	Elimina l'etichetta
+There's no room for another tag.	Non c'è spazio per un'altra etichetta.
+Every tag of your own needs a name.	Ogni etichetta tua ha bisogno di un nome.
+Two tags are called “{}”. Each needs a name of its own.	Due etichette si chiamano “{}”. Ognuna ha bisogno di un nome suo.
+“{}” isn't a key Limoniter can use for {}. Write it like Ctrl+Alt+T: Ctrl or Alt, then a key.	“{}” non è un tasto che Limoniter può usare per {}. Scrivilo come Ctrl+Alt+T: Ctrl o Alt, poi un tasto.
+{} is already used for something else. Choose another key for {}.	{} è già usato per qualcos'altro. Scegli un altro tasto per {}.
+{} is given to two tags. Each needs a key of its own.	{} è assegnato a due etichette. Ognuna ha bisogno di un tasto suo.
+New tag…	Nuova etichetta…
+Edit tags…	Modifica etichette…
+Kept with this project	Conservata con questo progetto
+Type a tag's name	Scrivi il nome di un'etichetta
+No tag has that name.	Nessuna etichetta ha questo nome.
+Colour picker	Selettore di colore
+Pick a colour from the screen	Preleva un colore dallo schermo
+Colours of	Colori di
+The file (web colours)	Il file (colori web)
+The file ({})	Il file ({})
+Web colours only	Solo colori web
+From the file	Dal file
+RGB	RGB
+HSL	HSL
+OKLCH	OKLCH
+{name} (nearest)	{name} (la più vicina)
+Nearest on the {}	La più vicina sul {}
+The colour picked	Il colore scelto
+The nearest the machine can show	La più vicina che la macchina può mostrare
+Change the colour picked to the one the machine shows	Cambia il colore scelto in quello che mostra la macchina
+Number	Numero
+Colour {index}	Colore {index}
+Contrast (WCAG 2)	Contrasto (WCAG 2)
+Against	Su
+Sample text	Testo di esempio
+Large sample	Esempio grande
+normal text	testo normale
+large text	testo grande
+Write as	Scrivi come
+{} (as it is)	{} (così com'è)
+As it is in the file	Come nel file
+Write over the colour	Scrivi sopra il colore
+Write at the cursor	Scrivi al cursore
+Takes a picture of the whole screen to pick a colour from, wherever it is	Fa una foto dell'intero schermo da cui prelevare un colore, ovunque sia
+At once	Subito
+After {} seconds	Dopo {} secondi
+Click the colour wanted.	Fai clic sul colore desiderato.
+The screen couldn't be copied.	Non è stato possibile copiare lo schermo.
+The screen couldn't be copied: {why}	Non è stato possibile copiare lo schermo: {why}
+This desktop is Wayland, which doesn't let a program look at the screen. Install grim or the desktop's own screenshot tool, or pick the colour with that tool and paste it in.	Questo desktop è Wayland, che non permette a un programma di guardare lo schermo. Installa grim o lo strumento per gli screenshot del desktop, oppure preleva il colore con quello strumento e incollalo.
+There's no program here to take a picture of the screen. Install scrot, maim, ImageMagick or gnome-screenshot.	Qui non c'è alcun programma per acquisire lo schermo. Installa scrot, maim, ImageMagick o gnome-screenshot.
+Open a file that can be changed to write the colour into it.	Apri un file modificabile in cui scrivere il colore.
+Amiga (OCS and ECS, 4096 colours)	Amiga (OCS ed ECS, 4096 colori)
+Amiga AGA (24-bit)	Amiga AGA (24 bit)
+ZX Spectrum (with BRIGHT)	ZX Spectrum (con BRIGHT)
+ZX Spectrum Next (9-bit)	ZX Spectrum Next (9 bit)
+Amstrad CPC (27 colours)	Amstrad CPC (27 colori)
+Atari ST (512 colours)	Atari ST (512 colori)
+Atari STE (4096 colours)	Atari STE (4096 colori)
+#rgb	#rgb
+#rrggbb	#rrggbb
+#rrggbbaa	#rrggbbaa
+rgb()	rgb()
+rgba()	rgba()
+hsl()	hsl()
+oklch()	oklch()
+A colour name	Un nome di colore
+$0RGB	$0RGB
+AGA low nibbles $0rgb	AGA nibble bassi $0rgb
+AGA high nibbles $0RGB	AGA nibble alti $0RGB
+A number	Un numero
+A $ hex number	Un numero esadecimale con $
+An & hex number	Un numero esadecimale con &
+A 0x hex number	Un numero esadecimale con 0x
+Colour register	Registro colore
+High nibbles	Nibble alti
+Low nibbles	Nibble bassi
+In the registers	Nei registri
+Attribute byte (ink on black)	Byte di attributo (inchiostro su nero)
+RRRGGGBB byte	Byte RRRGGGBB
+Blue's lowest bit	Bit più basso del blu
+9-bit number	Numero a 9 bit
+Colour number	Numero del colore
+Firmware number	Numero del firmware
+Hardware number	Numero dell'hardware
+Palette word	Parola di palette
+Colour byte	Byte del colore
+Palette byte	Byte di palette
+Write the high word, set LOCT in BPLCON3, then the low word	Scrivi la parola alta, imposta LOCT in BPLCON3, poi la parola bassa
+Colour picker…	Selettore di colore…
+Pick from the screen…	Preleva dallo schermo…
+Taking a picture of the screen…	Acquisizione dello schermo in corso…
+This file has no colour tags yet. Select some lines, or put the cursor in a function or paragraph, and choose a colour from View, Colour tag, or by right-clicking.	Questo file non ha ancora etichette colorate. Seleziona alcune righe, oppure metti il cursore in una funzione o in un paragrafo, e scegli un colore da Visualizza, Etichetta colorata, o con il clic destro.
+Ctrl+Alt+K	Ctrl+Alt+K
+This word is used again {apart} words away. Using it so soon can sound clumsy.	Questa parola ricompare a {apart} parole di distanza. Ripeterla così presto può suonare goffo.
+A filler word: it adds little. Try the sentence without it.	Una parola riempitiva: aggiunge poco. Provi la frase senza.
+An adverb. A stronger verb or noun can often do its work.	Un avverbio. Un verbo o un nome più forte può spesso fare il suo lavoro.
+Word:	Parola:
+Scan again	Analizza di nuovo
+Read the lines of the selection (or the paragraph) again	Rileggi le righe della selezione (o del paragrafo)
+Marks as u and –	Segni come u e –
+Haiku	Haiku
+Limerick	Limerick
+Check again	Controlla di nuovo
+The word in the text has gone, so clicking a word here won't change anything.	La parola nel testo non c'è più, quindi fare clic su una parola qui non cambierà nulla.
+The word has moved or changed since it was looked up. Choose it again in the text.	La parola è stata spostata o modificata dopo la ricerca. La scelga di nuovo nel testo.
+Put this in the text in place of the word	Inserisci questo nel testo al posto della parola
+Type a word, or put the cursor in one in the text.	Scriva una parola, oppure metta il cursore in una parola del testo.
+Rhymes for "{word}"	Rime per «{word}»
+This word isn't in the dictionary, so its sound is guessed from how it's spelt.	Questa parola non è nel dizionario (inglese), quindi il suo suono è dedotto dalla grafia.
+No rhymes found.	Nessuna rima trovata.
+1 syllable	1 sillaba
+{syllables} syllables	{syllables} sillabe
+Words with a meaning like "{word}"	Parole con significato simile a «{word}»
+Nothing found for this word.	Nessun risultato per questa parola.
+Opposites:	Contrari:
+Select some lines of verse, or put the cursor in a verse.	Selezioni alcuni versi, oppure metta il cursore in una strofa.
+Metre: {name}	Metro: {name}
+No one metre fits these lines well, so each is shown with the one it fits best.	Nessun metro si adatta bene a questi versi, quindi ciascuno è mostrato con quello che gli si adatta meglio.
+Guessed, as not in the dictionary: {list}	Dedotte, perché non nel dizionario: {list}
+{n} syllables	{n} sillabe
+It ends on an extra unstressed syllable (a feminine ending).	Termina con una sillaba atona in più (finale femminile).
+Its last unstressed syllable is missing (catalectic).	Manca l'ultima sillaba atona (catalettico).
+The metre has {expected}	Il metro ha {expected}
+Off the beat at: {list}	Fuori tempo a: {list}
+Select the lines of the poem, or put the cursor in it.	Selezioni i versi della poesia, oppure vi metta il cursore.
+This is a haiku: 5, 7 and 5 syllables.	Questo è un haiku: 5, 7 e 5 sillabe.
+This is a limerick: it rhymes AABBA and has the usual syllables and beats.	Questo è un limerick: rima AABBA e ha le solite sillabe e i soliti accenti.
+This isn't quite a haiku:	Questo non è del tutto un haiku:
+This isn't quite a limerick:	Questo non è del tutto un limerick:
+A haiku has {wanted} lines, and this has {found}.	Un haiku ha {wanted} versi, e questo ne ha {found}.
+A limerick has {wanted} lines, and this has {found}.	Un limerick ha {wanted} versi, e questo ne ha {found}.
+Line {line} has {found} syllables; a haiku's has {low}.	Il verso {line} ha {found} sillabe; quello di un haiku ne ha {low}.
+Line {line} has {found} syllables; a limerick's line like it has {low} to {high}.	Il verso {line} ha {found} sillabe; un verso simile di un limerick ne ha da {low} a {high}.
+Lines {first} and {second} should rhyme, but "{first_word}" and "{second_word}" don't.	I versi {first} e {second} dovrebbero rimare, ma «{first_word}» e «{second_word}» non rimano.
+Line {line} has {found} beats; a limerick's line like it usually has {low} to {high}.	Il verso {line} ha {found} accenti; un verso simile di un limerick ne ha di solito da {low} a {high}.
+Not in the dictionary, so their syllables are guessed: {list}	Non nel dizionario (inglese), quindi le loro sillabe sono dedotte: {list}
+Rhymes	Rime
+Thesaurus	Thesaurus
+Metre	Metro
+Haiku and limerick	Haiku e limerick
+Perfect	Perfette
+The same sounds from the last stressed vowel: light and night	Gli stessi suoni dall'ultima vocale accentata: light e night
+Near	Approssimate
+Alike, but not the same: time and line, or cat and cut	Simili, ma non uguali: time e line, o cat e cut
+Several syllables	Più sillabe
+Two syllables or more match: ending and bending	Due o più sillabe coincidono: ending e bending
+iambic monometer	monometro giambico
+iambic dimeter	dimetro giambico
+iambic trimeter	trimetro giambico
+iambic tetrameter	tetrametro giambico
+iambic pentameter	pentametro giambico
+iambic hexameter	esametro giambico
+iambic heptameter	eptametro giambico
+iambic octameter	ottametro giambico
+trochaic monometer	monometro trocaico
+trochaic dimeter	dimetro trocaico
+trochaic trimeter	trimetro trocaico
+trochaic tetrameter	tetrametro trocaico
+trochaic pentameter	pentametro trocaico
+trochaic hexameter	esametro trocaico
+trochaic heptameter	eptametro trocaico
+trochaic octameter	ottametro trocaico
+anapaestic monometer	monometro anapestico
+anapaestic dimeter	dimetro anapestico
+anapaestic trimeter	trimetro anapestico
+anapaestic tetrameter	tetrametro anapestico
+anapaestic pentameter	pentametro anapestico
+anapaestic hexameter	esametro anapestico
+anapaestic heptameter	eptametro anapestico
+anapaestic octameter	ottametro anapestico
+dactylic monometer	monometro dattilico
+dactylic dimeter	dimetro dattilico
+dactylic trimeter	trimetro dattilico
+dactylic tetrameter	tetrametro dattilico
+dactylic pentameter	pentametro dattilico
+dactylic hexameter	esametro dattilico
+dactylic heptameter	eptametro dattilico
+dactylic octameter	ottametro dattilico
+noun	nome
+verb	verbo
+adjective	aggettivo
+adverb	avverbio
+Rhymes for the word at the cursor	Rime per la parola sotto il cursore
+Thesaurus for the word at the cursor	Thesaurus per la parola sotto il cursore
+Stress and metre of the selected lines	Accenti e metro dei versi selezionati
+Check as a haiku	Controlla come haiku
+Check as a limerick	Controlla come limerick
+Syllable counts beside the lines of this file	Numero di sillabe accanto alle righe di questo file
+Syllable counts in every text and Markdown file	Numero di sillabe in ogni file di testo e Markdown
+Mark words that come round again too soon	Segna le parole che ritornano troppo presto
+Mark filler words	Segna le parole riempitive
+Mark adverbs	Segna gli avverbi
+Usage of AI tools…	Uso degli strumenti di IA…
+Show Claude's limits for terminal sessions too	Mostra i limiti di Claude anche per le sessioni nel terminale
+Adds a status line command to Claude Code's user settings file, .claude/settings.json in your home folder (or in the folder CLAUDE_CONFIG_DIR names; on Windows also in the home folder of each WSL distribution where Claude Code is). Claude Code passes it the session's model, context and plan limits, and Limoniter's Usage window then shows the five-hour and weekly limits for claude run in a terminal. A status line you already have keeps working, and turning this off puts the file back as it was	Aggiunge un comando di barra di stato al file delle impostazioni utente di Claude Code, .claude/settings.json nella tua cartella home (o nella cartella indicata da CLAUDE_CONFIG_DIR; su Windows anche nella cartella home di ogni distribuzione WSL in cui c'è Claude Code). Claude Code gli passa modello, contesto e limiti del piano della sessione, e la finestra Utilizzo di Limoniter mostra poi i limiti di cinque ore e settimanali per claude eseguito in un terminale. Una barra di stato già presente continua a funzionare, e disattivando questa opzione il file torna com'era
+Usage	Utilizzo
+Five hours	Cinque ore
+not known	non noto
+from the tools' own logs, so sessions in a terminal count too	dai log propri degli strumenti, quindi contano anche le sessioni in un terminale
+Reading the logs…	Lettura dei log…
+Nothing used in this time.	Niente è stato usato in questo periodo.
+Model	Modello
+In	Ingresso
+Cache read	Cache letta
+Cache written	Cache scritta
+Running now	In corso ora
+No session has written to its log in the last five minutes.	Nessuna sessione ha scritto nel proprio log negli ultimi cinque minuti.
+Claude only says in a session of its own, here or in a terminal with the switch below on.	Claude lo dice solo in una sessione propria, qui o in un terminale con l'interruttore qui sotto attivo.
+Claude's limits for sessions in a terminal need a status line command in its settings.	I limiti di Claude per le sessioni nel terminale richiedono un comando di barra di stato nelle sue impostazioni.
+Turn this on	Attiva
+{} min ago	{} min fa
+{} h ago	{} h fa
+{} days ago	{} giorni fa
+an AI agents session	una sessione di agenti IA
+Claude's status line	Barra di stato di Claude
+its log	il suo log
+was {}%, has since reset	era {} %, poi si è azzerato
+resets {}	si azzera {}
+from {}, {}	da {}, {}
+{} tokens	{} token
+last prompt {} tokens	ultimo prompt {} token
+Claude Code's settings folder wasn't found, so there was nowhere to put the status line.	La cartella delle impostazioni di Claude Code non è stata trovata, quindi non c'era dove mettere la barra di stato.
+What Claude Code and Codex have used today, and what is left of the plan's limits	Cosa hanno usato oggi Claude Code e Codex, e cosa resta dei limiti del piano
+{} isn't text Limoniter can read, so it was left as it is.	{} non è un testo che Limoniter sa leggere, quindi è stato lasciato com'è.
+{} isn't in the form Claude Code writes, so it was left as it is.	{} non ha la forma che scrive Claude Code, quindi è stato lasciato com'è.
+.claude	.claude
+.codex	.codex
+claude-haiku-4-5	claude-haiku-4-5
+claude-opus-5-5	claude-opus-5-5
+claude_limits	claude_limits
+gpt-5.5	gpt-5.5
+theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\nreopen_project={}\nclaude_ide={}\nclaude_limits={}\n	theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\nreopen_project={}\nclaude_ide={}\nclaude_limits={}\n

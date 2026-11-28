@@ -147,6 +147,8 @@ pub struct Prefs {
     pub update_download: bool,
     /// Whether a Claude Code run in the terminal can work with Limoniter (see claude_ide.rs).
     pub claude_ide: bool,
+    /// Whether Claude Code's status line (in its settings file) tells Limoniter its plan limits for terminal sessions.
+    pub claude_limits: bool,
     /// The language the words are in, by its code (en, de, es, fr, it).
     pub language: &'static str,
 }
@@ -212,7 +214,7 @@ impl AutosaveWhen {
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, code_spelling: crate::code_spelling::CodeSpelling::Comments, open_tables: false, autosave: false, autosave_seconds: 60, autosave_when: AutosaveWhen::AfterDelay, autosave_skip_errors: false, hot_exit: true, reopen_project: false, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, m68k_processor: crate::asm::m68k::Processor::M68000, m68k_fpu: crate::asm::m68k::Fpu::None, m68k_mmu: crate::asm::m68k::Mmu::None, opticos_updates: true, update_checks: true, update_download: false, claude_ide: true, language: "en" }
+        Self { light: true, edit: EditPrefs::default(), find_from_selection: true, find_in_file_folder: false, watch_files: true, watch_often: false, reload_quietly: false, hex_row: 16, print_header: true, print_line_numbers: false, paragraph: ParagraphSetup::default(), markdown_view: PreviewView::Text, keep_undo_history: true, new_window_per_file: false, spelling: false, code_spelling: crate::code_spelling::CodeSpelling::Comments, open_tables: false, autosave: false, autosave_seconds: 60, autosave_when: AutosaveWhen::AfterDelay, autosave_skip_errors: false, hot_exit: true, reopen_project: false, backup_on_save: false, zx_notation: crate::zx_graphics::Notation::Limoniter, m68k_processor: crate::asm::m68k::Processor::M68000, m68k_fpu: crate::asm::m68k::Fpu::None, m68k_mmu: crate::asm::m68k::Mmu::None, opticos_updates: true, update_checks: true, update_download: false, claude_ide: true, claude_limits: false, language: "en" }
     }
 }
 
@@ -220,7 +222,7 @@ impl Prefs {
     /// One "name=value" per line, for the settings file.
     pub fn to_settings(self) -> String {
         format!(
-            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\nreopen_project={}\nclaude_ide={}\n",
+            "theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\nreopen_project={}\nclaude_ide={}\nclaude_limits={}\n",
             if self.light { "light" } else { "dark" },
             self.edit.spaces_for_tab,
             self.edit.auto_indent,
@@ -262,7 +264,8 @@ impl Prefs {
             self.hot_exit,
             self.code_spelling.id(),
             self.reopen_project,
-            self.claude_ide
+            self.claude_ide,
+            self.claude_limits
         )
     }
 
@@ -374,6 +377,7 @@ impl Prefs {
                 "update_checks" => &mut prefs.update_checks,
                 "update_download" => &mut prefs.update_download,
                 "claude_ide" => &mut prefs.claude_ide,
+                "claude_limits" => &mut prefs.claude_limits,
                 "find_from_selection" => &mut prefs.find_from_selection,
                 "find_in_file_folder" => &mut prefs.find_in_file_folder,
                 "watch_files" => &mut prefs.watch_files,
@@ -614,6 +618,7 @@ const SECTIONS: [(&str, &[Row]); 6] = [
             Row::Flag("Download a newer Limoniter by itself", "When the daily check finds one, it's downloaded in the background and checked against its signature, and Limoniter says when it's ready to restart into. Off, it asks first. Nothing is installed without asking, and never while anything is unsaved", |t| &mut t.prefs.update_download),
             Row::Flag("Keep the OpticOS ROM up to date", "Once a day, Limoniter asks github.com/brixham99/OpticOS for a newer release and runs its ROM in the built-in Spectrum. A ROM whose OpticBASIC keywords differ waits for a newer Limoniter. Help, Check for a newer OpticOS ROM asks at once", |t| &mut t.prefs.opticos_updates),
             Row::Flag("Let Claude Code in the terminal work with Limoniter", "When you run claude in Limoniter's terminal, it shows its proposed changes here to accept, reject or edit, sees what you've selected and the problems the language servers found, and can be told about a file with Mention in Claude Code. Limoniter listens only on this computer, and only for a program that has the key it keeps in Claude Code's ide folder", |t| &mut t.prefs.claude_ide),
+            Row::Flag("Show Claude's limits for terminal sessions too", "Adds a status line command to Claude Code's user settings file, .claude/settings.json in your home folder (or in the folder CLAUDE_CONFIG_DIR names; on Windows also in the home folder of each WSL distribution where Claude Code is). Claude Code passes it the session's model, context and plan limits, and Limoniter's Usage window then shows the five-hour and weekly limits for claude run in a terminal. A status line you already have keeps working, and turning this off puts the file back as it was", |t| &mut t.prefs.claude_limits),
             Row::Special("Language servers", Special::LanguageServers),
             Row::Special("Your own highlighting grammars", Special::OwnGrammars),
             Row::Flag("Keep undo history after a file is closed", "Kept in a folder beside the settings, and that includes text you've since deleted. Turn this off if that matters for what you edit", |t| &mut t.prefs.keep_undo_history),
@@ -1100,6 +1105,7 @@ mod tests {
             update_checks: false,
             update_download: true,
             claude_ide: false,
+            claude_limits: true,
             language: "fr",
         };
         assert_eq!(Prefs::from_settings(&prefs.to_settings()), prefs);

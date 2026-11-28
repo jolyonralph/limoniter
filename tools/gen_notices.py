@@ -86,6 +86,10 @@ def main():
         nextstep = file.read().strip()
     with open(os.path.join(folder, 'data', 'ancient-license.txt'), encoding='utf-8') as file:
         ancient = file.read().strip()
+    with open(os.path.join(folder, 'data', 'words', 'cmudict-licence.txt'), encoding='utf-8') as file:
+        cmudict = file.read().strip()
+    with open(os.path.join(folder, 'data', 'words', 'wordnet-licence.txt'), encoding='utf-8') as file:
+        wordnet = file.read().strip()
 
     out = [
         'Limoniter is built with the work of many other people. Their licences follow.',
@@ -128,6 +132,19 @@ def main():
         'from Teemu Suutari\'s ancient library (https://github.com/temisu/ancient), under this licence:',
         '',
         ancient,
+        '',
+        RULE,
+        'Part 3a: the word lists',
+        RULE,
+        '',
+        'Rhymes, syllables and stress come from the CMU Pronouncing Dictionary (http://www.speech.cs.cmu.edu/cgi-bin/cmudict),',
+        'under this licence:',
+        '',
+        cmudict,
+        '',
+        'The thesaurus is made from WordNet 3.1 (https://wordnet.princeton.edu/), under this licence:',
+        '',
+        wordnet,
         '',
         RULE,
         'Part 4: the grammars used for colouring code',

@@ -680,6 +680,15 @@ fn document_map(ui: &Ui, rect: Rect, salt: &'static str, buffer: &TextBuffer, st
     };
 
     let response = ui.interact(rect, Id::unique(salt), Sense::click_and_drag());
+    // Over a tagged section, the map says what the tag is called.
+    if let Some(p) = response.hover_pos()
+        && !response.dragged()
+    {
+        let line = map_top + (((p.y - rect.min.y) / LINE_H).max(0.0) as usize);
+        if let Some((_, _, tag)) = buffer.tag_at(line) {
+            response.clone().on_hover_text_at_pointer(crate::own_tags::name(tag));
+        }
+    }
     if let Some(pointer) = response.interact_pointer_pos()
         && response.is_pointer_button_down_on()
     {
@@ -703,7 +712,7 @@ fn document_map(ui: &Ui, rect: Rect, salt: &'static str, buffer: &TextBuffer, st
         }
         let y1 = rect.min.y + (first.max(map_top) - map_top) as f32 * LINE_H;
         let y2 = (rect.min.y + ((last + 1).min(shown_end) - map_top) as f32 * LINE_H).max(y1 + 3.0);
-        painter.rect_filled(Rect::from_min_max(pos2(rect.min.x, y1), pos2(rect.max.x, y2)), 0.0, theme::tag_colour(colour).gamma_multiply(0.6));
+        painter.rect_filled(Rect::from_min_max(pos2(rect.min.x, y1), pos2(rect.max.x, y2)), 0.0, crate::own_tags::colour(colour).gamma_multiply(0.6));
     }
 
     let columns = (rect.width() / CHAR_W).floor() as usize;
@@ -1080,6 +1089,16 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
         offer_completions(buffer, state, true);
     }
     state.hover_at = None;
+    // The block a tag has down the margin says its name.
+    if let Some(p) = response.hover_pos()
+        && p.x < view.min.x + TAG_BLOCK + 3.0
+        && !response.dragged()
+    {
+        let (line, _) = to_position(pos2(p.x + cell.x, p.y));
+        if let Some((_, _, tag)) = (line < buffer.line_count()).then(|| buffer.tag_at(line)).flatten() {
+            response.clone().on_hover_text_at_pointer(crate::own_tags::name(tag));
+        }
+    }
     if buffer.intel.as_ref().is_some_and(|i| i.lsp)
         && let Some(p) = response.hover_pos()
         && p.x > view.min.x + gutter
@@ -1118,8 +1137,26 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
         }
         _ => Default::default(),
     };
+    // The Words tools' marks: syllable counts down the right, and underlines under repeated words, filler words and adverbs.
+    let word_marks = match (slots.iter().map(|s| s.line).min(), slots.iter().map(|s| s.line).max()) {
+        (Some(first), Some(last)) => crate::app::words_host::marks_for(buffer, state.colours.is_code(), first, last),
+        _ => Default::default(),
+    };
+    if !word_marks.lines.is_empty()
+        && let Some(p) = response.hover_pos()
+        && p.x > view.min.x + gutter
+        && !response.dragged()
+    {
+        let (line, col) = to_position(pos2(p.x - cell.x / 2.0, p.y));
+        if let Some(mark) = word_marks.lines.get(&line).and_then(|l| l.spans.iter().find(|m| col >= m.from && col < m.to)) {
+            let words = crate::app::words_host::reason(mark);
+            response.clone().on_hover_ui_at_pointer(|ui| {
+                ui.label(words);
+            });
+        }
+    }
     let layout = TextLayout { font: font.clone(), cell, gutter, git_space, ruler_h, pad, options, caret_on, left, cols, rainbow, columns, slots, mark_width, fold_width, diff: state.diff.clone(), diff_space };
-    paint_text(ui, buffer, view, &layout, &state.colours, start_state);
+    paint_text(ui, buffer, view, &layout, &state.colours, start_state, &word_marks);
     paint_cell_links(ui, view, &cell_links, pointer);
     // Sticky scroll: the function or label scrolled past, kept along the top; a click goes to it.
     if let Some(line) = state.sticky.filter(|line| pane.filter.is_none() && *line < state.top && *line < buffer.line_count()) {
@@ -1170,6 +1207,10 @@ pub fn text_pane(ui: &mut Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
                 egui::Area::new(id.with("colour-picker")).order(egui::Order::Foreground).fixed_pos(pos2(spot.x, spot.y + 18.0)).show(ui.ctx(), |ui| {
                     egui::Frame::popup(ui.style()).show(ui, |ui| {
                         changed = egui::color_picker::color_picker_color32(ui, &mut colour, egui::color_picker::Alpha::OnlyBlend);
+                        // The full picker: other forms, the machines' colours, contrast and the screen's.
+                        if ui.small_button(crate::i18n::tr("More\u{2026}")).clicked() {
+                            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("limoniter-open-colour-picker"), true));
+                        }
                     });
                 });
                 if changed {
@@ -1766,13 +1807,13 @@ fn context_menu(ui: &mut Ui, text: bool, explain: Option<&str>, misspelt: Option
     if text {
         ui.separator();
         crate::fit::menu_button(ui, crate::i18n::tr("Colour tag"), |ui| {
-            for (index, name) in theme::TAG_NAMES.iter().enumerate() {
-                let swatch = egui::RichText::new(crate::i18n::tr("\u{25A0} ")).color(theme::tag_colour(index as u8));
+            for tag in crate::own_tags::all() {
+                let swatch = egui::RichText::new(crate::i18n::tr("\u{25A0} ")).color(tag.colour);
                 let mut job = egui::text::LayoutJob::default();
                 swatch.append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
-                egui::RichText::new(*name).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                egui::RichText::new(tag.name).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                 if ui.button(job).clicked() {
-                    command = Some(ContextCommand::Tag(index as u8));
+                    command = Some(ContextCommand::Tag(tag.id));
                     ui.close();
                 }
             }
@@ -2057,6 +2098,22 @@ fn squiggle(painter: &egui::Painter, from: f32, to: f32, y: f32) {
     }
 }
 
+/// The line under a word the Words tools mark: unbroken for a repeat, dashed for filler, dotted for an adverb, so the
+/// kinds can be told apart without the colours.
+fn word_underline(painter: &egui::Painter, kind: crate::words_prose::Kind, from: f32, to: f32, y: f32) {
+    let stroke = Stroke::new(1.5, crate::app::words_host::colour(kind));
+    let (on, off): (f32, f32) = match kind {
+        crate::words_prose::Kind::Repeat => (to - from, 0.0),
+        crate::words_prose::Kind::Filler => (4.0, 2.5),
+        crate::words_prose::Kind::Adverb => (1.5, 2.0),
+    };
+    let mut x = from;
+    while x < to {
+        painter.hline(x..=(x + on).min(to), y, stroke);
+        x += on + off.max(0.01);
+    }
+}
+
 /// The spelling mistakes in a line, by character. A line of prose is checked whole; in a file of code only the
 /// comments and strings are, and the words in names if the person has asked for that. The mistakes are
 /// remembered by the text that's checked, so a line is only sent to the checker once.
@@ -2140,7 +2197,7 @@ fn paint_diff_gutter(painter: &egui::Painter, marks: &crate::diff_engine::Marks,
     }
 }
 
-fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &LineColours, start_state: CellState) {
+fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &LineColours, start_state: CellState, word_marks: &crate::app::words_host::Marks) {
     let painter = ui.painter_at(view);
     let mut cell_state = start_state;
     let (f, cell, gutter, ruler_h) = (&l.font, l.cell, l.gutter, l.ruler_h);
@@ -2228,7 +2285,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
         let mistakes = if crate::spelling::is_on() && raw.len() <= MOST_SPELLED { char_spans_to_columns(&raw, &spelling_marks(b, is_code, coloured, &raw, r)) } else { Vec::new() };
         let selected = b.selection_on_row(r);
         let spots = if b.has_multi() { b.multi_on_line(r) } else { Vec::new() };
-        let tag = b.tag_at(r).map(|(_, _, colour)| theme::tag_colour(colour));
+        let tag = b.tag_at(r).map(|(_, _, colour)| crate::own_tags::colour(colour));
         let udgs = udg_marks(b, r, &raw);
 
         for (offset, slot) in l.slots[first..first + group].iter().enumerate() {
@@ -2356,6 +2413,28 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
                     squiggle(&painter, col_x(a), col_x(z), y + cell.y - 1.5);
                 }
             }
+            // Words that repeat, filler words and adverbs, each kind underlined in its own way and colour.
+            if let Some(found) = word_marks.lines.get(&r) {
+                for mark in &found.spans {
+                    for (a, z) in char_spans_to_columns(&raw, &[(mark.from, mark.to)]) {
+                        let (a, z) = (a.max(start), z.min(start + count));
+                        if a < z {
+                            word_underline(&painter, mark.kind, col_x(a), col_x(z), y + cell.y - 2.0);
+                        }
+                    }
+                }
+                // The syllables of the line, at its right edge, on its last row.
+                if slot.last
+                    && let Some((syllables, guessed)) = found.syllables
+                {
+                    let said = if guessed { format!("{syllables}?") } else { syllables.to_string() };
+                    // On a chip of the page's colour, so a long line running under it can still be read round it.
+                    let right = view.max.x - 16.0;
+                    let chip = Rect::from_min_max(pos2(right - cell.x * (said.chars().count() as f32 + 1.0), y), pos2(right + cell.x * 0.5, y + cell.y));
+                    painter.rect_filled(chip, 3.0, theme::editor_back());
+                    painter.text(pos2(right, y + 1.0 + l.pad), Align2::RIGHT_TOP, said, f.clone(), theme::text_faint());
+                }
+            }
             // Each colour written in the text, shown as a bar of itself under it.
             for written in &colours_written {
                 for (a, z) in char_spans_to_columns(&raw, &[(written.from, written.to)]) {
@@ -2468,7 +2547,7 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
         if let Some((first, last, colour)) = b.tag_at(slot.line) {
             let top = row_y(index) + if slot.line == first && slot.sub == 0 { 1.0 } else { 0.0 };
             let bottom = row_y(index) + cell.y - if slot.line == last && slot_is_last(&l.slots, index) { 1.0 } else { 0.0 };
-            painter.rect_filled(Rect::from_min_max(pos2(view.min.x, top), pos2(view.min.x + TAG_BLOCK, bottom)), 0.0, theme::tag_colour(colour));
+            painter.rect_filled(Rect::from_min_max(pos2(view.min.x, top), pos2(view.min.x + TAG_BLOCK, bottom)), 0.0, crate::own_tags::colour(colour));
         }
         // Its change since the last commit, beside that: added, changed, or lines taken out above it.
         if l.options.line_change

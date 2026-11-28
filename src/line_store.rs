@@ -987,6 +987,24 @@ impl LineStore {
         self.tags.len() != before
     }
 
+    /// Turns every tag of one kind into another, or takes them away. Says how many places it changed.
+    pub fn retag(&mut self, from: u8, to: Option<u8>) -> usize {
+        let count = self.tags.values().filter(|(_, colour)| *colour == from).count();
+        if count > 0 {
+            let tags = Arc::make_mut(&mut self.tags);
+            match to {
+                Some(to) => tags.values_mut().filter(|(_, colour)| *colour == from).for_each(|(_, colour)| *colour = to),
+                None => tags.retain(|_, (_, colour)| *colour != from),
+            }
+        }
+        count
+    }
+
+    /// How many places have a tag of one kind.
+    pub fn tags_of(&self, colour: u8) -> usize {
+        self.tags.values().filter(|(_, c)| *c == colour).count()
+    }
+
     pub fn set_tags(&mut self, tags: BTreeMap<usize, (usize, u8)>) {
         self.tags = Arc::new(tags);
     }

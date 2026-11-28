@@ -292,6 +292,7 @@ impl Limoniter {
     fn agent_tab_row(&mut self, ui: &mut Ui) -> bool {
         let mut new = false;
         let mut closed = None;
+        let mut usage = false;
         ui.horizontal_wrapped(|ui| {
             for (n, tab) in self.agents.tabs.iter().enumerate() {
                 let label = egui::RichText::new(&tab.session.title).color(agent_panel::tab_colour(tab));
@@ -305,6 +306,9 @@ impl Limoniter {
             if ui.button("+").on_hover_text(crate::i18n::tr("New session")).clicked() {
                 new = true;
             }
+            if ui.button(crate::i18n::tr("Usage")).on_hover_text(crate::i18n::tr("What Claude Code and Codex have used today, and what is left of the plan's limits")).clicked() {
+                usage = true;
+            }
             if ui.button(crate::i18n::tr("Past sessions")).clicked() {
                 self.agents.showing_past = !self.agents.showing_past;
                 self.agents.past = None;
@@ -312,6 +316,10 @@ impl Limoniter {
         });
         if let Some(n) = closed {
             self.agent_close(n);
+        }
+        if usage {
+            let ctx = ui.ctx().clone();
+            self.open_usage(&ctx);
         }
         new
     }

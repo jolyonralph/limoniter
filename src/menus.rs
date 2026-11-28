@@ -12,6 +12,7 @@ use super::python_host::PyAction;
 use super::notebook_host::Act as NotebookAct;
 use super::database_host::Act as DatabaseAct;
 use crate::text_objects::{Action as TextAction, Object as TextObject};
+use crate::app::words_host::{Action as WordsAction, Switch as WordsSwitch};
 
 /// A switch that's simply on or off, toggled from a menu or the command box.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,6 +61,8 @@ pub(super) enum Flag {
     /// php -l on each PHP file saved.
     PhpLintOnSave,
     Panel(PanelFlag),
+    /// The marks of the Words tools: syllable counts, repeated words, filler words and adverbs.
+    Words(crate::app::words_host::Switch),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -116,6 +119,8 @@ pub(super) enum Live {
     TabSize,
     Snippets,
     Tags,
+    /// The colour tags to choose from, by name.
+    TagList,
     Bookmarks,
     SurroundSnippets,
     Layouts,
@@ -250,12 +255,10 @@ pub(super) const SURROUND: &[Entry] = &[
         ];
 
 pub(super) const COLOUR_TAG: &[Entry] = &[
-            Keyed("Red", Command::Tag(0), "Ctrl+Shift+1"),
-            Keyed("Orange", Command::Tag(1), "Ctrl+Shift+2"),
-            Keyed("Yellow", Command::Tag(2), "Ctrl+Shift+3"),
-            Keyed("Green", Command::Tag(3), "Ctrl+Shift+4"),
-            Keyed("Blue", Command::Tag(4), "Ctrl+Shift+5"),
-            Keyed("Purple", Command::Tag(5), "Ctrl+Shift+6"),
+            Entry::Live("", Live::TagList),
+            Line,
+            Item("New tag\u{2026}", Command::NewTag),
+            Item("Edit tags\u{2026}", Command::EditTags),
             Line,
             Keyed("Remove the tag", Command::Untag, "Ctrl+Shift+0"),
         ];
@@ -813,7 +816,6 @@ pub(super) const EDIT: &[Entry] = &[
     Sub("Insert", INSERT),
     Sub("Snippets", &[Keyed("Choose or make one\u{2026}", Command::Snippets, "Ctrl+J"), Line, Entry::Live("Insert", Live::Snippets)]),
     Sub("Surround with", SURROUND),
-    Sub("Colour tag", COLOUR_TAG),
     Line,
     Check("Read-only", Flag::ReadOnly),
     Entry::Live("Claude Code", Live::ClaudeCode),
@@ -868,6 +870,7 @@ pub(super) const VIEW: &[Entry] = &[
     Sub("Split", SPLIT),
     Line,
     Sub("Panels", PANELS),
+    Sub("Colour tag", COLOUR_TAG),
     Check("Output", Flag::OutputWindow),
     Keyed("Terminal", Command::ToggleTerminal, "Ctrl+`"),
     Item("Limoniter command in WSL\u{2026}", Command::WslCommands),
@@ -941,8 +944,25 @@ pub(super) const RETRO: &[Entry] = &[
     Sub("Early computing", EARLY),
 ];
 
+/// Rhymes, a thesaurus, metre and verse forms, and marks for prose (see `words_host`).
+pub(super) const WORDS: &[Entry] = &[
+    Keyed("Rhymes for the word at the cursor", Command::Words(WordsAction::Rhymes), "Ctrl+F7"),
+    Keyed("Thesaurus for the word at the cursor", Command::Words(WordsAction::Thesaurus), "Shift+F7"),
+    Line,
+    Item("Stress and metre of the selected lines", Command::Words(WordsAction::Metre)),
+    Item("Check as a haiku", Command::Words(WordsAction::Haiku)),
+    Item("Check as a limerick", Command::Words(WordsAction::Limerick)),
+    Line,
+    Check("Syllable counts beside the lines of this file", Flag::Words(WordsSwitch::SyllablesHere)),
+    Check("Syllable counts in every text and Markdown file", Flag::Words(WordsSwitch::SyllablesText)),
+    Check("Mark words that come round again too soon", Flag::Words(WordsSwitch::Repeats)),
+    Check("Mark filler words", Flag::Words(WordsSwitch::Filler)),
+    Check("Mark adverbs", Flag::Words(WordsSwitch::Adverbs)),
+];
+
 pub(super) const TOOLS: &[Entry] = &[
     Item("Colour as\u{2026}", Command::ColourAs),
+    Keyed("Colour picker\u{2026}", Command::ColourPicker, "Ctrl+Alt+K"),
     Line,
     Item("Compare with\u{2026}", Command::Compare),
     Item("Compare files\u{2026}", Command::CompareFiles),
@@ -954,9 +974,11 @@ pub(super) const TOOLS: &[Entry] = &[
     Item("Time spent\u{2026}", Command::TimeSpent),
     Item("Convert a number", Command::ConvertNumber),
     Item("New AI agent session\u{2026}", Command::AgentNew),
+    Item("Usage of AI tools\u{2026}", Command::Usage),
     Item("Copy the file's path", Command::CopyPath),
     Line,
     Sub("Spelling", &[Keyed("Next mistake", Command::NextMistake, "F7"), Check("Underline mistakes", Flag::Spelling)]),
+    Sub("Words", WORDS),
     Sub("Macros", MACROS),
     Sub("Scripts", SCRIPTS),
     Sub("Add-ons", ADD_ONS),
@@ -1247,6 +1269,7 @@ impl Limoniter {
             Flag::AlwaysOnTop => self.always_on_top,
             Flag::FullScreen => self.full_screen,
             Flag::Spelling => self.prefs.spelling,
+            Flag::Words(switch) => crate::app::words_host::switch_on(switch, &doc.text),
             Flag::GitBlame => self.git.blame_on,
             Flag::CycleCounts => crate::m6502_timing::shown(),
             Flag::AssistantPanel => self.assist_panel.open,
@@ -1289,6 +1312,10 @@ impl Limoniter {
             Flag::Ribbon => &mut v.ribbon,
             Flag::GitBlame => {
                 self.git.blame_on = !self.git.blame_on;
+                return;
+            }
+            Flag::Words(switch) => {
+                crate::app::words_host::toggle(switch, &mut self.docs[self.active].text);
                 return;
             }
             Flag::PhpLintOnSave => {
@@ -1449,6 +1476,7 @@ impl Limoniter {
             | Command::ViewHex
             | Command::ViewEbcdic
             | Command::Settings
+            | Command::ColourPicker
             | Command::SaveSettingsFile
             | Command::SaveLayout
             | Command::GatherWindows
@@ -1542,6 +1570,7 @@ impl Limoniter {
             | Command::WslCommands
             | Command::WhatsNew
             | Command::AgentNew
+            | Command::Usage
             | Command::Guide(_)
             | Command::GitClone
             | Command::ToolbarButtons
@@ -1600,7 +1629,7 @@ impl Limoniter {
                         self.draw_entries(ui, inner, false, chosen, picks);
                     });
                 }
-                Entry::Live(label, live) if opened_out || *live == Live::TabSize => self.live_entries(ui, *live, label, chosen, picks),
+                Entry::Live(label, live) if opened_out || matches!(*live, Live::TabSize | Live::TagList) => self.live_entries(ui, *live, label, chosen, picks),
                 Entry::Live(label, _) if self.drawing_open => {
                     ui.add(Button::new(crate::i18n::tr(label)).shortcut_text(RichText::new(crate::i18n::tr("\u{203A}")).color(theme::text_faint())).min_size(egui::vec2(MENU_WIDTH - 16.0, 0.0)));
                 }
@@ -1935,23 +1964,64 @@ impl Limoniter {
                     empty(ui, crate::i18n::tr("Snippets with $SELECTION in them will be listed here."));
                 }
             }
+            Live::TagList => {
+                let usable = !self.no_file() && !self.docs[self.active].hex_mode;
+                for tag in crate::own_tags::all() {
+                    let mut job = egui::text::LayoutJob::default();
+                    RichText::new(crate::i18n::tr("\u{25A0}  ")).color(tag.colour).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                    RichText::new(tag.name.as_str()).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                    let mut button = Button::new(job);
+                    if !tag.key.is_empty() {
+                        button = button.shortcut_text(RichText::new(shown_shortcut(&tag.key)).color(theme::text_faint()));
+                    }
+                    let response = ui.add_enabled(usable, button);
+                    let response = if tag.project { response.on_hover_text(crate::i18n::tr("Kept with this project")) } else { response };
+                    if response.clicked() {
+                        picks.push(Pick::Command(Command::Tag(tag.id)));
+                        ui.close();
+                    }
+                }
+            }
             Live::Tags => {
                 let text = &self.docs[self.active].text;
                 let tags = if self.docs[self.active].hex_mode || self.no_file() { Vec::new() } else { text.tags() };
                 if tags.is_empty() {
                     empty(ui, crate::i18n::tr("Sections you tag with a colour will be listed here."));
                 }
+                // What's typed narrows the list to the tags whose name has it, or the lines that do.
+                let filter_key = "tag-go-to-filter";
+                let filter_id = ui.scope_id().with(filter_key);
+                let mut typed = ui.data_mut(|data| data.get_temp::<String>(filter_id)).unwrap_or_default();
+                if !tags.is_empty() {
+                    let field = ui.add(egui::TextEdit::singleline(&mut typed).hint_text(crate::i18n::tr("Type a tag's name")).desired_width(MENU_WIDTH - 24.0));
+                    if !field.has_focus() && typed.is_empty() && ui.memory(|m| m.focused().is_none()) {
+                        field.request_focus();
+                    }
+                    ui.data_mut(|data| data.insert_temp(filter_id, typed.clone()));
+                }
+                let wanted = typed.trim().to_lowercase();
+                let named: Vec<u8> = crate::own_tags::matching(&typed).into_iter().map(|t| t.id).collect();
                 egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
+                    let mut listed = 0;
                     for (first, last, colour) in tags {
                         let words: String = text.format.readable_text(&text.line(first)).trim().chars().take(48).collect();
+                        let name = crate::own_tags::name(colour);
+                        if !wanted.is_empty() && !named.contains(&colour) && !words.to_lowercase().contains(&wanted) {
+                            continue;
+                        }
+                        listed += 1;
                         let mut job = egui::text::LayoutJob::default();
-                        RichText::new(crate::i18n::tr("\u{25A0}  ")).color(theme::tag_colour(colour)).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                        RichText::new(crate::i18n::tr("\u{25A0}  ")).color(crate::own_tags::colour(colour)).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+                        RichText::new(crate::i18n::tf!("{}  ", name)).strong().append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                         RichText::new(crate::i18n::tf!("{}  ", first + 1)).color(theme::text_faint()).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                         RichText::new(if words.is_empty() { crate::i18n::tr("(blank line)").to_string() } else { words }).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
                         if ui.button(job).on_hover_text(crate::i18n::tf!("Lines {} to {}", first + 1, last + 1)).clicked() {
                             picks.push(Pick::Line(first));
                             ui.close();
                         }
+                    }
+                    if listed == 0 && !wanted.is_empty() {
+                        empty(ui, crate::i18n::tr("No tag has that name."));
                     }
                 });
             }

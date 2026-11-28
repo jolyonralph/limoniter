@@ -45,6 +45,8 @@ pub struct Prefs {
     pub python: Option<String>,
     /// Whether ESLint is wanted, as VS Code's `eslint.enable` says.
     pub eslint: Option<bool>,
+    /// The colour tags this project has of its own, shown ahead of the person's.
+    pub tags: Vec<crate::own_tags::Def>,
 }
 
 impl Prefs {
@@ -82,6 +84,9 @@ impl Prefs {
         if !self.servers_off.is_empty() {
             value.insert("servers_off".into(), json!(self.servers_off));
         }
+        if !self.tags.is_empty() {
+            value.insert("tags".into(), crate::own_tags::to_json(&self.tags));
+        }
         Value::Object(value)
     }
 
@@ -107,6 +112,7 @@ impl Prefs {
             follow_vscode: flag("follow_vscode"),
             python: text("python"),
             eslint: flag("eslint"),
+            tags: crate::own_tags::from_json(value.get("tags")),
         }
     }
 
@@ -132,6 +138,7 @@ impl Prefs {
             follow_vscode: self.follow_vscode.or(under.follow_vscode),
             python: self.python.clone().or_else(|| under.python.clone()),
             eslint: self.eslint.or(under.eslint),
+            tags: if self.tags.is_empty() { under.tags.clone() } else { self.tags.clone() },
         }
     }
 
@@ -195,6 +202,7 @@ mod tests {
             follow_vscode: Some(false),
             python: Some(".venv/bin/python".into()),
             eslint: Some(false),
+            tags: vec![crate::own_tags::Def { id: 130, name: "Release".into(), colour: Some([1, 2, 3]), key: String::new() }],
         };
         assert_eq!(Prefs::from_json(Some(&all.to_json())), all);
         let text = serde_json::to_string(&all.to_json()).unwrap();

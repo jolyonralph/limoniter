@@ -5,7 +5,7 @@
 //! the file says about itself.
 
 mod apple2;
-mod atari8;
+pub mod atari8;
 mod atari_st;
 pub mod bmp;
 mod c64;

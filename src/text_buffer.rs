@@ -300,6 +300,8 @@ pub struct TextBuffer {
     pub jsx: bool,
     /// A `.env` file: values are drawn as dots, except on the line being edited or under the pointer.
     pub hide_values: bool,
+    /// Syllable counts beside the lines, if chosen for this file whatever the default for text is (see `words_host`).
+    pub syllable_counts: Option<bool>,
     /// The delimiter, if the file is delimited data (CSV and the like), so the text view can colour its columns.
     pub delimited: Option<char>,
     /// Markdown: lists carry on as Enter is pressed.
@@ -420,6 +422,7 @@ impl Default for TextBuffer {
             emmet: None,
             jsx: false,
             hide_values: false,
+            syllable_counts: None,
             delimited: None,
             markdown: false,
             rules: None,
@@ -813,6 +816,14 @@ impl TextBuffer {
 
     pub fn untag_lines(&mut self, first: usize, last: usize) -> bool {
         self.lines.remove_tags(first, last)
+    }
+
+    pub fn retag(&mut self, from: u8, to: Option<u8>) -> usize {
+        self.lines.retag(from, to)
+    }
+
+    pub fn tags_of(&self, colour: u8) -> usize {
+        self.lines.tags_of(colour)
     }
 
     pub fn set_tags(&mut self, tags: std::collections::BTreeMap<usize, (usize, u8)>) {

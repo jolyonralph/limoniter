@@ -62,6 +62,7 @@ enum Command {
     WhatsNew,
     /// Starts an AI agent session, in the panel.
     AgentNew,
+    Usage,
     /// One of the guide's pages.
     Guide(start_page::Guide),
     /// The Git wizard, set to copy a project from online.
@@ -84,6 +85,8 @@ enum Command {
     Php(php_host::PhpAction),
     /// Tools, Python and R: the console, a script's cells, environments and knitting.
     PyR(python_host::PyAction),
+    /// Rhymes, the thesaurus, metre and the haiku and limerick checks.
+    Words(words_host::Action),
     TimeSpent,
     HowToCode,
     HowToCodeExamples,
@@ -204,6 +207,8 @@ enum Command {
     DebugStepBack,
     /// The Colour as box: the language the file in front is coloured as.
     ColourAs,
+    /// The colour picker: hue, saturation and value, with the colour in the forms the file at the cursor uses.
+    ColourPicker,
     ProjectClose,
     ProjectSettings,
     ProjectAddActive,
@@ -500,6 +505,10 @@ enum Command {
     UseClipboard(u8),
     NextTag,
     PreviousTag,
+    /// Makes a colour tag of your own: the Edit tags window, with a new one ready to name.
+    NewTag,
+    /// The Edit tags window.
+    EditTags,
     /// Asks Claude Code or Codex to work on the selection, or the function the cursor is in.
     Assist(assistant::Task),
     /// Puts the file and the lines selected into the prompt of a Claude Code connected to Limoniter.
@@ -521,10 +530,13 @@ impl Command {
             || matches!(
             self,
             Command::New
+                | Command::NewTag
+                | Command::EditTags
                 | Command::FoldRibbon
                 | Command::ToolbarButtons
                 | Command::WhatsNew
                 | Command::AgentNew
+                | Command::Usage
                 | Command::Guide(_)
                 | Command::GitClone
                 | Command::Clambers
@@ -534,6 +546,7 @@ impl Command {
                 | Command::AmigaMakefiles
                 | Command::AutoDocs
                 | Command::AmigaHardware
+                | Command::ColourPicker
                 | Command::AmigaTools
                 | Command::AmigaSetup
                 | Command::StTools
@@ -1648,6 +1661,8 @@ enum Dialog {
     ParagraphSetup { width: String, left: String, first: String, align: Align, error: String },
     /// A folder project's settings hold what's hidden in its Explorer, to take things back.
     ProjectSettings(Box<project_settings_host::Draft>),
+    /// View, Colour tag, Edit tags.
+    TagEditor(Box<own_tags_host::Draft>),
     RestorePick { backups: Vec<project::Backup>, chosen: usize },
     Fill { value: String, skip_last: bool },
     /// Before saving a BASIC listing as a program: which Commodore machine, or which line a Spectrum program runs from.
@@ -1756,6 +1771,8 @@ pub struct Limoniter {
     /// The Spectrum screen designer, while it's open.
     screen_designer: Option<Box<crate::screen_designer::Designer>>,
     amiga_hw: Option<Box<amiga_hw_host::HwWindow>>,
+    /// The colour picker's window, when it's open.
+    colour_picker: Option<Box<colour_picker_host::PickerWindow>>,
     /// The Amiga bitplane converter, while it's open.
     bitplanes: Option<Box<crate::bitplane_tool::Converter>>,
     /// The Atari ST picture converter, while it's open.
@@ -2060,6 +2077,7 @@ pub struct Limoniter {
     /// Being Claude Code's IDE: its server, and the diffs it has asked to be shown.
     claude_ide: claude_ide_host::State,
     agents: agent_host::State,
+    usage: usage_host::State,
 }
 
 /// A run started with --screenshot: draw for a while, save the window as a picture, and exit.
@@ -2147,6 +2165,7 @@ impl Limoniter {
             view.ruler = false;
         }
         let prefs = Prefs::from_settings(&settings);
+        crate::own_tags::set(&crate::own_tags::from_settings(&settings), &[]);
         crate::i18n::set(prefs.language);
         crate::asm::m68k::choose(prefs.m68k_processor);
         crate::asm::m68k::choose_fpu(prefs.m68k_fpu);
@@ -2314,6 +2333,7 @@ impl Limoniter {
             last_watch: None,
             claude_ide: claude_ide_host::State::default(),
             agents: agent_host::State::default(),
+            usage: usage_host::State::default(),
             update_waiting: None,
             update_download: None,
             opticos_started: false,
@@ -2330,6 +2350,7 @@ impl Limoniter {
             merges: merge_host::MergeState::default(),
             screen_designer: None,
             amiga_hw: None,
+            colour_picker: None,
             bitplanes: None,
             st_pictures: None,
             c64_pictures: None,
@@ -3554,6 +3575,7 @@ impl Limoniter {
         self.watch_remote_files(ctx);
         self.claude_ide_tick(ctx);
         self.agents_tick(ctx);
+        self.usage_tick(ctx);
         let mut busy = self.check_big_job() | self.check_remote_jobs() | self.check_sends() | self.check_sessions();
         busy |= self.remote_project_tick(ctx);
         busy |= self.git_tick(ctx);
@@ -3578,6 +3600,7 @@ impl Limoniter {
         for path in crate::mac_open::take() {
             self.open_path(&path);
         }
+        self.sync_project_tags();
         self.keep_tags();
         let running = self.check_run_tool();
         busy |= running;
@@ -4646,6 +4669,7 @@ impl Limoniter {
                 | Command::FoldRibbon
                 | Command::WhatsNew
                 | Command::AgentNew
+                | Command::Usage
                 | Command::Guide(_)
                 | Command::GitClone
                 | Command::WordCount
@@ -4664,6 +4688,7 @@ impl Limoniter {
                 | Command::WindowFont
                 | Command::ShowFileLists
                 | Command::HexCopySelected
+                | Command::ColourPicker
                 | Command::Settings
                 | Command::LastChange
                 | Command::NextChange
@@ -4738,6 +4763,7 @@ impl Limoniter {
                 | Command::ShowScripts
                 | Command::ShowHistory
                 | Command::Toggle(_)
+                | Command::Words(_)
                 | Command::HidePanels
                 | Command::CommandPalette
                 | Command::About
@@ -4887,6 +4913,7 @@ impl Limoniter {
             Command::CatalogTranslation => self.new_translation(),
             Command::AutoDocs => self.open_autodocs_at_caret(),
             Command::AmigaHardware => self.open_amiga_hardware(amiga_hw_host::Tab::Registers),
+            Command::ColourPicker => self.open_colour_picker(),
             Command::AmigaTools => self.open_amiga_tools(),
             Command::AmigaSetup => self.open_amiga_setup(),
             Command::AmigaIcon => self.open_amiga_icon(ui.ctx()),
@@ -4965,6 +4992,7 @@ impl Limoniter {
             Command::ServeFolder => self.toggle_live_server(),
             Command::Php(action) => self.php_command(action),
             Command::PyR(action) => self.python_command(action),
+            Command::Words(action) => self.words_command(action),
             Command::TimeSpent => self.time_spent_open = Some(7),
             Command::HowToCode => self.open_how_to_code(),
             Command::HowToCodeExamples => self.copy_how_to_code_examples(),
@@ -5011,6 +5039,10 @@ impl Limoniter {
             Command::ToolbarButtons => self.open_toolbar_box(),
             Command::WhatsNew => self.open_whats_new(),
             Command::AgentNew => self.agent_new_session_box(),
+            Command::Usage => {
+                let ctx = ui.ctx().clone();
+                self.open_usage(&ctx);
+            }
             Command::Guide(page) => self.open_guide(page),
             Command::Merge => self.merge_files_dialog(),
             Command::ApplyPatch => self.apply_patch_to(None, None),
@@ -5269,6 +5301,7 @@ impl Limoniter {
             Command::ShowInExplorer => self.show_in_explorer(),
             Command::OpenWithDefault => self.open_with_usual_program(),
             Command::Snippets => self.dialog = Dialog::Snippets(file_tools::SnippetBox { focus: true, ..Default::default() }),
+            Command::NewTag | Command::EditTags => self.open_tag_editor(command == Command::NewTag),
             Command::RunTool => self.begin_run_tool(),
             Command::StopTool => self.stop_tool(),
             _ if hex => {}
@@ -5564,6 +5597,11 @@ impl Limoniter {
         let ctx = ui.ctx().clone();
         // While a box is open the document behind it takes no commands from the keyboard.
         let in_editor = !self.full_preview_shown && self.script.is_none() && matches!(self.dialog, Dialog::None) && self.pending.is_none() && !self.docs[self.active].is_busy() && ctx.memory(|m| m.focused().is_none_or(views::is_editor_id));
+        // Keys given to tags of your own come first: a shorter key with fewer modifiers (Ctrl+J) also matches
+        // Ctrl+Alt+J, and would take it.
+        if in_editor {
+            self.tag_keys(ui);
+        }
         // Cmd on a Mac, Ctrl elsewhere.
         let ctrl = Modifiers::COMMAND;
         let ctrl_shift = Modifiers::COMMAND | Modifiers::SHIFT;
@@ -5642,6 +5680,7 @@ impl Limoniter {
             (Modifiers::CTRL | Modifiers::SHIFT, Key::Tab, Command::UsedFileForward),
             (Modifiers::CTRL, Key::Tab, Command::UsedFileBack),
             (ctrl, Key::J, Command::Snippets),
+            (ctrl | Modifiers::ALT, Key::K, Command::ColourPicker),
             (Modifiers::NONE, Key::F5, Command::RunTool),
             (Modifiers::NONE, Key::F9, Command::RunOnMachine),
             (Modifiers::CTRL, Key::Backtick, Command::ToggleTerminal),
@@ -5656,6 +5695,8 @@ impl Limoniter {
             (ctrl, Key::Backslash, Command::OpenBeside),
             (Modifiers::SHIFT | Modifiers::ALT, Key::F, Command::FormatDocument),
             (Modifiers::NONE, Key::F6, Command::ToggleTable),
+            (Modifiers::SHIFT, Key::F7, Command::Words(words_host::Action::Thesaurus)),
+            (ctrl, Key::F7, Command::Words(words_host::Action::Rhymes)),
             (Modifiers::NONE, Key::F7, Command::NextMistake),
             (ctrl_shift, Key::R, Command::RecordMacro),
             (ctrl_shift, Key::P, Command::PlayMacro),
@@ -5826,7 +5867,7 @@ impl Limoniter {
             self.current_macro.as_ref().and_then(|current| current.path.as_ref()).map_or_else(String::new, |path| format!("current_macro={}\n", path.display())),
             file_tools::snippets_to_settings(&self.snippets),
             self.assistant.to_settings(),
-            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + self.recent_new_kinds.iter().map(|name| format!("recent_new_kind={name}\n")).collect::<String>().as_str() + format!("terminal_shell={}\n", self.terminal_shell).as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str() + self.http_ui.to_settings().as_str() + self.side_tabs.to_settings().as_str() + self.toolbar.to_settings().as_str()
+            self.run_history.iter().map(|line| format!("run_command={line}\n")).collect::<String>() + self.recent_languages.iter().map(|name| format!("recent_language={name}\n")).collect::<String>().as_str() + self.recent_new_kinds.iter().map(|name| format!("recent_new_kind={name}\n")).collect::<String>().as_str() + format!("terminal_shell={}\n", self.terminal_shell).as_str() + format!("language_view={}\npalette_width={}\nwindow_scale={}\n", self.language_view.setting(), self.palette_width.round(), self.window_scale).as_str() + self.status_layout.to_settings().as_str() + self.flashing.to_settings().as_str() + self.serial_prefs.to_settings().as_str() + self.eprom_prefs.to_settings().as_str() + crate::ext_formatters::to_settings(&self.formatter_choices).as_str() + WINDOW_FONT.lock().ok().and_then(|f| f.clone()).map(|f| format!("window_font={}\n", f.display())).unwrap_or_default().as_str() + new_kinds::kinds_to_settings(&self.new_kinds).as_str() + self.lsp.to_settings().as_str() + self.compare_rules.to_settings().as_str() + crate::layouts::to_settings(&self.layouts).as_str() + crate::dap::kept_to_settings(&self.debug_configs).as_str() + self.database.to_settings().as_str() + self.python.to_settings().as_str() + self.http_ui.to_settings().as_str() + self.side_tabs.to_settings().as_str() + self.toolbar.to_settings().as_str() + crate::own_tags::to_settings(&crate::own_tags::user()).as_str()
         )
     }
 
@@ -6922,6 +6963,19 @@ impl Limoniter {
                     project_settings_host::Result::Ok => {
                         if let Dialog::ProjectSettings(draft) = std::mem::replace(&mut self.dialog, Dialog::None) {
                             self.apply_project_settings(*draft);
+                        }
+                    }
+                }
+            }
+            Dialog::TagEditor(draft) => {
+                let taken = own_tags_host::keys_taken();
+                let places: std::collections::HashMap<u8, usize> = draft.rows.iter().map(|r| (r.def.id, self.docs.iter().filter(|doc| !doc.placeholder).map(|doc| doc.text.tags_of(r.def.id)).sum())).collect();
+                match own_tags_host::window(ctx, draft, &|id| places.get(&id).copied().unwrap_or(0), &taken) {
+                    own_tags_host::Result::Open => {}
+                    own_tags_host::Result::Cancel => self.close_dialog(),
+                    own_tags_host::Result::Ok => {
+                        if let Dialog::TagEditor(draft) = std::mem::replace(&mut self.dialog, Dialog::None) {
+                            self.apply_tag_draft(*draft);
                         }
                     }
                 }
@@ -8563,6 +8617,8 @@ impl Limoniter {
                 "files-changing" => self.files_changing_screenshot_step(value),
                 // The AI agents panel with a made-up conversation: "top" for the bar of subagents and use, else with a request waiting.
                 "agents" => self.agents_screenshot_step(value),
+                // The Usage window with made-up figures.
+                "usage" => self.usage_screenshot_step(value),
                 "stacked" => {
                     self.panels.project = true;
                     self.panels.functions = true;
@@ -8593,6 +8649,16 @@ impl Limoniter {
                     if let Some(path) = self.docs[self.active].path.clone() {
                         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                         let _ = self.open_review(&path, &value.replace("\\n", "\n"), &format!("\u{273B} [Claude Code] {name} (a1b2c3) \u{29C9}"));
+                    }
+                }
+                // The colour picker, with the cursor put on a column of the first line, and the colours of a machine
+                // chosen by name ("amiga@14", "css@9"), to look at it.
+                "colour-picker" => {
+                    let (machine, column) = value.split_once('@').unwrap_or((value, "0"));
+                    self.docs[self.active].text.move_caret_to_char(0, column.parse().unwrap_or(0));
+                    self.open_colour_picker();
+                    if let Some(window) = self.colour_picker.as_mut() {
+                        window.show_machine(machine);
                     }
                 }
                 "colour-as" => {
@@ -8982,6 +9048,7 @@ impl Limoniter {
                 "history" => self.edit_tools_screenshot_step("history"),
                 "part-history" => self.part_screenshot_step(),
                 "tags" => self.tags_screenshot_step(),
+                "tag-editor" => self.tag_editor_screenshot_step(),
                 "assistant" | "assistant-review" | "assistant-history" => self.assistant_screenshot_step(step),
                 "help" => self.open_help(),
                 "snippets" | "run-tool" | "tool-output" | "spelling" | "spell-box" | "rename" | "split-box" | "cycle" => self.file_tools_screenshot_step(step),
@@ -8992,6 +9059,7 @@ impl Limoniter {
                 "addons" | "addon-panel" => self.script_screenshot_step(step),
                 step if step.starts_with("window-theme=") => self.themes.window = step["window-theme=".len()..].to_string(),
                 step if step.starts_with("document-theme=") => self.doc().theme_override = Some(step["document-theme=".len()..].to_string()),
+                "words-rhymes" | "words-thesaurus" | "words-verse" | "words-prose" => self.words_screenshot_step(step),
                 "themes" => self.open_theme_box(theme_host::ThemePage::Documents),
                 "extensions" => self.extensions_screenshot_step("extensions", ""),
                 "themes-window" => self.open_theme_box(theme_host::ThemePage::Window),
@@ -9404,6 +9472,7 @@ impl Limoniter {
         self.poll_update_check(&ctx);
         self.music_housekeeping();
         self.control_keys_window(&ctx);
+        self.words_window(&ctx);
         self.read_editor_config();
         let mut edit = self.prefs.edit;
         if let Some(spaces) = self.editor_config.as_ref().and_then(|(_, c)| c.spaces).or_else(|| self.project.as_ref().and_then(|p| p.prefs.spaces)) {
@@ -9639,6 +9708,7 @@ impl Limoniter {
         self.tile_map_window(&ctx);
         self.screen_designer_window(&ctx);
         self.amiga_hw_window(&ctx);
+        self.colour_picker_window(&ctx);
         self.bitplane_window(&ctx);
         self.st_converter_window(&ctx);
         self.c64_converter_window(&ctx);
@@ -9651,6 +9721,7 @@ impl Limoniter {
         self.ripper_window(&ctx);
         self.boot_disk_window(&ctx);
         self.agent_dialog(&ctx);
+        self.usage_window(&ctx);
         self.project_index_tick(&ctx);
         self.outline_tick();
         self.debug_tick(&ctx);
@@ -9771,8 +9842,9 @@ const HELP: &str = "Finding things to do\n\
     Tools, Assistant, or Ctrl+Shift+A, asks Claude Code or Codex to fix, clean up, explain or write code, for the selected lines or the function the cursor is in. It uses the tool installed on this computer and signed in to, which sends the code to Anthropic or OpenAI.\n\
     What comes back is shown as a change first, and only goes in when you say so. One Undo takes it out. Explanations go to the Output panel.\n\n\
     Colour tags\n\
-    Select some lines, or put the cursor in a function or paragraph, and press Ctrl+Shift+1 to 6, or right-click and choose Colour tag, to mark that section in a colour. It shows as a block down the left of the text, and as a band right across the document map, which can be clicked to go there.\n\
-    F4 and Shift+F4 go to the next and previous tagged section, and Search, Colour tags lists them all. Ctrl+Shift+0 takes a tag away. Tags move with their lines, and a saved file's tags are there again next time it's opened.\n\n\
+    Select some lines, or put the cursor in a function or paragraph, and press Ctrl+Shift+1 to 6, or right-click and choose Colour tag (it's in the View menu too), to mark that section in a colour. It shows as a block down the left of the text, and as a band right across the document map, which can be clicked to go there.\n\
+    F4 and Shift+F4 go to the next and previous tagged section, and Search, Colour tags, Go to lists them by name: type to narrow the list. Ctrl+Shift+0 takes a tag away.\n\
+    You can make tags of your own, with a name and a colour you choose, and a key such as Ctrl+Alt+K: View, Colour tag, New tag or Edit tags. The six can be renamed there too. Tags are kept with your settings, or with the project if you choose This project, where everyone who opens it has them. Deleting a tag that text still has asks whether to turn those places into another tag or take them away. Hover over a tag's block in the margin, or its band on the map, to see its name. Tags move with their lines, and a saved file's tags are there again next time it's opened.\n\n\
     Snippets\n\
     Ctrl+J chooses a snippet to put in, or makes one. In a snippet, $CURSOR is where the cursor goes, $SELECTION is what was selected, and $DATE, $TIME and $FILE are filled in.\n\n\
     Running commands\n\
@@ -10499,6 +10571,8 @@ pub(crate) mod asm_host;
 mod atari2600_run_host;
 #[path = "control_hints_host.rs"]
 mod control_hints_host;
+#[path = "words_host.rs"]
+pub(crate) mod words_host;
 #[path = "vectrex_run_host.rs"]
 mod vectrex_run_host;
 #[path = "compile_host.rs"]
@@ -10540,6 +10614,8 @@ mod tile_map_host;
 
 #[path = "amiga_hw_host.rs"]
 mod amiga_hw_host;
+#[path = "colour_picker_host.rs"]
+mod colour_picker_host;
 #[path = "bitplane_host.rs"]
 mod bitplane_host;
 #[path = "st_converter_host.rs"]
@@ -10634,6 +10710,8 @@ mod claude_ide_host;
 
 #[path = "agent_host.rs"]
 mod agent_host;
+#[path = "usage_host.rs"]
+mod usage_host;
 
 #[path = "compare_host.rs"]
 pub(crate) mod compare_host;
@@ -10715,6 +10793,9 @@ mod region_panel;
 
 #[path = "color_tags.rs"]
 mod color_tags;
+
+#[path = "own_tags_host.rs"]
+mod own_tags_host;
 
 #[path = "assistant.rs"]
 mod assistant;

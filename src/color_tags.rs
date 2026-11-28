@@ -47,7 +47,7 @@ pub(super) fn tags_from_text(text: &str, count: usize, line: &dyn Fn(usize) -> A
         let (Ok(first), Ok(last), Ok(colour)) = (first.parse::<usize>(), last.parse::<usize>(), colour.parse::<u8>()) else {
             continue;
         };
-        if last < first || colour as usize >= theme::TAG_NAMES.len() {
+        if last < first || !crate::own_tags::exists(colour) {
             continue;
         }
         // Where it was, or the nearest line that reads the same.
@@ -78,6 +78,8 @@ impl Limoniter {
         let Some(file) = self.tags_file(path) else {
             return;
         };
+        // The project's own tags have to be known to tell a tag that's been deleted from one that's there.
+        self.sync_project_tags();
         let Ok(text) = std::fs::read_to_string(file) else {
             return;
         };
@@ -151,7 +153,7 @@ impl Limoniter {
 
     pub(super) fn go_to_tag(&mut self, next: bool) {
         if !self.doc().text.go_to_tag(next) {
-            self.message("Colour tags", crate::i18n::tr("This file has no colour tags yet. Select some lines, or put the cursor in a function or paragraph, and choose a colour from Edit, Colour tag, or by right-clicking.").into());
+            self.message("Colour tags", crate::i18n::tr("This file has no colour tags yet. Select some lines, or put the cursor in a function or paragraph, and choose a colour from View, Colour tag, or by right-clicking.").into());
         }
     }
 
@@ -285,6 +287,121 @@ mod tests {
         app.doc().text.move_caret(5, 0, false);
         app.run_command_for_test(Command::Tag(1), &ctx);
         assert_eq!(app.docs[app.active].text.tags(), [(4, 6, 1)]);
+    }
+
+    /// Makes the tag editor's draft with one new tag in it, named and coloured, and puts it in force.
+    fn make_tag(app: &mut Limoniter, name: &str, key: &str, project: bool) -> u8 {
+        let mut draft = own_tags_host::Draft::new(app.project.is_some(), true);
+        let last = draft.rows.len() - 1;
+        draft.rows[last].def.name = name.into();
+        draft.rows[last].def.key = key.into();
+        draft.keep_in(last, project);
+        let id = draft.rows[last].def.id;
+        assert_eq!(draft.problem(&[]), None);
+        app.apply_tag_draft(draft);
+        id
+    }
+
+    #[test]
+    fn a_tag_of_your_own_is_made_used_kept_and_read_back() {
+        crate::own_tags::set(&[], &[]);
+        let (mut app, ctx) = app_with_text(&CODE);
+        let id = make_tag(&mut app, "To check", "Ctrl+Alt+J", false);
+        assert_eq!(id, 6);
+        assert_eq!(crate::own_tags::name(6), "To check");
+        // Its own key tags the function the cursor is in.
+        app.doc().text.move_caret(1, 0, false);
+        frame(&mut app, &ctx, vec![key(Key::J, Modifiers::CTRL | Modifiers::ALT)]);
+        assert_eq!(app.docs[app.active].text.tags(), [(0, 2, 6)]);
+        // It's in the settings, and a program started from them has it.
+        let settings = app.current_settings();
+        assert!(settings.contains("own_tag=6\tTo check\t#"), "{settings}");
+        let _later = Limoniter::build(settings, None, Some(PathBuf::from("never-written.png")));
+        assert_eq!(crate::own_tags::name(6), "To check");
+        assert_eq!(crate::own_tags::keys(), [(6, "Ctrl+Alt+J".to_string())]);
+        crate::own_tags::set(&[], &[]);
+    }
+
+    #[test]
+    fn the_six_can_be_renamed_and_show_their_new_name() {
+        crate::own_tags::set(&[], &[]);
+        let (mut app, _ctx) = app_with_text(&CODE);
+        let mut draft = own_tags_host::Draft::new(false, false);
+        draft.rows[1].def.name = "Slow".into();
+        app.apply_tag_draft(draft);
+        assert_eq!(crate::own_tags::name(1), "Slow");
+        assert_eq!(crate::own_tags::name(0), "Red");
+        assert!(crate::own_tags::all().iter().any(|t| t.id == 1 && t.name == "Slow" && t.key == "Ctrl+Shift+2"));
+        assert!(app.current_settings().contains("own_tag=1\tSlow"));
+        crate::own_tags::set(&[], &[]);
+    }
+
+    #[test]
+    fn deleting_a_tag_turns_its_places_into_another_or_takes_them_away() {
+        crate::own_tags::set(&[], &[]);
+        let (mut app, _ctx) = app_with_text(&CODE);
+        let id = make_tag(&mut app, "Ask Sam", "", false);
+        app.doc().text.tag_lines(0, 2, id);
+        app.doc().text.tag_lines(4, 6, id);
+        assert_eq!(app.places_with_tag(id), 2);
+        // Turned into Blue.
+        let mut draft = own_tags_host::Draft::new(false, false);
+        let at = draft.rows.iter().position(|r| r.def.id == id).unwrap();
+        draft.rows.remove(at);
+        draft.removed.push((id, Some(4)));
+        app.apply_tag_draft(draft);
+        assert_eq!(app.docs[app.active].text.tags(), [(0, 2, 4), (4, 6, 4)]);
+        assert_eq!(crate::own_tags::user().len(), 0);
+        // Taken away.
+        let id = make_tag(&mut app, "Ask Sam", "", false);
+        app.doc().text.tag_lines(8, 8, id);
+        let mut draft = own_tags_host::Draft::new(false, false);
+        let at = draft.rows.iter().position(|r| r.def.id == id).unwrap();
+        draft.rows.remove(at);
+        draft.removed.push((id, None));
+        app.apply_tag_draft(draft);
+        assert_eq!(app.docs[app.active].text.tags(), [(0, 2, 4), (4, 6, 4)]);
+        crate::own_tags::set(&[], &[]);
+    }
+
+    #[test]
+    fn a_projects_tags_are_kept_with_it_and_listed_first() {
+        crate::own_tags::set(&[], &[]);
+        let (mut app, _ctx) = app_with_text(&CODE);
+        let folder = std::env::temp_dir().join(format!("limoniter-own-tags-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&folder);
+        app.project = Some(project::Project::new(&folder.join("tags.limproj")));
+        let mine = make_tag(&mut app, "Mine", "", false);
+        let ours = make_tag(&mut app, "Release", "", true);
+        assert!(ours >= 128 && mine < 128);
+        assert_eq!(app.project.as_ref().unwrap().prefs.tags.len(), 1);
+        let names: Vec<String> = crate::own_tags::all().into_iter().map(|t| t.name).collect();
+        assert_eq!(names.first().map(String::as_str), Some("Release"));
+        assert_eq!(names.last().map(String::as_str), Some("Mine"));
+        let saved = std::fs::read_to_string(folder.join("tags.limproj")).unwrap_or_default();
+        assert!(saved.contains("Release"), "{saved}");
+        let _ = std::fs::remove_dir_all(&folder);
+        crate::own_tags::set(&[], &[]);
+    }
+
+    #[test]
+    fn tags_kept_before_tags_of_your_own_still_read() {
+        let text = "0\t2\t4\tfn one() {\n4\t6\t0\tfn two() {\n";
+        let tags = tags_from_text(text, 9, &|at| Arc::from(CODE[at]));
+        assert_eq!(tags.into_iter().collect::<Vec<_>>(), [(0, (2, 4)), (4, (6, 0))]);
+    }
+
+    #[test]
+    fn the_tag_menu_is_in_view_not_edit_and_go_to_filters_by_name() {
+        let has_tag_menu = |entries: &[menus::Entry]| entries.iter().any(|e| matches!(e, menus::Entry::Sub("Colour tag", _)));
+        assert!(has_tag_menu(menus::MENUS[3].1), "View has it");
+        assert!(!has_tag_menu(menus::MENUS[1].1), "Edit no longer does");
+        assert_eq!(menus::MENUS[3].0, "View");
+        crate::own_tags::set(&[crate::own_tags::Def { id: 6, name: "To check".into(), colour: Some([1, 2, 3]), key: String::new() }], &[]);
+        let found: Vec<String> = crate::own_tags::matching("che").into_iter().map(|t| t.name).collect();
+        assert_eq!(found, ["To check"]);
+        assert_eq!(crate::own_tags::matching("").len(), 7);
+        crate::own_tags::set(&[], &[]);
     }
 
     #[test]

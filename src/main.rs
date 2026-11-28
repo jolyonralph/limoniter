@@ -123,6 +123,7 @@ mod c64_tools;
 mod project;
 mod project_import;
 mod project_prefs;
+mod own_tags;
 mod reformat;
 mod running;
 mod sound;
@@ -245,8 +246,11 @@ mod agent_claude;
 mod agent_logs;
 mod agent_panel;
 mod agent_session;
+mod usage_logs;
+mod usage_status;
 mod files_changing;
 mod view_extras;
+mod colour_picker;
 mod terminal;
 mod serial_link;
 mod xmodem;
@@ -297,6 +301,9 @@ mod layouts;
 mod emulator_get;
 mod code_spelling;
 mod spelling;
+mod words;
+mod words_prose;
+mod words_verse;
 mod strings_explorer;
 mod structure;
 mod structure_library;
@@ -393,6 +400,13 @@ fn main() -> eframe::Result {
     if std::env::args_os().any(|arg| arg == "--unregister-file-types") {
         let _ = associations::remove_if_mine();
         return Ok(());
+    }
+    // Claude Code's status line asking Limoniter for a line to show: no window, and nothing else printed.
+    {
+        let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+        if usage_status::wanted(&args) {
+            std::process::exit(usage_status::run_cli(&args));
+        }
     }
     let all: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
     // How to open the files: where in them, in which window, and whether to wait for them to be closed.

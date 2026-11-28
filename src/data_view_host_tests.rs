@@ -63,8 +63,11 @@ fn copied(output: &egui::FullOutput) -> Option<String> {
     })
 }
 
+/// A copy of a test file in a folder of its own, as some tests remove their folder while others still run.
 fn test_file(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("limoniter-data-{}", std::process::id()));
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("limoniter-data-{}-{n}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let to = dir.join(name);
     std::fs::copy(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/data_testdata").join(name), &to).unwrap();
