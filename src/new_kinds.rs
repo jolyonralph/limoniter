@@ -140,6 +140,7 @@ impl NewKind {
             Self::new("EDSAC (1949): a first program (Initial Orders 2)", "edsac", "utf-8", line, highlight::EDSAC, Program::None, crate::edsac::HELLO),
             Self::new("PDP-8 (1965): hello on the Teletype (PAL)", "pal", "utf-8", line, highlight::PAL8, Program::None, crate::pal8::HELLO),
             Self::new("PDP-8 (1965): echo the keyboard (PAL)", "pal", "utf-8", line, highlight::PAL8, Program::None, crate::pal8::ECHO),
+            Self::new("C", "c", "utf-8", line, "", Program::None, "#include <stdio.h>\n\nint main(void)\n{\n    printf(\"Hello\\n\");\n    return 0;\n}\n"),
             Self::new("C for the Commodore 64 (cc65 or llvm-mos)", "c", "utf-8", line, "C", Program::None, crate::c_starters::C64),
             Self::new("C for the ZX Spectrum (z88dk)", "c", "utf-8", line, "C", Program::None, crate::c_starters::SPECTRUM),
             Self::new("C for the ZX Spectrum (SDCC)", "c", "utf-8", line, "C", Program::None, crate::c_starters::SPECTRUM_SDCC),
@@ -157,7 +158,6 @@ impl NewKind {
             Self::new("Python notebook (Jupyter): an example", "ipynb", "utf-8", Eol::Lf, "", Program::None, &crate::notebook::Notebook::python_example().to_json()),
             Self::new("R notebook (Jupyter): an example", "ipynb", "utf-8", Eol::Lf, "", Program::None, &crate::notebook::Notebook::r_example().to_json()),
             Self::new("Python", "py", "utf-8", line, "", Program::None, "def main():\n    print(\"Hello\")\n\n\nif __name__ == \"__main__\":\n    main()\n"),
-            Self::new("C", "c", "utf-8", line, "", Program::None, "#include <stdio.h>\n\nint main(void)\n{\n    printf(\"Hello\\n\");\n    return 0;\n}\n"),
             Self::new("C++", "cpp", "utf-8", line, "", Program::None, "#include <iostream>\n\nint main()\n{\n    std::cout << \"Hello\\n\";\n}\n"),
             Self::new("Rust", "rs", "utf-8", line, "", Program::None, "fn main() {\n    println!(\"Hello\");\n}\n"),
             Self::new("Go", "go", "utf-8", line, "", Program::None, "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Hello\")\n}\n"),
@@ -219,8 +219,8 @@ pub(super) const GROUPS: [&str; 18] = [
     "Dragon and Vectrex",
     "PC",
     "Early computing",
-    "Any machine: assembler",
-    "C for older machines",
+    "Any machine",
+    "C",
     "Your own",
 ];
 
@@ -229,13 +229,14 @@ impl NewKind {
     pub(super) fn group(&self) -> &'static str {
         let name = self.name.as_str();
         let starts = |p: &str| name.starts_with(p);
-        if starts("C for ") {
-            "C for older machines"
+        if starts("C for ") || name == "C" {
+            "C"
         } else if starts("Manchester Baby") || starts("EDSAC") || starts("PDP-8") {
             "Early computing"
-        } else if ["Z80 assembler", "6502 assembler", "6809 assembler", "68000 assembler"].contains(&name) {
-            "Any machine: assembler"
-        } else if starts("Spectrum") || starts("ZX80") || starts("ZX81") || starts("Jupiter Ace") || starts("Boriel") || starts("OpticBASIC") {
+        } else if ["Z80 assembler", "6502 assembler", "6809 assembler", "68000 assembler", "RGC BASIC"].contains(&name) || starts("Turbo Rascal") {
+            // Assemblers, and the languages that make programs for many machines.
+            "Any machine"
+        } else if starts("Spectrum") || starts("ZX Spectrum") || starts("ZX80") || starts("ZX81") || starts("Jupiter Ace") || starts("Boriel") || starts("OpticBASIC") {
             "ZX Spectrum, ZX80, ZX81 and Jupiter Ace"
         } else if starts("QL program") {
             "Sinclair QL"

@@ -37,6 +37,7 @@ Limoniter 0.18.0 makes Limoniter the place where Claude Code and Codex work. Bot
 
 **And**
 - With no project open, the Project panel lists the **recent projects** to open.
+- **File, New as**: RGC BASIC and Turbo Rascal are under **Any machine** with the assemblers, the ZX Spectrum demo is with the Spectrum, and C has a sub-menu of its own, plain C first.
 
 ## Downloads
 

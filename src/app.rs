@@ -12502,6 +12502,20 @@ mod tests {
     }
 
     #[test]
+    fn retro_kinds_are_not_among_the_modern_languages_in_new_as() {
+        let kinds = new_kinds::NewKind::usual();
+        let group = |name: &str| kinds.iter().find(|k| k.name.starts_with(name)).unwrap().group();
+        assert_eq!(group("RGC BASIC"), "Any machine");
+        assert_eq!(group("Turbo Rascal"), "Any machine");
+        assert_eq!(group("ZX Spectrum demo"), "ZX Spectrum, ZX80, ZX81 and Jupiter Ace");
+        assert_eq!(kinds.iter().find(|k| k.name == "C").unwrap().group(), "C");
+        let c: Vec<&str> = kinds.iter().filter(|k| k.group() == "C").map(|k| k.name.as_str()).collect();
+        assert_eq!(c.first(), Some(&"C"), "plain C comes first in its sub-menu");
+        assert!(c.iter().skip(1).all(|name| name.starts_with("C for ")));
+        assert_eq!(group("C++"), "Modern languages");
+    }
+
+    #[test]
     fn the_kinds_last_chosen_in_new_as_come_first_and_are_kept() {
         let (mut app, _ctx) = app_with("");
         let at = |app: &Limoniter, name: &str| app.new_kinds.iter().position(|k| k.name == name).unwrap();
