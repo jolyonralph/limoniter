@@ -73,6 +73,7 @@ fn model_name(session: &Session) -> String {
 fn top(ui: &mut Ui, tab: &mut Tab) {
     let session = &mut tab.session;
     ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new(session.tool.name()).color(theme::text_dim()).strong());
         if !session.models.is_empty() {
             let mut picked = None;
             egui::ComboBox::from_id_salt(("agent-model", tab.number)).selected_text(model_name(session)).width(130.0).show_ui(ui, |ui| {
@@ -102,10 +103,10 @@ fn top(ui: &mut Ui, tab: &mut Tab) {
             session.set_effort(&effort);
         }
         let mut mode = None;
-        egui::ComboBox::from_id_salt(("agent-mode", tab.number)).selected_text(crate::i18n::tr(session.mode.label())).width(140.0).show_ui(ui, |ui| {
-            for candidate in Mode::ALL {
-                let response = ui.selectable_label(session.mode == candidate, crate::i18n::tr(candidate.label()));
-                if response.on_hover_text(crate::i18n::tr(candidate.explain())).clicked() {
+        egui::ComboBox::from_id_salt(("agent-mode", tab.number)).selected_text(crate::i18n::tr(session.mode.label_for(session.tool))).width(140.0).show_ui(ui, |ui| {
+            for candidate in session.tool.modes() {
+                let response = ui.selectable_label(session.mode == candidate, crate::i18n::tr(candidate.label_for(session.tool)));
+                if response.on_hover_text(crate::i18n::tr(candidate.explain_for(session.tool))).clicked() {
                     mode = Some(candidate);
                 }
             }

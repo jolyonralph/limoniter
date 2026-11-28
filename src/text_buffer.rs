@@ -306,6 +306,8 @@ pub struct TextBuffer {
     pub delimited: Option<char>,
     /// Markdown: lists carry on as Enter is pressed.
     pub markdown: bool,
+    /// Song lyrics: a section, from its `[Tag]` line to the next, folds as a block of code does (see `lyrics`).
+    pub song: bool,
     /// A language a VS Code extension gives: the brackets that close themselves, and when lines indent.
     pub rules: Option<Arc<crate::vsix::LanguageRules>>,
     /// Where a closer was last put in by itself (line, character), so typing it there steps over it.
@@ -425,6 +427,7 @@ impl Default for TextBuffer {
             syllable_counts: None,
             delimited: None,
             markdown: false,
+            song: false,
             rules: None,
             auto_closed: None,
             markdown_checked: None,
@@ -3328,6 +3331,9 @@ impl TextBuffer {
     /// The last line of the stretch indented under this one, which is what folding it would hide. Blank lines
     /// inside it go with it, and any at the end of it stay out. None if nothing is indented under it.
     pub fn fold_end(&self, line: usize) -> Option<usize> {
+        if self.song {
+            return crate::lyrics::section_fold_end(self.lines.len(), line, MOST_FOLD_LINES, |i| self.lines.get(i));
+        }
         let indent = indent_of(&self.lines.get(line))?;
         let mut last = None;
         let limit = (line + 1 + MOST_FOLD_LINES).min(self.lines.len());
@@ -3343,6 +3349,9 @@ impl TextBuffer {
 
     /// Whether anything's indented under a line. This only looks as far as the next line with something on it.
     pub fn can_fold(&self, line: usize) -> bool {
+        if self.song {
+            return self.fold_end(line).is_some();
+        }
         let Some(indent) = indent_of(&self.lines.get(line)) else {
             return false;
         };

@@ -468,6 +468,15 @@ pub fn offer_completions(buffer: &TextBuffer, state: &mut ViewState, asked: bool
         state.completion = Some(Completion { line: buffer.caret_line, start, items, selected: keep });
         return;
     }
+    // A song: the section tags, after a [.
+    if buffer.song {
+        let found = (!buffer.has_selection() && !buffer.has_multi()).then(|| crate::lyrics::tag_completions(&buffer.line(buffer.caret_line), buffer.caret_col)).flatten();
+        state.completion = found.map(|(start, items)| {
+            let keep = state.completion.as_ref().and_then(|c| c.items.get(c.selected)).and_then(|was| items.iter().position(|i| i == was)).unwrap_or(0);
+            Completion { line: buffer.caret_line, start, items, selected: keep }
+        });
+        return;
+    }
     let Some(intel) = buffer.intel.as_ref().filter(|_| !buffer.has_selection() && !buffer.has_multi()) else {
         state.completion = None;
         return;
@@ -1555,7 +1564,7 @@ fn handle_text_input(ui: &Ui, buffer: &mut TextBuffer, state: &mut ViewState, cl
             Event::Text(t) if swallow > 0 && t.chars().count() == 1 => swallow -= 1,
             Event::Text(t) if is_typed(&t, current_mods) => {
                 state.wrap_goal = None;
-                typed_word = t.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '@' | '/' | '\\'));
+                typed_word = t.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '@' | '/' | '\\')) || (buffer.song && t == "[");
                 if !buffer.read_only {
                     scripting::note_typed(&t);
                     buffer.type_text(&t);
@@ -2427,7 +2436,11 @@ fn paint_text(ui: &Ui, b: &TextBuffer, view: Rect, l: &TextLayout, colours: &Lin
                 if slot.last
                     && let Some((syllables, guessed)) = found.syllables
                 {
-                    let said = if guessed { format!("{syllables}?") } else { syllables.to_string() };
+                    let mut said = if guessed { format!("{syllables}?") } else { syllables.to_string() };
+                    // A song's rhyme letter, with a ~ when the rhyme is only near, before the syllables.
+                    if let Some((letter, near)) = found.rhyme {
+                        said = format!("{letter}{} {said}", if near { '~' } else { ' ' });
+                    }
                     // On a chip of the page's colour, so a long line running under it can still be read round it.
                     let right = view.max.x - 16.0;
                     let chip = Rect::from_min_max(pos2(right - cell.x * (said.chars().count() as f32 + 1.0), y), pos2(right + cell.x * 0.5, y + cell.y));

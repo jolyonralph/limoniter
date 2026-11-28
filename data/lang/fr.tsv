@@ -11670,3 +11670,59 @@ claude-opus-5-5	claude-opus-5-5
 claude_limits	claude_limits
 gpt-5.5	gpt-5.5
 theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\nreopen_project={}\nclaude_ide={}\nclaude_limits={}\n	theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\nreopen_project={}\nclaude_ide={}\nclaude_limits={}\n
+Read only	Lecture seule
+Ask before changes (untrusted)	Demander avant les modifications (non fiable)
+Workspace write	Écriture dans l'espace de travail
+Full access	Accès complet
+Codex can read files and run safe commands, and can't change anything in this folder.	Codex peut lire des fichiers et exécuter des commandes sûres, mais ne peut rien modifier dans ce dossier.
+Codex edits files in this folder without asking, and asks before a command that needs more than that.	Codex modifie les fichiers de ce dossier sans demander, et demande avant une commande qui exige davantage.
+Codex works inside this folder, and asks before each edit and each command it can't be sure is harmless.	Codex travaille dans ce dossier et demande avant chaque modification et chaque commande dont il ne peut pas être sûr qu'elle est inoffensive.
+Warning: Codex may change or delete any file and run any command, without asking you. Only use this in a folder you could lose.	Attention : Codex peut modifier ou supprimer n'importe quel fichier et exécuter n'importe quelle commande, sans vous demander. N'utilisez ceci que dans un dossier que vous pourriez perdre.
+What Codex may do without asking:	Ce que Codex peut faire sans demander :
+Codex isn't installed here, or isn't on the PATH. Install it with npm i -g @openai/codex and sign in with codex, then try again.	Codex n'est pas installé ici, ou n'est pas dans le PATH. Installez-le avec npm i -g @openai/codex et connectez-vous avec codex, puis réessayez.
+{} isn't installed here, or isn't on the PATH.	{} n'est pas installé ici, ou n'est pas dans le PATH.
+Default ({})	Par défaut ({})
+Allow more access	Autoriser plus d'accès
+Change files	Modifier des fichiers
+Create {}	Créer {}
+Delete {}	Supprimer {}
+Move {} to {}	Déplacer {} vers {}
+Done.	Terminé.
+The change failed.	La modification a échoué.
+The turn failed.	Le tour a échoué.
+It wasn't allowed to make this change.	Cette modification n'a pas été autorisée.
+It wasn't allowed to run.	L'exécution n'a pas été autorisée.
+Finished with exit code {}.	Terminé avec le code de sortie {}.
+Your changes to {} were kept over Codex's, and Codex will be told in your next message.	Vos modifications de {} ont été conservées au lieu de celles de Codex, et Codex en sera informé dans votre prochain message.
+Couldn't write your changes to {}: {}	Impossible d'écrire vos modifications de {} : {}
+Codex tried to ask a question with choices, which this panel can't show yet.	Codex a voulu poser une question avec des choix, ce que ce panneau ne sait pas encore afficher.
+Codex is trying again after a problem: {}	Codex réessaie après un problème : {}
+Codex said: {}	Codex a dit : {}
+Codex couldn't start a session.	Codex n'a pas pu démarrer de session.
+Codex didn't answer.	Codex n'a pas répondu.
+Codex has finished.	Codex a terminé.
+Codex has gone.	Codex est parti.
+Codex stopped ({}). {}	Codex s'est arrêté ({}). {}
+Let Claude Code and Codex work with Limoniter	Laisser Claude Code et Codex travailler avec Limoniter
+When you run claude in Limoniter's terminal, it shows its proposed changes here to accept, reject or edit, sees what you've selected and the problems the language servers found, and can be told about a file with Mention in Claude Code. Codex sessions in the AI agents panel are offered the same through a small tool server. Limoniter listens only on this computer, and only for a program that has the key it keeps for it	Quand vous lancez claude dans le terminal de Limoniter, il affiche ici ses modifications proposées pour que vous les acceptiez, les refusiez ou les modifiiez, voit ce que vous avez sélectionné et les problèmes trouvés par les serveurs de langage, et peut être informé d'un fichier avec Mentionner dans Claude Code. Les sessions Codex du panneau des agents IA reçoivent la même chose par un petit serveur d'outils. Limoniter n'écoute que sur cet ordinateur, et seulement un programme qui a la clé qu'il garde pour cela
+Song lyrics (Suno and others)	Paroles de chansons (Suno et autres)
+Song lyrics	Paroles de chansons
+Copy the lyrics for Suno (with their tags)	Copier les paroles pour Suno (avec leurs tags)
+Copy the style for Suno	Copier le style pour Suno
+Copy the words alone (no tags)	Copier les mots seuls (sans tags)
+Style	Style
+Lyrics	Paroles
+Genre, mood, instruments, voice: what the song should sound like	Genre, ambiance, instruments, voix : à quoi la chanson doit ressembler
+{name}: {used} of {most}	{name} : {used} sur {most}
+Copy lyrics	Copier les paroles
+Copy style	Copier le style
+Copy the lyrics, with their tags, for Suno's lyrics box	Copier les paroles, avec leurs tags, pour la zone de paroles de Suno
+Copy the style for Suno's style box	Copier le style pour la zone de style de Suno
+Limits	Limites
+The most characters Suno's boxes take. These change with its models, so they can be changed here.	Le plus grand nombre de caractères que les zones de Suno acceptent. Il change avec ses modèles, vous pouvez donc le modifier ici.
+Copied the lyrics ({count} characters).	Paroles copiées ({count} caractères).
+Copied the lyrics ({count} characters), which is {extra} more than Suno's lyrics box takes.	Paroles copiées ({count} caractères), soit {extra} de plus que ce qu'accepte la zone de paroles de Suno.
+Copied the words without their tags ({count} characters).	Mots copiés sans leurs tags ({count} caractères).
+Copied the words without their tags ({count} characters), which is {extra} more than Suno's lyrics box takes.	Mots copiés sans leurs tags ({count} caractères), soit {extra} de plus que ce qu'accepte la zone de paroles de Suno.
+Copied the style ({count} characters).	Style copié ({count} caractères).
+Copied the style ({count} characters), which is {extra} more than Suno's style box takes.	Style copié ({count} caractères), soit {extra} de plus que ce qu'accepte la zone de style de Suno.

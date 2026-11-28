@@ -74,7 +74,7 @@ impl Limoniter {
         self.claude_ide.tried = true;
         self.claude_ide.starting = Some(rx);
         std::thread::spawn(move || {
-            let usable = assistant::installed("claude") || (cfg!(windows) && crate::terminal::shells().iter().any(|shell| matches!(shell, crate::terminal::Shell::Wsl(_))));
+            let usable = assistant::installed("claude") || assistant::installed("codex") || (cfg!(windows) && crate::terminal::shells().iter().any(|shell| matches!(shell, crate::terminal::Shell::Wsl(_))));
             if !usable {
                 let _ = tx.send(Err(String::new()));
                 return;
@@ -212,6 +212,33 @@ impl Limoniter {
                 let path = self.claude_host_path(&request.file_path, style);
                 let answer = self.claude_open_file(&path, &request);
                 let _ = reply.send(vec![answer]);
+            }
+            Event::CurrentSelection { client, reply } => {
+                let style = self.claude_ide.server.as_ref().map_or(PathStyle::Native, |server| server.style(client));
+                let distro = claude_ide::wsl_distro();
+                let json = match self.claude_current_selection() {
+                    Some(selection) => {
+                        let mut params = selection.params(style, distro.as_deref());
+                        params["success"] = serde_json::json!(true);
+                        params
+                    }
+                    None => serde_json::json!({ "success": false, "message": "No text file is open in the editor" }),
+                };
+                let _ = reply.send(vec![json.to_string()]);
+            }
+            Event::OpenEditors { client, reply } => {
+                let style = self.claude_ide.server.as_ref().map_or(PathStyle::Native, |server| server.style(client));
+                let tabs: Vec<serde_json::Value> = self
+                    .docs
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(n, doc)| {
+                        let path = doc.path.as_deref()?;
+                        let written = self.claude_client_path(path, style);
+                        Some(serde_json::json!({ "uri": claude_ide::file_uri(&written), "filePath": written, "label": doc.name(), "isActive": n == self.active, "isDirty": doc.is_modified() }))
+                    })
+                    .collect();
+                let _ = reply.send(vec![serde_json::json!({ "tabs": tabs }).to_string()]);
             }
             Event::Diagnostics { client, uri, reply } => {
                 let style = self.claude_ide.server.as_ref().map_or(PathStyle::Native, |server| server.style(client));

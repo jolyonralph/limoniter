@@ -87,6 +87,8 @@ enum Command {
     PyR(python_host::PyAction),
     /// Rhymes, the thesaurus, metre and the haiku and limerick checks.
     Words(words_host::Action),
+    /// Song lyrics: what's copied out for Suno.
+    Lyrics(lyrics_host::Action),
     TimeSpent,
     HowToCode,
     HowToCodeExamples,
@@ -4764,6 +4766,7 @@ impl Limoniter {
                 | Command::ShowHistory
                 | Command::Toggle(_)
                 | Command::Words(_)
+                | Command::Lyrics(_)
                 | Command::HidePanels
                 | Command::CommandPalette
                 | Command::About
@@ -4993,6 +4996,7 @@ impl Limoniter {
             Command::Php(action) => self.php_command(action),
             Command::PyR(action) => self.python_command(action),
             Command::Words(action) => self.words_command(action),
+            Command::Lyrics(action) => self.lyrics_command(action, ui.ctx()),
             Command::TimeSpent => self.time_spent_open = Some(7),
             Command::HowToCode => self.open_how_to_code(),
             Command::HowToCodeExamples => self.copy_how_to_code_examples(),
@@ -6456,6 +6460,10 @@ impl Limoniter {
         let plain_text = !self.docs[index].placeholder && !self.docs[index].hex_mode && self.docs[index].table.is_none();
         if plain_text && self.view.breadcrumbs {
             self.breadcrumbs(ui, index);
+        }
+        // A song's style box and the lengths of its boxes.
+        if plain_text {
+            self.lyrics_strip(ui, index);
         }
         let sticky = if plain_text { self.sticky_line(index) } else { None };
         self.docs[index].text_state.sticky = sticky;
@@ -8619,6 +8627,8 @@ impl Limoniter {
                 "agents" => self.agents_screenshot_step(value),
                 // The Usage window with made-up figures.
                 "usage" => self.usage_screenshot_step(value),
+                // The New session box.
+                "agent-new" => self.agents_dialog_screenshot_step(value),
                 "stacked" => {
                     self.panels.project = true;
                     self.panels.functions = true;
@@ -9059,6 +9069,7 @@ impl Limoniter {
                 "addons" | "addon-panel" => self.script_screenshot_step(step),
                 step if step.starts_with("window-theme=") => self.themes.window = step["window-theme=".len()..].to_string(),
                 step if step.starts_with("document-theme=") => self.doc().theme_override = Some(step["document-theme=".len()..].to_string()),
+                "lyrics-tags" => self.lyrics_screenshot_step(),
                 "words-rhymes" | "words-thesaurus" | "words-verse" | "words-prose" => self.words_screenshot_step(step),
                 "themes" => self.open_theme_box(theme_host::ThemePage::Documents),
                 "extensions" => self.extensions_screenshot_step("extensions", ""),
@@ -9473,6 +9484,7 @@ impl Limoniter {
         self.music_housekeeping();
         self.control_keys_window(&ctx);
         self.words_window(&ctx);
+        self.lyrics_tick();
         self.read_editor_config();
         let mut edit = self.prefs.edit;
         if let Some(spaces) = self.editor_config.as_ref().and_then(|(_, c)| c.spaces).or_else(|| self.project.as_ref().and_then(|p| p.prefs.spaces)) {
@@ -10573,6 +10585,8 @@ mod atari2600_run_host;
 mod control_hints_host;
 #[path = "words_host.rs"]
 pub(crate) mod words_host;
+#[path = "lyrics_host.rs"]
+pub(crate) mod lyrics_host;
 #[path = "vectrex_run_host.rs"]
 mod vectrex_run_host;
 #[path = "compile_host.rs"]

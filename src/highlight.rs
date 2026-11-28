@@ -121,7 +121,7 @@ pub const SCHEMES: [EmbeddedThemeName; 29] = [
 ];
 
 /// Grammars written for Limoniter, added to the ones from two-face.
-const OWN_GRAMMARS: [(&str, &str); 52] = [
+const OWN_GRAMMARS: [(&str, &str); 53] = [
     (HTTP_REQUESTS, include_str!("../data/syntaxes/http-requests.sublime-syntax")),
     (ASM_80X86, include_str!("../data/syntaxes/assembly-80x86.sublime-syntax")),
     (ASM_680X0, include_str!("../data/syntaxes/assembly-680x0.sublime-syntax")),
@@ -174,7 +174,10 @@ const OWN_GRAMMARS: [(&str, &str); 52] = [
     (PAL8, include_str!("../data/syntaxes/assembly-pal.sublime-syntax")),
     (TURBO_RASCAL, include_str!("../data/syntaxes/turbo-rascal.sublime-syntax")),
     (BASIC_RGC, include_str!("../data/syntaxes/basic-rgc.sublime-syntax")),
+    (SONG_LYRICS, include_str!("../data/syntaxes/song-lyrics.sublime-syntax")),
 ];
+/// Song lyrics, with their sections' tags coloured (see `lyrics`).
+pub const SONG_LYRICS: &str = crate::lyrics::LANGUAGE;
 /// TRSE's language, Turbo Rascal, which F9 builds with TRSE (see `compilers`).
 pub const TURBO_RASCAL: &str = "Turbo Rascal (TRSE)";
 /// Retro Game Coders' RGC BASIC, which F9 runs with its own interpreter.

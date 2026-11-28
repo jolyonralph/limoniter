@@ -147,6 +147,8 @@ pub struct LineMarks {
     pub spans: Vec<prose::Mark>,
     /// Syllables in the line, and whether some of its words were guessed.
     pub syllables: Option<(usize, bool)>,
+    /// A song's rhyme scheme: the line's letter, and whether it only rhymes nearly (see `lyrics_host`).
+    pub rhyme: Option<(char, bool)>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -160,6 +162,10 @@ const MOST_WORDS_LINE: usize = 2000;
 /// The marks for the lines `first..=last`, as they'd be drawn. Syllable counts go beside text and Markdown (or
 /// any file the person turned them on for); the underlines only on prose, never code.
 pub fn marks_for(b: &TextBuffer, is_code: bool, first: usize, last: usize) -> Marks {
+    // A song's margin is its own: syllables and the rhyme scheme of each section.
+    if b.song {
+        return super::lyrics_host::marks(b, first, last);
+    }
     let o = options();
     let count_syllables = b.syllable_counts.unwrap_or(o.syllables_in_text && !is_code);
     let prose_marks = o.any_marks() && !is_code;

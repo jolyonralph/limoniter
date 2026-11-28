@@ -1027,6 +1027,7 @@ All {} rows of {table}.
 AllocMem, MUIA_, exec
 Allocation block
 Allow for this session
+Allow more access
 Allow once
 Allowed
 Allowed for this session
@@ -1673,6 +1674,7 @@ Change
 Change a colour
 Change a register
 Change case
+Change files
 Change it…
 Change the colour picked to the one the machine shows
 Change the icon
@@ -1889,7 +1891,15 @@ Code as a picture…
 Code for the floppy's boot sector: a whole boot sector (512 bytes) or code of up to 480 bytes
 Code reformat
 Codex
-Codex (in the next batch)
+Codex couldn't start a session.
+Codex didn't answer.
+Codex has finished.
+Codex has gone.
+Codex is trying again after a problem: {}
+Codex isn't installed here, or isn't on the PATH. Install it with npm i -g @openai/codex and sign in with codex, then try again.
+Codex said: {}
+Codex stopped ({}). {}
+Codex tried to ask a question with choices, which this panel can't show yet.
 ColecoVision
 Collapse every folder
 Colodore
@@ -2072,6 +2082,12 @@ Converting {name} with LSPConvert
 Cookie-cut (D = AB + aC)
 Copied 1 file
 Copied in. Press OK to keep them as the project's own.
+Copied the lyrics ({count} characters), which is {extra} more than Suno's lyrics box takes.
+Copied the lyrics ({count} characters).
+Copied the style ({count} characters), which is {extra} more than Suno's style box takes.
+Copied the style ({count} characters).
+Copied the words without their tags ({count} characters), which is {extra} more than Suno's lyrics box takes.
+Copied the words without their tags ({count} characters).
 Copied to the clipboard.
 Copied {} files
 Copied {} to {}.
@@ -2104,12 +2120,14 @@ Copy body
 Copy every call as EQUs
 Copy everything shown, as text
 Copy it
+Copy lyrics
 Copy name
 Copy newer files and files that are missing. Nothing is deleted
 Copy of this
 Copy or cut the whole line if nothing is selected
 Copy path
 Copy selected
+Copy style
 Copy the bookmarked lines
 Copy the chip's EQUs
 Copy the chip's names
@@ -2118,12 +2136,17 @@ Copy the difference the cursor is in, or the one gone to last, over the left sid
 Copy the difference the cursor is in, or the one gone to last, over the right side's
 Copy the file's path
 Copy the line you're on, or the selection, just below it.
+Copy the lyrics for Suno (with their tags)
+Copy the lyrics, with their tags, for Suno's lyrics box
 Copy the name
 Copy the offset
 Copy the palette
 Copy the picture
 Copy the selected rows
+Copy the style for Suno
+Copy the style for Suno's style box
 Copy the text
+Copy the words alone (no tags)
 Copy to the left…
 Copy to the right ▶
 Copy to the right ▶…
@@ -2202,6 +2225,7 @@ Couldn't wait for it: {e}
 Couldn't work it out.
 Couldn't write .gitignore: {e}
 Couldn't write to {}: {e}
+Couldn't write your changes to {}: {}
 Couldn't write {}.\n\n{e}
 Couldn't write {}.\n\n{problem}
 Couldn't write {}: {e}
@@ -2210,6 +2234,7 @@ Counts the T-states spent in each routine and line, from now; click again to sto
 Cranker
 Crawcin: take it
 Create
+Create {}
 Created
 Created by
 Creates and starts every service: docker compose up -d
@@ -2362,6 +2387,7 @@ Decimal: {value}\nHex: 0x{value:X}\nOctal: 0o{value:o}\nBinary: 0b{value:b}
 Decoded disk.{}
 Decrunched size
 Default
+Default ({})
 Default editor for file types in Windows
 Default tool
 Default tool:
@@ -2384,6 +2410,7 @@ Delete {deletions} and sync
 Delete {name}
 Delete {name}? This can't be undone.
 Delete {path} on the server? This can't be undone.
+Delete {}
 Delete {} character(s)
 Delete {} line(s)
 Delete...
@@ -2454,6 +2481,7 @@ Don't erase first
 Don't save
 Don't send this
 Done
+Done.
 Done: {}.
 Double density, 880K
 Double-click or type to change a cell; Enter keeps it, Esc doesn't. Shift and the arrow keys, or dragging, select a block to copy, paste over or clear.
@@ -2867,6 +2895,7 @@ Find what:
 Finding lines: {:.0}%
 Find…
 Fingerprint (SHA-256)
+Finished with exit code {}.
 Finished, with exit code {code}.
 First is
 First line
@@ -3051,6 +3080,7 @@ Gather windows
 General
 General Punctuation
 Generic ASCII
+Genre, mood, instruments, voice: what the song should sound like
 Geometric Shapes
 Get an emulator…
 GetKey: waits for a key and gives its code.
@@ -3542,6 +3572,8 @@ It was sent on more than {MOST_HOPS} times: the redirects may be going round in 
 It was stopped before this file.
 It was stopped before this.
 It was stopped.
+It wasn't allowed to make this change.
+It wasn't allowed to run.
 It will work in {}.
 It's Kickstart {version}.{revision}, but not the size that one is ({} bytes), so it's damaged or not a whole ROM.
 It's TAP version {version}; only 0, 1 and 2 are known, so it was played as version 1.
@@ -3850,7 +3882,7 @@ Legacy Western Windows
 Legacy encodings stay selectable.
 Length first (1 byte{order}{counting})
 Length first ({width} bytes{order}{counting})
-Let Claude Code in the terminal work with Limoniter
+Let Claude Code and Codex work with Limoniter
 Let Workbench place it
 Let's start
 Lets go of every earlier state of this file. The text stays as it is
@@ -3863,6 +3895,7 @@ Light
 LightSpeedPlayer_Micro.asm (and convert with LSPConvert -micro)
 Like the ST one, it goes into supervisor mode, keeps what it changes and gives the machine back as it found it,
 Limerick
+Limits
 Limoniter
 Limoniter Light
 Limoniter can now open 1 type. To finish, choose Limoniter for it on the Windows page that just opened.
@@ -4062,6 +4095,7 @@ Low resolution, on the new screen, from the next frame.
 Lower case
 Lua
 Lua table
+Lyrics
 MACHINE takes 68000, 68008, 68010, 68020, 68030, 68040, 68060, CPU32, 68881, 68882 or 68851, and {name} isn't one
 MAME. It sets up the VDP (the video chip), draws a box of tiles whose colour changes as it runs, and has the Z80
 MARIA is told where the list is in a vertical blank
@@ -4279,6 +4313,7 @@ Move up a pixel
 Move {name} to the Recycle Bin, and delete it from {} too? On the server, that can't be undone.
 Move {name} to the Recycle Bin?
 Move {name} to {}, and close it?{unsaved}
+Move {} to {}
 Moved from line {}
 Moving it to the Recycle Bin was stopped.
 Multi-byte control sequences, in their own panel
@@ -6177,6 +6212,7 @@ Something has been put there since the comparison, so it was left alone. Compare
 Something new, by chance
 Song 2 (start)
 Song length
+Song lyrics
 Song order
 Song:
 Sort A to Z
@@ -6381,6 +6417,7 @@ String explorer
 Structs go more than {MOST_DEPTH} deep here; a struct may be inside itself for ever.
 Structure
 Structure templates
+Style
 Sub
 Sub 21        b - 1
 Sub 26        add b back: the remainder
@@ -6898,6 +6935,7 @@ The catalogue is full: a TR-DOS disk holds 128 files.
 The catalogue's file count isn't a whole number of entries, so the disk is damaged.
 The cells selected
 The certificate of {} isn't the one it had before, and no authority this computer trusts vouches for it, so Limoniter hasn't connected.\n\nThis can mean the server was set up again, or that someone is between you and it, reading what's sent. Check with whoever looks after the server before trusting the new certificate.\n\nTrusted before: {expected}\nNow: {found}
+The change failed.
 The change is open in a tab for you to accept or reject. You can edit it there first.
 The changed copy
 The character ROM is too short: it should be 4096 bytes (or 2048 for one set).
@@ -7323,6 +7361,7 @@ The memory management unit Limoniter's own assembler takes a 68020 to have besid
 The metre has {expected}
 The module's order is cut short.
 The most alike are made one until there are no more than this
+The most characters Suno's boxes take. These change with its models, so they can be changed here.
 The music. A stand-in that plays nothing, at the addresses a tune made for $1000 has. To play a tune, take
 The music: a SID tune made for $1000 starts (init) at $1000 and is played once a frame at $1003. A stand-in
 The name can be no more than 20 characters, so that its files' names fit the Amiga's 30.
@@ -7624,6 +7663,7 @@ The tune has no play routine to call: its init sets up its own interrupt, which 
 The tune's bytes at its load address, as a .prg, to disassemble
 The tune's code
 The tunes' lengths run past the header.
+The turn failed.
 The two are the same, so there's nothing to put in a patch.
 The two sides are already in step, so there's nothing to sync.
 The type it's stored as, such as u8
@@ -8564,6 +8604,7 @@ Week
 Went down
 Went up
 What Claude Code and Codex have used today, and what is left of the plan's limits
+What Codex may do without asking:
 What Copperline saw the program do that the chips ignore or get wrong (a byte written to a word register, a read-only register written, a pointer past chip memory, a blit started over another) and code written after it ran
 What Limoniter can do
 What Limoniter can do…
@@ -8602,7 +8643,7 @@ When the daily check finds one, it's downloaded in the background and checked ag
 When the server offers it
 When the table is scrolled sideways
 When the window loses the focus
-When you run claude in Limoniter's terminal, it shows its proposed changes here to accept, reject or edit, sees what you've selected and the problems the language servers found, and can be told about a file with Mention in Claude Code. Limoniter listens only on this computer, and only for a program that has the key it keeps in Claude Code's ide folder
+When you run claude in Limoniter's terminal, it shows its proposed changes here to accept, reject or edit, sees what you've selected and the problems the language servers found, and can be told about a file with Mention in Claude Code. Codex sessions in the AI agents panel are offered the same through a small tool server. Limoniter listens only on this computer, and only for a program that has the key it keeps for it
 Where 16 palette words are: 2 in a Degas picture, 4 in NEOchrome
 Where F9 runs programs
 Where each effect starts among the frames, and how many it has.
@@ -8768,6 +8809,7 @@ Yes: a BASIC program, RUN to start it
 Yes: it uses PlaySID's own extras, such as its samples
 You
 You're helping someone in a text editor. They've chosen a part of {file} ({language}), {lines}.\n\n{}\n
+Your changes to {} were kept over Codex's, and Codex will be told in your next message.
 Your email:
 Your icon couldn't be used, so Limoniter's own was: {problem}
 Your icon, {}, couldn't be read: {e}
@@ -10768,6 +10810,7 @@ zx_notation
 {name}: offset {value} in {structure} ({kind}, 1 byte)
 {name}: offset {value} in {structure} ({kind}, {size} bytes)
 {name}: the size of {structure}, {value} bytes
+{name}: {used} of {most}
 {name}: {what}, 1 row.
 {name}: {what}, {} rows.
 {name}: {} place
@@ -11261,6 +11304,7 @@ zx_notation
 {} isn't in this directory.
 {} isn't in this folder.
 {} isn't installed
+{} isn't installed here, or isn't on the PATH.
 {} isn't installed.
 {} isn't on the disk.
 {} isn't text Limoniter can read, so it was left as it is.

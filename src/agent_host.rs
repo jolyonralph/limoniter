@@ -12,6 +12,7 @@ use std::sync::mpsc::Receiver;
 /// How the person wants a new session.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Choice {
+    pub tool: Tool,
     pub mode: Mode,
     /// A model's `value`, "default" for the tool's own choice.
     pub model: String,
@@ -21,7 +22,7 @@ pub(super) struct Choice {
 
 impl Default for Choice {
     fn default() -> Self {
-        Choice { mode: Mode::Ask, model: "default".into(), effort: String::new() }
+        Choice { tool: Tool::Claude, mode: Mode::Ask, model: "default".into(), effort: String::new() }
     }
 }
 
@@ -51,6 +52,14 @@ pub(super) struct State {
     models: Vec<ModelChoice>,
     probing: Option<Receiver<Result<Vec<ModelChoice>, String>>>,
     probed: bool,
+    /// The same for Codex.
+    codex_models: Vec<ModelChoice>,
+    codex_probing: Option<Receiver<Result<Vec<ModelChoice>, String>>>,
+    codex_probed: bool,
+    /// What Codex was last told the person has open, and what that was worked out from.
+    codex_context_key: Option<(u64, u64, usize, usize, usize, usize, usize)>,
+    /// Codex's logs are followed for the project in this folder.
+    codex_watching: Option<PathBuf>,
     reviews: Vec<OpenReview>,
     /// Past sessions of the project, listed when asked for.
     past: Option<(PathBuf, Vec<Past>)>,
@@ -59,6 +68,8 @@ pub(super) struct State {
     scanning: Option<PathBuf>,
     /// The program that is Claude Code, and what goes before its own arguments. Tests put a stand-in here.
     pub program: (String, Vec<String>),
+    /// The same for Codex.
+    pub codex_program: (String, Vec<String>),
 }
 
 impl Default for State {
@@ -72,12 +83,18 @@ impl Default for State {
             models: Vec::new(),
             probing: None,
             probed: false,
+            codex_models: Vec::new(),
+            codex_probing: None,
+            codex_probed: false,
+            codex_context_key: None,
+            codex_watching: None,
             reviews: Vec::new(),
             past: None,
             showing_past: false,
             files: Arc::new(Mutex::new(None)),
             scanning: None,
             program: ("claude".to_string(), Vec::new()),
+            codex_program: ("codex".to_string(), Vec::new()),
         }
     }
 }
@@ -128,30 +145,37 @@ impl Limoniter {
 
     /// Starts a session on the program, in `folder`, and puts it in front.
     pub(super) fn agent_start(&mut self, ctx: &Context, folder: &Path, choice: &Choice, resume: Option<&Past>) -> Result<(), String> {
-        let (program, prefix) = self.agents.program.clone();
         let wake = ctx.clone();
-        // Tried with Claude Code 2.1.332 and Limoniter's own IDE server: a `claude -p` session didn't connect to it,
-        // with `--ide`, the port in CLAUDE_CODE_SSE_PORT and a matching lock file, so no port is passed (see NOTES).
-        let ide_port = None;
-        let options = crate::agent_claude::Options {
-            program,
-            prefix,
-            folder: folder.to_path_buf(),
-            mode: choice.mode,
-            model: Some(choice.model.clone()).filter(|m| m != "default"),
-            effort: Some(choice.effort.clone()).filter(|e| !e.is_empty()),
-            resume: resume.map(|p| p.id.clone()),
-            ide_port,
-            wake: Arc::new(move || wake.request_repaint()),
+        let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(move || wake.request_repaint());
+        let model = Some(choice.model.clone()).filter(|m| m != "default");
+        let effort = Some(choice.effort.clone()).filter(|e| !e.is_empty());
+        let (handle, known) = match choice.tool {
+            Tool::Claude => {
+                let (program, prefix) = self.agents.program.clone();
+                // Tried with Claude Code 2.1.332 and Limoniter's own IDE server: a `claude -p` session didn't connect to it,
+                // with `--ide`, the port in CLAUDE_CODE_SSE_PORT and a matching lock file, so no port is passed (see NOTES).
+                let ide_port = None;
+                let options = crate::agent_claude::Options { program, prefix, folder: folder.to_path_buf(), mode: choice.mode, model, effort, resume: resume.map(|p| p.id.clone()), ide_port, wake };
+                (crate::agent_claude::start(options)?, self.agents.models.clone())
+            }
+            Tool::Codex => {
+                let (program, prefix) = self.agents.codex_program.clone();
+                // Limoniter's tools go to this one thread as its own settings: the person's config.toml isn't touched.
+                let mcp = self.claude_ide.server.as_ref().filter(|_| self.prefs.claude_ide).map(|server| crate::agent_codex::Mcp { url: format!("http://127.0.0.1:{}/mcp", server.port), token: server.token.clone() });
+                let options = crate::agent_codex::Options { program, prefix, folder: folder.to_path_buf(), mode: choice.mode, model, effort, resume: resume.map(|p| p.id.clone()), mcp, wake };
+                (crate::agent_codex::start(options)?, self.agents.codex_models.clone())
+            }
         };
-        let handle = crate::agent_claude::start(options)?;
-        let mut session = Session::new(Tool::Claude, folder, handle);
+        let mut session = Session::new(choice.tool, folder, handle);
         session.mode = choice.mode;
         session.chosen_model = Some(choice.model.clone());
         session.effort = Some(choice.effort.clone()).filter(|e| !e.is_empty());
-        session.models.clone_from(&self.agents.models);
+        session.models = known;
         if let Some(past) = resume {
-            session.items = agent_logs::transcript(&past.path, folder);
+            session.items = match past.tool {
+                Tool::Claude => agent_logs::transcript(&past.path, folder),
+                Tool::Codex => crate::agent_codex_logs::transcript(&past.path, folder),
+            };
             session.title = past.title.clone();
             session.session_id = Some(past.id.clone());
         }
@@ -201,8 +225,24 @@ impl Limoniter {
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
             }
         }
+        if let Some(probing) = &self.agents.codex_probing {
+            match probing.try_recv() {
+                Ok(result) => {
+                    self.agents.codex_probing = None;
+                    if let Ok(models) = result
+                        && !models.is_empty()
+                    {
+                        self.agents.codex_models = models;
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => self.agents.codex_probing = None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+        self.codex_context_tick();
         let mut asked = Vec::new();
         let mut known = None;
+        let mut known_codex = None;
         for tab in &mut self.agents.tabs {
             let name = Self::agent_name(&tab.session);
             let folder = tab.session.folder.clone();
@@ -219,13 +259,18 @@ impl Limoniter {
                     // In the modes that don't ask, the first the window hears of a change is the tool using it.
                     Event::ToolUse { kind: ToolKind::FileChange(path), .. } => crate::files_changing::claim(&path, &name),
                     Event::ToolUse { kind: ToolKind::Command(_), .. } => crate::files_changing::claim(&folder, &name),
-                    Event::Ready { models, .. } if !models.is_empty() => known = Some(models),
+                    Event::Ready { models, .. } if !models.is_empty() => {
+                        if tab.session.tool == Tool::Codex { known_codex = Some(models) } else { known = Some(models) }
+                    }
                     _ => {}
                 }
             }
         }
         if let Some(models) = known {
             self.agents.models = models;
+        }
+        if let Some(models) = known_codex {
+            self.agents.codex_models = models;
         }
         for (session, permission) in asked {
             let PermissionKind::Edit { path, proposed } = &permission.kind else { continue };
@@ -270,6 +315,34 @@ impl Limoniter {
         if self.agents.tabs.iter().any(|t| t.session.busy) {
             ctx.request_repaint_after(Duration::from_millis(250));
         }
+    }
+
+    /// Keeps Codex told what the person has open (the file in front, what's selected, the other tabs), as its own VS
+    /// Code extension does, while a session of Codex is open; and follows the logs of a Codex run elsewhere.
+    fn codex_context_tick(&mut self) {
+        let folder = self.agent_folder();
+        if self.agents.codex_watching != folder
+            && let Some(folder) = &folder
+            && crate::agent_codex_logs::codex_home().is_some_and(|home| home.join("sessions").is_dir())
+        {
+            crate::agent_codex_logs::watch(folder);
+            self.agents.codex_watching = Some(folder.clone());
+        }
+        let Some(folder) = folder else { return };
+        if !self.agents.tabs.iter().any(|t| t.session.tool == Tool::Codex && t.session.finished.is_none()) {
+            self.agents.codex_context_key = None;
+            return;
+        }
+        let key = self.docs.get(self.active).map(|doc| (doc.id, doc.text.version(), doc.text.caret_line, doc.text.caret_col, doc.text.anchor_line, doc.text.anchor_col, self.docs.len()));
+        if key.is_some() && key == self.agents.codex_context_key {
+            return;
+        }
+        self.agents.codex_context_key = key;
+        let selection = self.claude_current_selection();
+        let file = selection.as_ref().map(|s| PathBuf::from(&s.path));
+        let tabs: Vec<(String, PathBuf)> = self.docs.iter().filter_map(|doc| doc.path.clone().map(|path| (doc.name(), path))).collect();
+        let text = crate::agent_codex::ide_context_text(&folder, file.as_deref(), selection.as_ref().map_or("", |s| s.text.as_str()), &tabs);
+        crate::agent_codex::set_ide_context(text);
     }
 
     /// The files `@` can name, started on a thread when the project is new to the panel.
@@ -327,7 +400,9 @@ impl Limoniter {
     /// The past sessions of the folder, as rows to take up.
     fn agent_past_list(&mut self, ui: &mut Ui, folder: &Path) -> Option<Past> {
         if self.agents.past.as_ref().is_none_or(|(f, _)| f != folder) {
-            let listed = crate::claude_ide::config_dir().map(|config| agent_logs::list(&config, folder)).unwrap_or_default();
+            let mut listed = crate::claude_ide::config_dir().map(|config| agent_logs::list(&config, folder)).unwrap_or_default();
+            listed.extend(crate::agent_codex_logs::codex_home().map(|home| crate::agent_codex_logs::list(&home, folder)).unwrap_or_default());
+            listed.sort_by_key(|past| std::cmp::Reverse(past.when));
             self.agents.past = Some((folder.to_path_buf(), listed));
         }
         let mut chosen = None;
@@ -339,7 +414,7 @@ impl Limoniter {
             for session in past {
                 let when: chrono::DateTime<chrono::Local> = session.when.into();
                 let response = ui.add(egui::Button::new(egui::RichText::new(&session.title).color(theme::text()).size(12.5)).frame(false));
-                ui.label(egui::RichText::new(format!("{}  {}", when.format("%d %b %H:%M"), crate::agent_session::title_from(&session.first_message))).color(theme::text_faint()).size(11.0));
+                ui.label(egui::RichText::new(format!("{}  {}  {}", when.format("%d %b %H:%M"), session.tool.name(), crate::agent_session::title_from(&session.first_message))).color(theme::text_faint()).size(11.0));
                 if response.on_hover_text(crate::i18n::tr("Carry on with this session")).clicked() {
                     chosen = Some(session.clone());
                 }
@@ -388,7 +463,7 @@ impl Limoniter {
         if let Some(past) = resume {
             self.agents.showing_past = false;
             let choice = self.agents.last.clone();
-            if let Err(why) = self.agent_start(&ctx, &folder, &Choice { mode: choice.mode, ..choice }, Some(&past)) {
+            if let Err(why) = self.agent_start(&ctx, &folder, &Choice { tool: past.tool, model: if choice.tool == past.tool { choice.model.clone() } else { "default".into() }, effort: if choice.tool == past.tool { choice.effort.clone() } else { String::new() }, ..choice }, Some(&past)) {
                 self.message("AI agents", why);
             }
         }
@@ -408,6 +483,42 @@ impl Limoniter {
         }
     }
 
+    /// Whether a tool's program can be run: its own, or the stand-in a test gave.
+    fn agent_installed(&self, tool: Tool) -> bool {
+        let (program, prefix) = match tool {
+            Tool::Claude => &self.agents.program,
+            Tool::Codex => &self.agents.codex_program,
+        };
+        !prefix.is_empty() || assistant::installed(program)
+    }
+
+    /// Asks the tool which models it has, once, on a thread; nothing is sent to the service.
+    fn agent_probe(&mut self, ctx: &Context, tool: Tool, folder: &Path) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (program, prefix) = match tool {
+            Tool::Claude => self.agents.program.clone(),
+            Tool::Codex => self.agents.codex_program.clone(),
+        };
+        let (folder, wake) = (folder.to_path_buf(), ctx.clone());
+        std::thread::spawn(move || {
+            let _ = tx.send(match tool {
+                Tool::Claude => crate::agent_claude::probe_models(&program, &prefix, &folder),
+                Tool::Codex => crate::agent_codex::probe_models(&program, &prefix, &folder),
+            });
+            wake.request_repaint();
+        });
+        match tool {
+            Tool::Claude => {
+                self.agents.probed = true;
+                self.agents.probing = Some(rx);
+            }
+            Tool::Codex => {
+                self.agents.codex_probed = true;
+                self.agents.codex_probing = Some(rx);
+            }
+        }
+    }
+
     /// The box for choosing how a new session goes.
     pub(super) fn agent_dialog(&mut self, ctx: &Context) {
         let Some(mut choice) = self.agents.dialog.clone() else { return };
@@ -415,19 +526,18 @@ impl Limoniter {
             self.agents.dialog = None;
             return;
         };
-        if self.agents.models.is_empty() && self.agents.probing.is_none() && !self.agents.probed {
-            // The program is asked which models it has, once; nothing is sent to the service.
-            self.agents.probed = true;
-            let (tx, rx) = std::sync::mpsc::channel();
-            let ((program, prefix), folder, wake) = (self.agents.program.clone(), folder.clone(), ctx.clone());
-            std::thread::spawn(move || {
-                let _ = tx.send(crate::agent_claude::probe_models(&program, &prefix, &folder));
-                wake.request_repaint();
-            });
-            self.agents.probing = Some(rx);
+        let tool = choice.tool;
+        let installed = self.agent_installed(tool);
+        let installed_both = [self.agent_installed(Tool::Claude), self.agent_installed(Tool::Codex)];
+        let (known, asking, probed) = match tool {
+            Tool::Claude => (&self.agents.models, self.agents.probing.is_some(), self.agents.probed),
+            Tool::Codex => (&self.agents.codex_models, self.agents.codex_probing.is_some(), self.agents.codex_probed),
+        };
+        let probe_now = known.is_empty() && !asking && !probed && installed;
+        let models = if known.is_empty() { vec![ModelChoice { value: "default".into(), name: crate::i18n::tr("Default").to_string(), efforts: Vec::new() }] } else { known.clone() };
+        if probe_now {
+            self.agent_probe(ctx, tool, &folder);
         }
-        let installed = !self.agents.program.1.is_empty() || assistant::installed(&self.agents.program.0);
-        let models = if self.agents.models.is_empty() { vec![ModelChoice { value: "default".into(), name: crate::i18n::tr("Default").to_string(), efforts: Vec::new() }] } else { self.agents.models.clone() };
         let efforts = models.iter().find(|m| m.value == choice.model).map(|m| m.efforts.clone()).filter(|e| !e.is_empty()).unwrap_or_else(|| crate::agent_session::EFFORTS.iter().map(|e| e.to_string()).collect());
         let mut open = true;
         let mut start = false;
@@ -438,11 +548,23 @@ impl Limoniter {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.label(crate::i18n::tr("Agent:"));
-                let _ = ui.radio(true, "Claude Code");
-                ui.add_enabled(false, egui::RadioButton::new(false, crate::i18n::tr("Codex (in the next batch)")));
+                for (n, candidate) in [Tool::Claude, Tool::Codex].into_iter().enumerate() {
+                    let response = ui.add_enabled(installed_both[n], egui::RadioButton::new(choice.tool == candidate, candidate.name()));
+                    let response = if installed_both[n] { response } else { response.on_disabled_hover_text(crate::i18n::tf!("{} isn't installed here, or isn't on the PATH.", candidate.name())) };
+                    if response.clicked() && choice.tool != candidate {
+                        // What was chosen for one tool means nothing to the other.
+                        choice.tool = candidate;
+                        choice.model = "default".into();
+                        choice.effort = String::new();
+                    }
+                }
             });
             if !installed {
-                ui.label(egui::RichText::new(crate::i18n::tr("Claude Code isn't installed here, or isn't on the PATH. Install it from claude.com/claude-code, then try again.")).color(theme::rainbow_mistake()));
+                let how = match tool {
+                    Tool::Claude => crate::i18n::tr("Claude Code isn't installed here, or isn't on the PATH. Install it from claude.com/claude-code, then try again."),
+                    Tool::Codex => crate::i18n::tr("Codex isn't installed here, or isn't on the PATH. Install it with npm i -g @openai/codex and sign in with codex, then try again."),
+                };
+                ui.label(egui::RichText::new(how).color(theme::rainbow_mistake()));
             }
             ui.add_space(6.0);
             egui::Grid::new("agent-new-grid").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
@@ -463,16 +585,16 @@ impl Limoniter {
                 ui.end_row();
             });
             ui.add_space(6.0);
-            ui.label(crate::i18n::tr("What it may do without asking:"));
-            for mode in Mode::ALL {
-                ui.radio_value(&mut choice.mode, mode, crate::i18n::tr(mode.label()));
+            ui.label(if choice.tool == Tool::Codex { crate::i18n::tr("What Codex may do without asking:") } else { crate::i18n::tr("What it may do without asking:") });
+            for mode in choice.tool.modes() {
+                ui.radio_value(&mut choice.mode, mode, crate::i18n::tr(mode.label_for(choice.tool)));
             }
             let warning = choice.mode == Mode::Bypass;
             let colour = if warning { theme::rainbow_mistake() } else { theme::text_dim() };
-            ui.label(egui::RichText::new(crate::i18n::tr(choice.mode.explain())).color(colour).size(12.0));
+            ui.label(egui::RichText::new(crate::i18n::tr(choice.mode.explain_for(choice.tool))).color(colour).size(12.0));
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.add_enabled(installed, egui::Button::new(crate::i18n::tr("Start"))).clicked() {
+                if ui.add_enabled(installed_both[usize::from(choice.tool == Tool::Codex)], egui::Button::new(crate::i18n::tr("Start"))).clicked() {
                     start = true;
                 }
                 if ui.button(crate::i18n::tr("Cancel")).clicked() {
@@ -492,6 +614,24 @@ impl Limoniter {
         }
     }
 
+    /// A step before a screenshot: the box for a new session, with a tool chosen ("codex") and the models its own
+    /// program would have given (the program isn't started).
+    pub(super) fn agents_dialog_screenshot_step(&mut self, value: &str) {
+        self.agents.probed = true;
+        self.agents.codex_probed = true;
+        let efforts: Vec<String> = ["low", "medium", "high", "xhigh", "max", "ultra"].iter().map(|e| e.to_string()).collect();
+        self.agents.codex_models = vec![
+            ModelChoice { value: "default".into(), name: "Default (GPT-6.2-Sol)".into(), efforts: efforts.clone() },
+            ModelChoice { value: "gpt-6.2-sol".into(), name: "GPT-6.2-Sol".into(), efforts },
+            ModelChoice { value: "gpt-5.6-luna".into(), name: "GPT-5.6-Luna".into(), efforts: vec!["low".into(), "medium".into()] },
+        ];
+        self.agent_new_session_box();
+        if let Some(choice) = self.agents.dialog.as_mut() {
+            choice.tool = if value.contains("codex") { Tool::Codex } else { Tool::Claude };
+            choice.mode = Mode::AcceptEdits;
+        }
+    }
+
     /// A step before a screenshot: a session with a conversation in it, as it would look part way through.
     /// "top" has no request waiting but the subagents and the bar of what's used in view; the default has a
     /// command waiting to be allowed.
@@ -499,12 +639,14 @@ impl Limoniter {
         use crate::agent_session::{Context as Fill, Limit, Limits, Permission, Task, TaskState, Tokens};
         self.panels.agents = true;
         let folder = self.agent_folder().unwrap_or_else(|| PathBuf::from("."));
-        let mut session = Session::without_driver(Tool::Claude, &folder);
+        // "codex" is the same conversation as Codex has it (its own mode names, models and efforts).
+        let codex = value.contains("codex");
+        let mut session = Session::without_driver(if codex { Tool::Codex } else { Tool::Claude }, &folder);
         session.finished = None;
         session.title = "Fix the parser's last line".into();
         let events = [
-            Event::Ready { models: vec![ModelChoice { value: "default".into(), name: "Default (recommended)".into(), efforts: Vec::new() }], mode: Mode::Ask },
-            Event::Started { session_id: "s".into(), model: "claude-opus-5-5".into(), mode: Mode::Ask },
+            Event::Ready { models: vec![ModelChoice { value: "default".into(), name: if codex { "Default (GPT-6.2-Sol)" } else { "Default (recommended)" }.into(), efforts: Vec::new() }], mode: if codex { Mode::AcceptEdits } else { Mode::Ask } },
+            Event::Started { session_id: "s".into(), model: if codex { "gpt-6.2-sol" } else { "claude-opus-5-5" }.into(), mode: if codex { Mode::AcceptEdits } else { Mode::Ask } },
             Event::Text { id: "m1:t1".into(), text: "I'll look at **parser.rs** first, then the test that covers the last line.".into(), done: true },
             Event::ToolUse { id: "t1".into(), name: "Read".into(), summary: "Read src/parser.rs".into(), kind: ToolKind::Other, parent: None },
             Event::ToolResult { id: "t1".into(), text: "fn parse() {}".into(), is_error: false },
@@ -521,7 +663,7 @@ impl Limoniter {
             session.apply(event);
         }
         session.busy = true;
-        if value != "top" {
+        if !value.contains("top") {
             session.apply(&Event::Permission(Permission {
                 id: "p1".into(),
                 tool: "Bash".into(),

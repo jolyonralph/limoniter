@@ -960,6 +960,13 @@ pub(super) const WORDS: &[Entry] = &[
     Check("Mark adverbs", Flag::Words(WordsSwitch::Adverbs)),
 ];
 
+/// What a song's file gives Suno and other song makers (see `lyrics_host`).
+pub(super) const LYRICS: &[Entry] = &[
+    Item("Copy the lyrics for Suno (with their tags)", Command::Lyrics(crate::app::lyrics_host::Action::CopyLyrics)),
+    Item("Copy the style for Suno", Command::Lyrics(crate::app::lyrics_host::Action::CopyStyle)),
+    Item("Copy the words alone (no tags)", Command::Lyrics(crate::app::lyrics_host::Action::CopyPlain)),
+];
+
 pub(super) const TOOLS: &[Entry] = &[
     Item("Colour as\u{2026}", Command::ColourAs),
     Keyed("Colour picker\u{2026}", Command::ColourPicker, "Ctrl+Alt+K"),
@@ -979,6 +986,7 @@ pub(super) const TOOLS: &[Entry] = &[
     Line,
     Sub("Spelling", &[Keyed("Next mistake", Command::NextMistake, "F7"), Check("Underline mistakes", Flag::Spelling)]),
     Sub("Words", WORDS),
+    Sub("Song lyrics", LYRICS),
     Sub("Macros", MACROS),
     Sub("Scripts", SCRIPTS),
     Sub("Add-ons", ADD_ONS),

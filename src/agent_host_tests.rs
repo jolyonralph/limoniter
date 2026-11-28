@@ -4,7 +4,7 @@
 use super::super::tests::{app_with, draw};
 use super::*;
 use crate::agent_claude::agent_claude_tests::fake_options;
-use crate::agent_session::Item;
+use crate::agent_session::{Item, Tool};
 use serde_json::Value;
 
 fn folder(tag: &str) -> PathBuf {
@@ -166,6 +166,101 @@ fn a_past_session_is_taken_up_again_with_its_transcript_and_resume() {
     assert!(argv.contains("--resume") && argv.contains("old-session"), "{argv}");
 }
 
+/// An app with a Codex session running on its stand-in, in `dir`.
+fn app_with_codex(dir: &Path, extra: &[&str]) -> Option<(Limoniter, Context)> {
+    let options = crate::agent_codex::agent_codex_tests::fake_options(dir, extra)?;
+    let (mut app, ctx) = app_with("");
+    app.agents.codex_program = (options.program, options.prefix);
+    app.agent_start(&ctx, dir, &Choice { tool: Tool::Codex, ..Choice::default() }, None).unwrap();
+    Some((app, ctx))
+}
+
+#[test]
+fn a_codex_edit_opens_the_review_and_what_the_person_changed_is_what_is_left() {
+    let dir = folder("codex-edit");
+    let file = dir.join("a.txt");
+    std::fs::write(&file, "one\ntwo\nthree\n").unwrap();
+    let Some((mut app, ctx)) = app_with_codex(&dir, &[]) else { return };
+    assert_eq!(session(&app).tool, Tool::Codex);
+    app.agents.tabs[0].session.say(&format!("edit {}", file.display()));
+    until(&mut app, &ctx, "the review", |app| !app.review_tabs().is_empty());
+    let tab = review_tab(&app);
+    assert_eq!(app.review_proposed_text(tab).unwrap(), "one\nTWO\nthree\n", "the whole file, worked out from Codex's patch");
+    assert!(crate::files_changing::claimed_by(&file).is_some_and(|who| who.starts_with("Codex")), "the file is put down to Codex");
+    // Draws, with the request waiting on the review and Codex's own words for the mode.
+    app.panels.agents = true;
+    draw(&mut app, &ctx, Vec::new());
+    app.review_change_proposed(tab, "one\nMINE\nthree\n");
+    app.decide_review(tab, true);
+    until(&mut app, &ctx, "the edit", |app| !session(app).busy && std::fs::read_to_string(&file).unwrap() == "one\nMINE\nthree\n" && session(app).items.iter().any(|i| matches!(i, Item::Notice(_))));
+    assert!(app.review_tabs().is_empty());
+}
+
+#[test]
+fn rejecting_a_codex_edit_declines_it() {
+    let dir = folder("codex-reject");
+    let file = dir.join("a.txt");
+    std::fs::write(&file, "one\ntwo\nthree\n").unwrap();
+    let Some((mut app, ctx)) = app_with_codex(&dir, &[]) else { return };
+    app.agents.tabs[0].session.say(&format!("edit {}", file.display()));
+    until(&mut app, &ctx, "the review", |app| !app.review_tabs().is_empty());
+    let tab = review_tab(&app);
+    app.decide_review(tab, false);
+    until(&mut app, &ctx, "the refusal", |app| !session(app).busy && session(app).items.iter().any(|i| matches!(i, Item::Text { text, .. } if text == "refused")));
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "one\ntwo\nthree\n");
+}
+
+#[test]
+fn a_codex_command_is_asked_in_the_panel_and_marks_the_folder() {
+    let dir = folder("codex-command");
+    let Some((mut app, ctx)) = app_with_codex(&dir, &[]) else { return };
+    app.agents.tabs[0].session.say("command one");
+    until(&mut app, &ctx, "the request", |app| !session(app).waiting().is_empty());
+    assert!(app.review_tabs().is_empty());
+    assert!(crate::files_changing::claimed_by(&dir.join("b.txt")).is_some_and(|who| who.starts_with("Codex")));
+    let id = session(&app).waiting()[0].id.clone();
+    app.agents.tabs[0].session.answer(&id, Answer::Allow { text: None, for_session: false });
+    until(&mut app, &ctx, "the end", |app| !session(app).busy);
+}
+
+#[test]
+fn past_codex_sessions_are_listed_beside_claudes_and_taken_up_with_thread_resume() {
+    let dir = folder("codex-resume");
+    let Some(options) = crate::agent_codex::agent_codex_tests::fake_options(&dir, &[]) else { return };
+    let home = folder("codex-resume-home");
+    let day = home.join("sessions/2026/11/27");
+    std::fs::create_dir_all(&day).unwrap();
+    let meta = format!(r#"{{"type":"session_meta","payload":{{"id":"old-thread","cwd":"{}","originator":"codex_cli_rs"}}}}"#, dir.display().to_string().replace('\\', "\\\\"));
+    let said = r#"{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"UserMessage","id":"u","content":[{"type":"text","text":"Fix the parser"}]}}}"#;
+    let answered = r#"{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"AgentMessage","id":"a","content":[{"type":"Text","text":"Fixed."}]}}}"#;
+    std::fs::write(day.join("rollout-2026-11-27T10-00-00-old-thread.jsonl"), format!("{meta}\n{said}\n{answered}\n")).unwrap();
+    let past = crate::agent_codex_logs::list(&home, &dir);
+    assert_eq!(past.len(), 1);
+    assert_eq!(past[0].tool, Tool::Codex);
+    let (mut app, ctx) = app_with("");
+    app.agents.codex_program = (options.program, options.prefix);
+    app.agent_start(&ctx, &dir, &Choice { tool: Tool::Codex, ..Choice::default() }, Some(&past[0])).unwrap();
+    assert_eq!(session(&app).title, "Fix the parser");
+    assert_eq!(session(&app).items.len(), 2, "what was said is shown at once, from the log");
+    until(&mut app, &ctx, "the thread", |app| session(app).session_id.as_deref() == Some("old-thread") && !session(app).models.is_empty());
+    let log = std::fs::read_to_string(dir.join("log.txt")).unwrap();
+    assert!(log.contains("thread/resume") && log.contains("old-thread"), "{log}");
+}
+
+#[test]
+fn the_box_for_a_new_session_offers_both_tools_and_codexs_own_modes() {
+    let (mut app, ctx) = app_with("");
+    // The real programs aren't started to ask them for their models.
+    app.agents.probed = true;
+    app.agents.codex_probed = true;
+    app.agent_new_session_box();
+    draw(&mut app, &ctx, Vec::new());
+    app.agents.dialog.as_mut().unwrap().tool = Tool::Codex;
+    app.agents.dialog.as_mut().unwrap().mode = Mode::Bypass;
+    draw(&mut app, &ctx, Vec::new());
+    assert_eq!(Choice::default().tool, Tool::Claude);
+}
+
 #[test]
 fn the_panel_and_the_box_for_a_new_session_draw_with_a_made_up_conversation() {
     let (mut app, ctx) = app_with("");
@@ -231,6 +326,53 @@ fn real_claude_edits_a_file_through_the_review() {
     eprintln!("FILE {:?}", std::fs::read_to_string(&file));
     eprintln!("CLAIM {:?}", crate::files_changing::claimed_by(&file));
     eprintln!("TOKENS {:?} COST {:?} CONTEXT {:?} LIMITS {:?} MODEL {:?} TITLE {:?}", s.tokens, s.cost, s.context, s.limits, s.model, s.title);
+    for item in &s.items {
+        eprintln!("ITEM {item:?}");
+    }
+}
+
+/// By hand only (it uses the person's tokens): the real `codex` on its cheapest model, one tiny edit through the
+/// review, with Limoniter's MCP server offered to it. Run with `LIMONITER_REAL_CODEX=FOLDER cargo test --release
+/// --offline real_codex -- --ignored --nocapture`, FOLDER being a scratch folder with an `a.txt` in it holding the
+/// lines one, two and three.
+#[test]
+#[ignore]
+fn real_codex_edits_a_file_through_the_review_and_asks_limoniters_tools() {
+    let dir = PathBuf::from(std::env::var("LIMONITER_REAL_CODEX").expect("a scratch folder"));
+    let file = dir.join("a.txt");
+    let (mut app, ctx) = app_with("");
+    app.prefs.claude_ide = true;
+    let options = crate::claude_ide::Options { lock_dir: None, folders: vec![dir.display().to_string()], running_in_windows: false, also_on: Vec::new(), wake: Arc::new(|| {}) };
+    app.claude_ide_use(crate::claude_ide::Server::start(options).unwrap());
+    app.open_path(&file);
+    let choice = Choice { tool: Tool::Codex, model: "gpt-5.6-luna".into(), effort: "low".into(), ..Choice::default() };
+    app.agent_start(&ctx, &dir, &choice, None).unwrap();
+    app.agents.tabs[0].session.say("First call the getOpenEditors tool of the limoniter MCP server and tell me the label of the active file. Then use apply_patch (not the shell) to change the line two to TWO in a.txt.");
+    let began = std::time::Instant::now();
+    while app.review_tabs().is_empty() {
+        app.claude_ide_tick(&ctx);
+        app.agents_tick(&ctx);
+        // A command it chooses to run first (to look at the file) is allowed.
+        let commands: Vec<String> = session(&app).waiting().iter().filter(|p| matches!(p.kind, PermissionKind::Command(_))).map(|p| p.id.clone()).collect();
+        for id in commands {
+            app.agents.tabs[0].session.answer(&id, Answer::Allow { text: None, for_session: false });
+        }
+        assert!(began.elapsed() < Duration::from_secs(120), "no review; transcript {:?}", session(&app).items);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let tab = review_tab(&app);
+    eprintln!("PROPOSED {:?}", app.review_proposed_text(tab));
+    app.decide_review(tab, true);
+    while session(&app).busy || session(&app).context.is_none() {
+        app.claude_ide_tick(&ctx);
+        app.agents_tick(&ctx);
+        assert!(began.elapsed() < Duration::from_secs(240), "not finished; transcript {:?}", session(&app).items);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let s = session(&app);
+    eprintln!("FILE {:?}", std::fs::read_to_string(&file));
+    eprintln!("CLAIM {:?}", crate::files_changing::claimed_by(&file));
+    eprintln!("TOKENS {:?} CONTEXT {:?} LIMITS {:?} MODEL {:?} TITLE {:?} MODE {:?}", s.tokens, s.context, s.limits, s.model, s.title, s.mode);
     for item in &s.items {
         eprintln!("ITEM {item:?}");
     }

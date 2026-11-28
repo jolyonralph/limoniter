@@ -1,0 +1,78 @@
+%YAML 1.2
+---
+# Written for Limoniter for song lyrics as Suno and other song makers read them: sections set apart by tags on a
+# line of their own ([Verse 2: whispered]), tags inside a line ([Whispered] words), backing vocals in (brackets), and
+# a style block at the top between two --- lines. Each kind of section is coloured in its own way; the name inside the
+# brackets is also an entity.name.label, so the outline and Go to symbol list the song's sections.
+name: Song Lyrics
+file_extensions: [lyrics, song]
+scope: text.lyrics
+variables:
+  verse: (?i:verse|rap|spoken(?:\s+word)?|lyrics)
+  chorus: (?i:chorus|hook|refrain|final\s+chorus|last\s+chorus|repeat\s+chorus)
+  around: (?i:pre-?\s*chorus|post-?\s*chorus|pre\s+hook)
+  middle: (?i:bridge|break|breakdown|build|build-?up|drop|interlude|solo|[a-z]+\s+solo|middle\s+8)
+  ends: (?i:intro|outro|end|fade\s*out|fade\s*in|ending|silence)
+  music: (?i:instrumental(?:\s+break)?|instrumentals|beat|guitar|piano|drums|bass|strings)
+  tail: \s*(?:(:)\s*([^\]\n]*?))?\s*(\])\s*$
+contexts:
+  main:
+    - match: '^---\s*$'
+      scope: comment.line.separator.lyrics
+    - match: '^(style|title)(\s*:)(.*)$'
+      captures:
+        1: keyword.other.lyrics
+        2: punctuation.separator.lyrics
+        3: string.unquoted.lyrics
+    - match: '^(\s*\[)\s*({{verse}}(?:\s+\d+)?)(?={{tail}})'
+      captures:
+        1: punctuation.definition.tag.lyrics
+        2: entity.name.label.lyrics support.function.lyrics
+      push: tag_end
+    - match: '^(\s*\[)\s*({{chorus}}(?:\s+\d+)?)(?={{tail}})'
+      captures:
+        1: punctuation.definition.tag.lyrics
+        2: entity.name.label.lyrics keyword.control.lyrics
+      push: tag_end
+    - match: '^(\s*\[)\s*({{around}}(?:\s+\d+)?)(?={{tail}})'
+      captures:
+        1: punctuation.definition.tag.lyrics
+        2: entity.name.label.lyrics string.quoted.lyrics
+      push: tag_end
+    - match: '^(\s*\[)\s*({{middle}}(?:\s+\d+)?)(?={{tail}})'
+      captures:
+        1: punctuation.definition.tag.lyrics
+        2: entity.name.label.lyrics constant.numeric.lyrics
+      push: tag_end
+    - match: '^(\s*\[)\s*({{ends}}(?:\s+\d+)?)(?={{tail}})'
+      captures:
+        1: punctuation.definition.tag.lyrics
+        2: entity.name.label.lyrics storage.type.lyrics
+      push: tag_end
+    - match: '^(\s*\[)\s*({{music}}(?:\s+\d+)?)(?={{tail}})'
+      captures:
+        1: punctuation.definition.tag.lyrics
+        2: entity.name.label.lyrics entity.name.type.lyrics
+      push: tag_end
+    # Any other tag on a line of its own is a section too, such as [Female Vocal] or a tag of the writer's own.
+    - match: '^(\s*\[)\s*([^\]\n:]+?)(?={{tail}})'
+      captures:
+        1: punctuation.definition.tag.lyrics
+        2: entity.name.label.lyrics variable.parameter.lyrics
+      push: tag_end
+    # A tag inside a line of words, which asks for something of the voice or the playing.
+    - match: '\[[^\]\n]*\]'
+      scope: variable.parameter.lyrics
+    - match: '\([^)\n]*\)'
+      scope: markup.italic.lyrics
+
+  tag_end:
+    - match: '(:)\s*([^\]\n]*)'
+      captures:
+        1: punctuation.separator.lyrics
+        2: string.unquoted.lyrics
+    - match: '\]'
+      scope: punctuation.definition.tag.lyrics
+      pop: true
+    - match: '$'
+      pop: true

@@ -173,6 +173,7 @@ impl NewKind {
             Self::new("YAML", "yaml", "utf-8", line, "", Program::None, ""),
             Self::new("TOML", "toml", "utf-8", line, "", Program::None, ""),
             Self::new("XML", "xml", "utf-8", line, "", Program::None, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"),
+            Self::new("Song lyrics (Suno and others)", "lyrics", "utf-8", line, highlight::SONG_LYRICS, Program::None, crate::lyrics::STARTER),
             Self::new("Plain text", "txt", "utf-8", line, "", Program::None, ""),
             Self::new("Commodore text (PETSCII)", "seq", "petscii-c64", Eol::Cr, "", Program::None, ""),
             Self::new("ZX Spectrum text", "txt", "zx-spectrum", Eol::Cr, "", Program::None, ""),
@@ -258,7 +259,7 @@ impl NewKind {
             "Dragon and Vectrex"
         } else if starts("DOS program") || starts("PC boot") {
             "PC"
-        } else if ["Markdown", "Plain text", "Commodore text (PETSCII)", "ZX Spectrum text", "Amiga text", "DOS text"].contains(&name) {
+        } else if ["Markdown", "Song lyrics (Suno and others)", "Plain text", "Commodore text (PETSCII)", "ZX Spectrum text", "Amiga text", "DOS text"].contains(&name) {
             "Text"
         } else if Self::usual().iter().any(|kind| kind.name == name) {
             "Modern languages"

@@ -337,6 +337,10 @@ pub enum Event {
     OpenFile { client: u64, request: OpenFileRequest, reply: Sender<Vec<String>> },
     /// `uri` as the client wrote it, or None for every file.
     Diagnostics { client: u64, uri: Option<String>, reply: Sender<Vec<String>> },
+    /// What's selected in the file in front (Codex asks; Claude Code is told as it changes).
+    CurrentSelection { client: u64, reply: Sender<Vec<String>> },
+    /// The open files.
+    OpenEditors { client: u64, reply: Sender<Vec<String>> },
 }
 
 /// What `openFile` asks for: a file as a tab, and perhaps part of it selected, found by the text it starts and ends with.
@@ -446,6 +450,30 @@ pub fn tools() -> Value {
             "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
         }
     ])
+}
+
+/// The tools offered to a client that asks over HTTP (Codex): the same ones for problems and opening files, and
+/// two to ask what the person has in front of them, since it isn't told as Claude Code is. No diffs: Codex's
+/// changes are reviewed through its own approvals.
+pub fn tools_for_http() -> Value {
+    let mut tools: Vec<Value> = tools().as_array().cloned().unwrap_or_default().into_iter().filter(|t| matches!(t.get("name").and_then(Value::as_str), Some("getDiagnostics" | "openFile"))).collect();
+    tools.push(json!({
+        "name": "getCurrentSelection",
+        "description": "Get the text selected in the editor's active file, and where it is.",
+        "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+    }));
+    tools.push(json!({
+        "name": "getOpenEditors",
+        "description": "List the files open in the editor, and which one is active.",
+        "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+    }));
+    // Codex asks the person before running a tool that might change something. These only look, or (openFile) show a
+    // file, so they say so, and run without asking.
+    for tool in &mut tools {
+        let looks_only = tool.get("name").and_then(Value::as_str) != Some("openFile");
+        tool["annotations"] = json!({ "readOnlyHint": looks_only, "destructiveHint": false, "openWorldHint": false });
+    }
+    Value::Array(tools)
 }
 
 /// The language servers' problems as `getDiagnostics` answers with them: one entry per file, in VS Code's form.
@@ -785,6 +813,10 @@ fn serve(stream: TcpStream, shared: &Arc<Shared>) {
     let _ = stream.set_nonblocking(false);
     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
     let _ = stream.set_nodelay(true);
+    if is_plain_http(&stream) {
+        serve_http(stream, shared);
+        return;
+    }
     let token = shared.token.clone();
     let Ok(mut socket) = tungstenite::accept_hdr(stream, move |request: &Request, response: Response| check_handshake(&token, request, response)) else {
         return;
@@ -838,7 +870,7 @@ fn serve(stream: TcpStream, shared: &Arc<Shared>) {
                 let Ok(message) = serde_json::from_str::<Value>(&text) else {
                     continue;
                 };
-                match handle(&message, id, shared, &style) {
+                match handle(&message, id, shared, &style, false) {
                     Handled::Reply(reply) => {
                         if socket.send(Message::text(reply.to_string())).is_err() {
                             break 'talk;
@@ -862,6 +894,90 @@ fn serve(stream: TcpStream, shared: &Arc<Shared>) {
     (shared.wake)();
 }
 
+/// Whether what's arriving is a plain HTTP request (Codex's MCP client) and not a WebSocket's opening: a POST, or
+/// a GET that doesn't ask to be upgraded.
+fn is_plain_http(stream: &TcpStream) -> bool {
+    let mut seen = [0u8; 2048];
+    let began = Instant::now();
+    loop {
+        let Ok(count) = stream.peek(&mut seen) else { return false };
+        if count >= 5 || began.elapsed() > Duration::from_secs(3) {
+            let head = String::from_utf8_lossy(&seen[..count]).to_lowercase();
+            return head.starts_with("post ") || head.starts_with("delete ") || (head.starts_with("get ") && !head.contains("upgrade: websocket"));
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// The most of a request body taken.
+const MOST_BODY: usize = 4 * 1024 * 1024;
+/// How long a tool call is waited for: the window answers within a moment, but a person may take longer on a diff.
+const WAIT_FOR_WINDOW: Duration = Duration::from_secs(600);
+
+fn http_reply(stream: &mut TcpStream, status: &str, body: &str) {
+    use std::io::Write;
+    let head = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+    let _ = stream.write_all(head.as_bytes()).and_then(|()| stream.write_all(body.as_bytes())).and_then(|()| stream.flush());
+}
+
+/// Looks after one HTTP request, in MCP's streamable form: a JSON-RPC message in the POST's body, its answer in the
+/// reply's. The key is `Authorization: Bearer <key>`, or the header Claude Code uses.
+fn serve_http(mut stream: TcpStream, shared: &Arc<Shared>) {
+    use std::io::Read;
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    let mut bytes: Vec<u8> = Vec::new();
+    let mut chunk = [0u8; 4096];
+    let head_end = loop {
+        if let Some(at) = bytes.windows(4).position(|w| w == b"\r\n\r\n") {
+            break at;
+        }
+        match stream.read(&mut chunk) {
+            Ok(0) | Err(_) => return,
+            Ok(n) => bytes.extend_from_slice(&chunk[..n]),
+        }
+        if bytes.len() > 64 * 1024 {
+            return;
+        }
+    };
+    let head = String::from_utf8_lossy(&bytes[..head_end]).into_owned();
+    let mut lines = head.lines();
+    let method = lines.next().unwrap_or("").split(' ').next().unwrap_or("").to_string();
+    let header = |name: &str| lines.clone().find_map(|l| l.split_once(':').filter(|(k, _)| k.trim().eq_ignore_ascii_case(name)).map(|(_, v)| v.trim().to_string()));
+    let given = header("authorization").map(|v| v.strip_prefix("Bearer ").unwrap_or(&v).to_string()).or_else(|| header(AUTH_HEADER));
+    if given.as_deref() != Some(shared.token.as_str()) {
+        return http_reply(&mut stream, "401 Unauthorized", "{}");
+    }
+    if method != "POST" {
+        // No stream of messages from the server is offered; the client does without.
+        return http_reply(&mut stream, "405 Method Not Allowed", "{}");
+    }
+    let length: usize = header("content-length").and_then(|v| v.parse().ok()).unwrap_or(0).min(MOST_BODY);
+    let mut body = bytes[head_end + 4..].to_vec();
+    while body.len() < length {
+        match stream.read(&mut chunk) {
+            Ok(0) | Err(_) => return,
+            Ok(n) => body.extend_from_slice(&chunk[..n]),
+        }
+    }
+    body.truncate(length);
+    let Ok(message) = serde_json::from_slice::<Value>(&body) else {
+        return http_reply(&mut stream, "400 Bad Request", "{}");
+    };
+    let id = shared.next_id.fetch_add(1, Ordering::Relaxed);
+    let style = AtomicU8::new(shared.default_style.load(Ordering::Relaxed));
+    match handle(&message, id, shared, &style, true) {
+        Handled::Reply(reply) => http_reply(&mut stream, "200 OK", &reply.to_string()),
+        Handled::Wait(pend) => {
+            let answer = match pend.reply.recv_timeout(WAIT_FOR_WINDOW) {
+                Ok(texts) => json!({ "jsonrpc": "2.0", "id": pend.id, "result": result_of(&texts) }),
+                Err(_) => json!({ "jsonrpc": "2.0", "id": pend.id, "error": { "code": -32603, "message": "Limoniter couldn't do that" } }),
+            };
+            http_reply(&mut stream, "200 OK", &answer.to_string());
+        }
+        Handled::Nothing => http_reply(&mut stream, "202 Accepted", ""),
+    }
+}
+
 enum Handled {
     Reply(Value),
     Wait(Pending),
@@ -873,7 +989,7 @@ fn error(id: &Value, code: i64, message: &str) -> Handled {
 }
 
 /// Deals with one message from a client: answers it, or asks the window and says what to wait for.
-fn handle(message: &Value, client: u64, shared: &Shared, style: &AtomicU8) -> Handled {
+fn handle(message: &Value, client: u64, shared: &Shared, style: &AtomicU8, http: bool) -> Handled {
     let Some(method) = message.get("method").and_then(Value::as_str) else {
         return Handled::Nothing;
     };
@@ -894,7 +1010,7 @@ fn handle(message: &Value, client: u64, shared: &Shared, style: &AtomicU8) -> Ha
             }))
         }
         "ping" => ok(json!({})),
-        "tools/list" => ok(json!({ "tools": tools() })),
+        "tools/list" => ok(json!({ "tools": if http { tools_for_http() } else { tools() } })),
         "tools/call" => {
             let name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let args = params.get("arguments").cloned().unwrap_or(Value::Null);
@@ -925,6 +1041,8 @@ fn handle(message: &Value, client: u64, shared: &Shared, style: &AtomicU8) -> Ha
                     Event::CloseTab { client, tab_name, reply }
                 }
                 "closeAllDiffTabs" => Event::CloseAllDiffTabs { client, reply },
+                "getCurrentSelection" => Event::CurrentSelection { client, reply },
+                "getOpenEditors" => Event::OpenEditors { client, reply },
                 "openFile" => {
                     let Some(file_path) = text("filePath") else {
                         return error(&id, -32602, "openFile needs filePath");
@@ -1227,6 +1345,67 @@ mod tests {
         assert_eq!(uri, None, "with no address, every file");
         reply.send(vec!["[]".into()]).unwrap();
         assert_eq!(next_message(&mut socket)["id"], 41);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// One plain HTTP request, as Codex's MCP client makes it, and the status and body of the answer.
+    fn post(port: u16, method: &str, token: Option<&str>, body: &Value) -> (u16, Value) {
+        use std::io::{Read, Write};
+        let body = body.to_string();
+        let auth = token.map(|t| format!("Authorization: Bearer {t}\r\n")).unwrap_or_default();
+        let request = format!("{method} /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\n{auth}Content-Length: {}\r\n\r\n{body}", body.len());
+        let mut stream = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).unwrap();
+        stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        stream.write_all(request.as_bytes()).unwrap();
+        let mut answer = String::new();
+        let _ = stream.read_to_string(&mut answer);
+        let status = answer.split(' ').nth(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+        let json = answer.split("\r\n\r\n").nth(1).and_then(|b| serde_json::from_str(b).ok()).unwrap_or(Value::Null);
+        (status, json)
+    }
+
+    #[test]
+    fn codex_asks_over_plain_http_with_the_key_and_gets_the_tools_for_what_is_open() {
+        let (server, dir) = start("http");
+        let (status, _) = post(server.port, "POST", None, &json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize" }));
+        assert_eq!(status, 401, "no key, no answer");
+        let (status, _) = post(server.port, "POST", Some("wrong"), &json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize" }));
+        assert_eq!(status, 401);
+        let (status, hello) = post(server.port, "POST", Some(&server.token), &json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": { "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": { "name": "codex", "version": "0.172.0" } } }));
+        assert_eq!(status, 200);
+        assert_eq!(hello["result"]["protocolVersion"], "2025-06-18");
+        let (status, _) = post(server.port, "POST", Some(&server.token), &json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }));
+        assert_eq!(status, 202, "a notification is accepted and not answered");
+        let (_, tools) = post(server.port, "POST", Some(&server.token), &json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }));
+        let names: Vec<&str> = tools["result"]["tools"].as_array().unwrap().iter().filter_map(|t| t["name"].as_str()).collect();
+        assert_eq!(names, vec!["getDiagnostics", "openFile", "getCurrentSelection", "getOpenEditors"], "no diffs: Codex's changes go through its own approvals");
+        assert!(tools["result"]["tools"].as_array().unwrap().iter().all(|t| t["annotations"]["destructiveHint"] == false), "none asks Codex to ask the person first");
+        let (status, _) = post(server.port, "GET", Some(&server.token), &json!({}));
+        assert_eq!(status, 405, "no stream of server messages is offered");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_tool_called_over_http_is_asked_of_the_window_and_answered_in_the_reply() {
+        let (server, dir) = start("http-call");
+        let port = server.port;
+        let token = server.token.clone();
+        let caller = std::thread::spawn(move || post(port, "POST", Some(&token), &json!({ "jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": { "name": "getCurrentSelection", "arguments": {} } })));
+        let Event::CurrentSelection { reply, .. } = next_event(&server) else { panic!("not a selection") };
+        reply.send(vec![json!({ "success": true, "text": "let x" }).to_string()]).unwrap();
+        let (status, answer) = caller.join().unwrap();
+        assert_eq!(status, 200);
+        assert_eq!(answer["id"], 7);
+        assert!(answer["result"]["content"][0]["text"].as_str().unwrap().contains("let x"));
+        let token = server.token.clone();
+        let caller = std::thread::spawn(move || post(port, "POST", Some(&token), &json!({ "jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": { "name": "getOpenEditors" } })));
+        let Event::OpenEditors { reply, .. } = next_event(&server) else { panic!("not the editors") };
+        reply.send(vec!["{\"tabs\":[]}".into()]).unwrap();
+        assert_eq!(caller.join().unwrap().1["id"], 8);
+        // A WebSocket client still gets in beside it.
+        let mut socket = hello(&server);
+        ask(&mut socket, 3, "tools/list", json!({}));
+        assert!(next_message(&mut socket)["result"]["tools"].as_array().unwrap().iter().any(|t| t["name"] == "openDiff"), "Claude Code's tools are as they were");
         let _ = std::fs::remove_dir_all(dir);
     }
 

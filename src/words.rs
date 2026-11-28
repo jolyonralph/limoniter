@@ -518,6 +518,30 @@ pub fn rhymes_with(a: &str, b: &str) -> bool {
     ta.sounds == tb.sounds && ta.before != tb.before
 }
 
+/// How two different words rhyme: `Some(true)` for a perfect rhyme, `Some(false)` for a near one (the same vowel
+/// with a like ending, as "time" and "line", or a like vowel and ending after the same sound), and None for no
+/// rhyme at all. A word the dictionary hasn't got is guessed from its spelling.
+pub fn rhyme_degree(a: &str, b: &str) -> Option<bool> {
+    if rhymes_with(a, b) {
+        return Some(true);
+    }
+    let (a, b) = (normal(a), normal(b));
+    let (a, b) = (a.trim_matches(|c: char| !c.is_alphanumeric()), b.trim_matches(|c: char| !c.is_alphanumeric()));
+    if a.is_empty() || a == b {
+        return None;
+    }
+    let get = |w: &str| dictionary().find(w).map(<[u8]>::to_vec).or_else(|| sounds_by_ending(w));
+    let (sa, sb) = (get(a)?, get(b)?);
+    let (ia, ib) = (tail_start(&sa)?, tail_start(&sb)?);
+    let (ta, tb): (Vec<u8>, Vec<u8>) = (sa[ia..].iter().map(|&c| like(c)).collect(), sb[ib..].iter().map(|&c| like(c)).collect());
+    // The same sounds once the like ones are taken as one ("time" and "line"), or one syllable's ending with another
+    // vowel before it ("love" and "move").
+    let one_vowel = |t: &[u8]| t.iter().filter(|&&c| is_vowel(c)).count() == 1;
+    let like_ending = ta == tb;
+    let other_vowel = ta.len() > 1 && ta.len() == tb.len() && one_vowel(&ta) && one_vowel(&tb) && ta[0] != tb[0] && ta[1..] == tb[1..];
+    (like_ending || other_vowel).then_some(false)
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // The thesaurus
 // ---------------------------------------------------------------------------------------------------------------

@@ -13,7 +13,6 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tool {
     Claude,
-    #[allow(dead_code, reason = "the Codex driver comes in the next batch")]
     Codex,
 }
 
@@ -22,6 +21,14 @@ impl Tool {
         match self {
             Tool::Claude => "Claude Code",
             Tool::Codex => "Codex",
+        }
+    }
+
+    /// The modes in the order the tool's own settings list them.
+    pub fn modes(self) -> [Mode; 4] {
+        match self {
+            Tool::Claude => Mode::ALL,
+            Tool::Codex => [Mode::Plan, Mode::Ask, Mode::AcceptEdits, Mode::Bypass],
         }
     }
 }
@@ -49,6 +56,28 @@ impl Mode {
             Mode::AcceptEdits => "Accept edits",
             Mode::Plan => "Plan only",
             Mode::Bypass => "Bypass permissions",
+        }
+    }
+
+    /// What the tool itself calls the mode. Codex has three levels of its own (read only, workspace, full access)
+    /// and a way of asking, which these four are made from.
+    pub fn label_for(self, tool: Tool) -> &'static str {
+        match (tool, self) {
+            (Tool::Codex, Mode::Plan) => "Read only",
+            (Tool::Codex, Mode::Ask) => "Ask before changes (untrusted)",
+            (Tool::Codex, Mode::AcceptEdits) => "Workspace write",
+            (Tool::Codex, Mode::Bypass) => "Full access",
+            _ => self.label(),
+        }
+    }
+
+    pub fn explain_for(self, tool: Tool) -> &'static str {
+        match (tool, self) {
+            (Tool::Codex, Mode::Plan) => "Codex can read files and run safe commands, and can't change anything in this folder.",
+            (Tool::Codex, Mode::Ask) => "Codex works inside this folder, and asks before each edit and each command it can't be sure is harmless.",
+            (Tool::Codex, Mode::AcceptEdits) => "Codex edits files in this folder without asking, and asks before a command that needs more than that.",
+            (Tool::Codex, Mode::Bypass) => "Warning: Codex may change or delete any file and run any command, without asking you. Only use this in a folder you could lose.",
+            _ => self.explain(),
         }
     }
 

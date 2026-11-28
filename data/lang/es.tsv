@@ -11670,3 +11670,59 @@ claude-opus-5-5	claude-opus-5-5
 claude_limits	claude_limits
 gpt-5.5	gpt-5.5
 theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\nreopen_project={}\nclaude_ide={}\nclaude_limits={}\n	theme={}\nspaces_for_tab={}\nauto_indent={}\nlock_insert={}\nhome_to_start={}\nwhole_line_copy={}\nnulls_open_in_hex={}\ncopy_before_paste={}\nkeep_undo_history={}\nmarkdown_view={}\nfind_from_selection={}\nfind_in_file_folder={}\nwatch_files={}\nwatch_often={}\nreload_quietly={}\nhex_row={}\nprint_header={}\nprint_line_numbers={}\nparagraph_width={}\nparagraph_left={}\nparagraph_first={}\nparagraph_align={}\nnew_window_per_file={}\nspelling={}\nopen_tables={}\nautosave={}\nautosave_seconds={}\nbackup_on_save={}\nzx_notation={}\nm68k_processor={}\nm68k_fpu={}\nm68k_mmu={}\nopticos_updates={}\nupdate_checks={}\nupdate_download={}\nlanguage={}\nautosave_when={}\nautosave_skip_errors={}\nhot_exit={}\ncode_spelling={}\nreopen_project={}\nclaude_ide={}\nclaude_limits={}\n
+Read only	Solo lectura
+Ask before changes (untrusted)	Preguntar antes de los cambios (no confiable)
+Workspace write	Escritura en el espacio de trabajo
+Full access	Acceso completo
+Codex can read files and run safe commands, and can't change anything in this folder.	Codex puede leer archivos y ejecutar comandos seguros, pero no puede cambiar nada en esta carpeta.
+Codex edits files in this folder without asking, and asks before a command that needs more than that.	Codex edita archivos en esta carpeta sin preguntar, y pregunta antes de un comando que necesite más que eso.
+Codex works inside this folder, and asks before each edit and each command it can't be sure is harmless.	Codex trabaja dentro de esta carpeta y pregunta antes de cada edición y de cada comando que no pueda asegurar que sea inofensivo.
+Warning: Codex may change or delete any file and run any command, without asking you. Only use this in a folder you could lose.	Advertencia: Codex puede cambiar o borrar cualquier archivo y ejecutar cualquier comando, sin preguntarle. Úselo solo en una carpeta que pueda permitirse perder.
+What Codex may do without asking:	Lo que Codex puede hacer sin preguntar:
+Codex isn't installed here, or isn't on the PATH. Install it with npm i -g @openai/codex and sign in with codex, then try again.	Codex no está instalado aquí, o no está en el PATH. Instálelo con npm i -g @openai/codex e inicie sesión con codex, y vuelva a intentarlo.
+{} isn't installed here, or isn't on the PATH.	{} no está instalado aquí, o no está en el PATH.
+Default ({})	Predeterminado ({})
+Allow more access	Permitir más acceso
+Change files	Cambiar archivos
+Create {}	Crear {}
+Delete {}	Borrar {}
+Move {} to {}	Mover {} a {}
+Done.	Hecho.
+The change failed.	El cambio falló.
+The turn failed.	El turno falló.
+It wasn't allowed to make this change.	No se permitió hacer este cambio.
+It wasn't allowed to run.	No se permitió ejecutarlo.
+Finished with exit code {}.	Terminó con el código de salida {}.
+Your changes to {} were kept over Codex's, and Codex will be told in your next message.	Sus cambios en {} se conservaron en lugar de los de Codex, y se le avisará a Codex en su próximo mensaje.
+Couldn't write your changes to {}: {}	No se pudieron escribir sus cambios en {}: {}
+Codex tried to ask a question with choices, which this panel can't show yet.	Codex intentó hacer una pregunta con opciones, que este panel aún no puede mostrar.
+Codex is trying again after a problem: {}	Codex lo intenta de nuevo tras un problema: {}
+Codex said: {}	Codex dijo: {}
+Codex couldn't start a session.	Codex no pudo iniciar una sesión.
+Codex didn't answer.	Codex no respondió.
+Codex has finished.	Codex ha terminado.
+Codex has gone.	Codex se ha ido.
+Codex stopped ({}). {}	Codex se detuvo ({}). {}
+Let Claude Code and Codex work with Limoniter	Dejar que Claude Code y Codex trabajen con Limoniter
+When you run claude in Limoniter's terminal, it shows its proposed changes here to accept, reject or edit, sees what you've selected and the problems the language servers found, and can be told about a file with Mention in Claude Code. Codex sessions in the AI agents panel are offered the same through a small tool server. Limoniter listens only on this computer, and only for a program that has the key it keeps for it	Cuando ejecuta claude en el terminal de Limoniter, muestra aquí sus cambios propuestos para aceptarlos, rechazarlos o editarlos, ve lo que ha seleccionado y los problemas que encontraron los servidores de lenguaje, y se le puede indicar un archivo con Mencionar en Claude Code. A las sesiones de Codex del panel de agentes de IA se les ofrece lo mismo mediante un pequeño servidor de herramientas. Limoniter escucha solo en este equipo, y solo a un programa que tenga la clave que guarda para ello
+Song lyrics (Suno and others)	Letras de canciones (Suno y otros)
+Song lyrics	Letras de canciones
+Copy the lyrics for Suno (with their tags)	Copiar la letra para Suno (con sus etiquetas)
+Copy the style for Suno	Copiar el estilo para Suno
+Copy the words alone (no tags)	Copiar solo las palabras (sin etiquetas)
+Style	Estilo
+Lyrics	Letra
+Genre, mood, instruments, voice: what the song should sound like	Género, ambiente, instrumentos, voz: cómo debe sonar la canción
+{name}: {used} of {most}	{name}: {used} de {most}
+Copy lyrics	Copiar letra
+Copy style	Copiar estilo
+Copy the lyrics, with their tags, for Suno's lyrics box	Copiar la letra, con sus etiquetas, para el cuadro de letra de Suno
+Copy the style for Suno's style box	Copiar el estilo para el cuadro de estilo de Suno
+Limits	Límites
+The most characters Suno's boxes take. These change with its models, so they can be changed here.	El máximo de caracteres que admiten los cuadros de Suno. Cambia con sus modelos, así que se puede modificar aquí.
+Copied the lyrics ({count} characters).	Letra copiada ({count} caracteres).
+Copied the lyrics ({count} characters), which is {extra} more than Suno's lyrics box takes.	Letra copiada ({count} caracteres), que son {extra} más de los que admite el cuadro de letra de Suno.
+Copied the words without their tags ({count} characters).	Palabras copiadas sin sus etiquetas ({count} caracteres).
+Copied the words without their tags ({count} characters), which is {extra} more than Suno's lyrics box takes.	Palabras copiadas sin sus etiquetas ({count} caracteres), que son {extra} más de los que admite el cuadro de letra de Suno.
+Copied the style ({count} characters).	Estilo copiado ({count} caracteres).
+Copied the style ({count} characters), which is {extra} more than Suno's style box takes.	Estilo copiado ({count} caracteres), que son {extra} más de los que admite el cuadro de estilo de Suno.

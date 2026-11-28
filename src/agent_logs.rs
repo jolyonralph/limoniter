@@ -5,7 +5,7 @@
 //! The log's format is Claude Code's own and not promised to stay; whatever can't be read is left out.
 
 use crate::agent_claude::describe;
-use crate::agent_session::{Item, ToolResult};
+use crate::agent_session::{Item, Tool, ToolResult};
 use serde_json::Value;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -27,6 +27,8 @@ pub struct Past {
     pub first_message: String,
     pub when: SystemTime,
     pub path: PathBuf,
+    /// Whose log it is.
+    pub tool: Tool,
 }
 
 /// What Claude Code calls a project's folder in its logs: the path with each character that isn't a letter or a
@@ -103,7 +105,7 @@ fn read_past(path: &Path) -> Option<Past> {
         return None;
     }
     let title = if title.is_empty() { crate::agent_session::title_from(&first) } else { title };
-    Some(Past { id, title, first_message: first, when, path: path.to_path_buf() })
+    Some(Past { id, title, first_message: first, when, path: path.to_path_buf(), tool: Tool::Claude })
 }
 
 /// The past sessions of a project, the newest first.
